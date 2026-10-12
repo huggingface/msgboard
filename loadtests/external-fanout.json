@@ -1,0 +1,11 @@
+{
+  "suite": "scenario",
+  "scenarios": [
+    {"name": "https_fanout_10", "readers": 10, "rate": 20, "concurrency": 128, "size": 2048, "duration": 15},
+    {"name": "https_fanout_100", "readers": 100, "rate": 20, "concurrency": 128, "size": 2048, "duration": 15},
+    {"name": "https_fanout_500", "readers": 500, "rate": 20, "concurrency": 128, "size": 2048, "duration": 15},
+    {"name": "https_fanout_1000", "readers": 1000, "rate": 20, "concurrency": 128, "size": 2048, "duration": 15},
+    {"name": "https_fanout_1000_partitioned", "readers": 1000, "rate": 20, "concurrency": 128, "size": 2048, "channel_count": 32, "duration": 15},
+    {"name": "https_idle_2100", "readers": 2100, "poll_capacity": true, "duration": 15}
+  ]
+}

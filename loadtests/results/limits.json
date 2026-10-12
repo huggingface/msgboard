@@ -1,0 +1,117 @@
+{
+  "id": "711ebf56e09a43a8a0fabf05944b79bf",
+  "status": "failed",
+  "started_at": 1791553418.6792746,
+  "configuration": {
+    "suite": "limits",
+    "duration": 10.0
+  },
+  "pid": 19,
+  "returncode": 1,
+  "stdout": "",
+  "stderr": "e)\n  File \"/app/loadtest.py\", line 268, in scenario\n    after_snapshot = await self.control(\"GET\", \"/_bench/system\")\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/app/loadtest.py\", line 108, in control\n    response = await self.client.request(method, path, headers=self.headers(), **kwargs)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/httpx/_client.py\", line 1540, in request\n    return await self.send(request, auth=auth, follow_redirects=follow_redirects)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/httpx/_client.py\", line 1629, in send\n    response = await self._send_handling_auth(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/httpx/_client.py\", line 1657, in _send_handling_auth\n    response = await self._send_handling_redirects(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/httpx/_client.py\", line 1694, in _send_handling_redirects\n    response = await self._send_single_request(request)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/httpx/_client.py\", line 1730, in _send_single_request\n    response = await transport.handle_async_request(request)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/httpx/_transports/default.py\", line 393, in handle_async_request\n    with map_httpcore_exceptions():\n         ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/contextlib.py\", line 158, in __exit__\n    self.gen.throw(value)\n  File \"/usr/local/lib/python3.12/site-packages/httpx/_transports/default.py\", line 118, in map_httpcore_exceptions\n    raise mapped_exc(message) from exc\nhttpx.RemoteProtocolError: Server disconnected without sending a response.\n",
+  "result": {
+    "started_at": 1791553418.886209,
+    "target": "http://127.0.0.1:7860",
+    "transport": "loopback_shared_cpu",
+    "configuration": {
+      "suite": "limits",
+      "duration": 10.0
+    },
+    "scenarios": [],
+    "system": {
+      "time": 1791553418.9125385,
+      "pid": 1,
+      "python": "3.12.15",
+      "sqlite": "3.46.1",
+      "cpu_count": 16,
+      "cpu_seconds": 253.854448,
+      "max_rss_kib": 66344,
+      "process": {
+        "VmHWM": "66344 kB",
+        "VmRSS": "64452 kB",
+        "Threads": "6"
+      },
+      "cgroup": {
+        "cpu.max": "200000 100000",
+        "cpu.stat": "usage_usec 526439452\nuser_usec 416724551\nsystem_usec 109714901\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 4471\nnr_throttled 70\nthrottled_usec 4152777\nnr_bursts 0\nburst_usec 0",
+        "memory.current": "4628611072",
+        "memory.max": "16000000000",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+      },
+      "dependencies": {
+        "fastapi": "0.142.4",
+        "uvicorn": "0.54.0",
+        "httpx": "0.28.1"
+      },
+      "limits": {
+        "max_body_bytes": 65536,
+        "max_metadata_bytes": 16384,
+        "max_attachments_per_message": 16,
+        "max_page_size": 500,
+        "default_page_size": 100,
+        "max_page_bytes": 4194304,
+        "max_wait_seconds": 30.0,
+        "max_open_polls": 2000,
+        "max_pending_writes": 512,
+        "reader_threads": 4,
+        "max_upload_bytes": 52428800,
+        "max_concurrent_uploads": 4,
+        "default_token_ttl": 86400,
+        "max_admin_token_ttl": 31536000
+      },
+      "bench_enabled": true
+    },
+    "boundary_checks": [
+      {
+        "check": "body_size",
+        "bytes": 65536,
+        "status": 201
+      },
+      {
+        "check": "body_size",
+        "bytes": 65537,
+        "status": 413
+      },
+      {
+        "check": "page_limit",
+        "limit": 500,
+        "status": 200
+      },
+      {
+        "check": "page_limit",
+        "limit": 501,
+        "status": 422
+      },
+      {
+        "check": "metadata_size",
+        "serialized_bytes": 16384,
+        "status": 201
+      },
+      {
+        "check": "metadata_size",
+        "serialized_bytes": 16385,
+        "status": 413
+      },
+      {
+        "check": "idempotency",
+        "body": "deduplication",
+        "status": 201,
+        "seq": 3
+      },
+      {
+        "check": "idempotency",
+        "body": "deduplication",
+        "status": 200,
+        "seq": 3
+      },
+      {
+        "check": "idempotency",
+        "body": "changed",
+        "status": 409,
+        "seq": null
+      }
+    ]
+  },
+  "finished_at": 1791553439.8496573
+}

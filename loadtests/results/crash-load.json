@@ -1,0 +1,30 @@
+{
+  "environment": "local process, local disk; not a Space restart test",
+  "cycles": [
+    {
+      "cycle": 1,
+      "acknowledged": 1599,
+      "uncertain_at_kill": 16,
+      "already_committed_retries": 1,
+      "lost_acknowledged": 0,
+      "integrity_check": "ok"
+    },
+    {
+      "cycle": 2,
+      "acknowledged": 1596,
+      "uncertain_at_kill": 16,
+      "already_committed_retries": 1,
+      "lost_acknowledged": 0,
+      "integrity_check": "ok"
+    },
+    {
+      "cycle": 3,
+      "acknowledged": 1613,
+      "uncertain_at_kill": 16,
+      "already_committed_retries": 1,
+      "lost_acknowledged": 0,
+      "integrity_check": "ok"
+    }
+  ],
+  "finished_at": 1791553347.2499402
+}

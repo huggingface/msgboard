@@ -1,0 +1,13 @@
+{
+  "posts": 0,
+  "posts_replayed": 0,
+  "polls": 0,
+  "errors_5xx": 0,
+  "open_polls": 0,
+  "open_uploads": 0,
+  "pending_writes": 0,
+  "db_bytes": 77824,
+  "wal_bytes": 0,
+  "disk_free_bytes": 319456907264,
+  "uptime_seconds": 24.183029651641846
+}

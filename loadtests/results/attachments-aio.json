@@ -1,0 +1,206 @@
+{
+  "id": "0515f5075ac54da9bdd05ac2ae9ddf65",
+  "status": "complete",
+  "started_at": 1791553981.5378804,
+  "configuration": {
+    "suite": "attachments",
+    "duration": 6.0,
+    "driver": "aiohttp"
+  },
+  "pid": 19,
+  "returncode": 0,
+  "stdout": "ds\": 0.033973841927945614, \"statuses\": {\"201\": 1}, \"upload_latency_ms\": {\"p50\": 26.815, \"p95\": 26.815, \"p99\": 26.815, \"max\": 26.815}}\n{\"size_bytes\": 10485760, \"concurrency\": 1, \"slow_stream\": false, \"duration_seconds\": 0.06979835196398199, \"statuses\": {\"201\": 1}, \"upload_latency_ms\": {\"p50\": 37.392, \"p95\": 37.392, \"p99\": 37.392, \"max\": 37.392}}\n{\"size_bytes\": 52428800, \"concurrency\": 1, \"slow_stream\": false, \"duration_seconds\": 0.3276940181385726, \"statuses\": {\"201\": 1}, \"upload_latency_ms\": {\"p50\": 154.123, \"p95\": 154.123, \"p99\": 154.123, \"max\": 154.123}}\n{\"size_bytes\": 52428801, \"concurrency\": 1, \"slow_stream\": false, \"duration_seconds\": 0.06607943400740623, \"statuses\": {\"413\": 1}, \"upload_latency_ms\": {\"p50\": 65.818, \"p95\": 65.818, \"p99\": 65.818, \"max\": 65.818}}\n{\"size_bytes\": 1048576, \"concurrency\": 8, \"slow_stream\": true, \"duration_seconds\": 0.37272435799241066, \"statuses\": {\"201\": 4, \"429\": 4}, \"upload_latency_ms\": {\"p50\": 27.918, \"p95\": 365.313, \"p99\": 365.313, \"max\": 365.313}}\n",
+  "stderr": "",
+  "result": {
+    "transport": "loopback_shared_cpu",
+    "started_at": 1791553981.8604918,
+    "scenarios": [
+      {
+        "size_bytes": 1048576,
+        "concurrency": 1,
+        "slow_stream": false,
+        "duration_seconds": 0.033973841927945614,
+        "outcomes": [
+          {
+            "status": 201,
+            "duration_seconds": 0.02681456017307937,
+            "upload_checksum_valid": true,
+            "attachment_id": "att_b4b517223d9934c383914617",
+            "download_checksum_valid": true
+          }
+        ],
+        "statuses": {
+          "201": 1
+        },
+        "upload_latency_ms": {
+          "p50": 26.815,
+          "p95": 26.815,
+          "p99": 26.815,
+          "max": 26.815
+        }
+      },
+      {
+        "size_bytes": 10485760,
+        "concurrency": 1,
+        "slow_stream": false,
+        "duration_seconds": 0.06979835196398199,
+        "outcomes": [
+          {
+            "status": 201,
+            "duration_seconds": 0.03739203093573451,
+            "upload_checksum_valid": true,
+            "attachment_id": "att_d2348072dae3561b80391a0f",
+            "download_checksum_valid": true
+          }
+        ],
+        "statuses": {
+          "201": 1
+        },
+        "upload_latency_ms": {
+          "p50": 37.392,
+          "p95": 37.392,
+          "p99": 37.392,
+          "max": 37.392
+        }
+      },
+      {
+        "size_bytes": 52428800,
+        "concurrency": 1,
+        "slow_stream": false,
+        "duration_seconds": 0.3276940181385726,
+        "outcomes": [
+          {
+            "status": 201,
+            "duration_seconds": 0.154123033862561,
+            "upload_checksum_valid": true,
+            "attachment_id": "att_dc97df6045ffe313823b18b9",
+            "download_checksum_valid": true
+          }
+        ],
+        "statuses": {
+          "201": 1
+        },
+        "upload_latency_ms": {
+          "p50": 154.123,
+          "p95": 154.123,
+          "p99": 154.123,
+          "max": 154.123
+        }
+      },
+      {
+        "size_bytes": 52428801,
+        "concurrency": 1,
+        "slow_stream": false,
+        "duration_seconds": 0.06607943400740623,
+        "outcomes": [
+          {
+            "status": 413,
+            "duration_seconds": 0.06581764295697212,
+            "error": {
+              "error": {
+                "code": "too_large",
+                "message": "uploads are limited to 52428800 bytes"
+              }
+            }
+          }
+        ],
+        "statuses": {
+          "413": 1
+        },
+        "upload_latency_ms": {
+          "p50": 65.818,
+          "p95": 65.818,
+          "p99": 65.818,
+          "max": 65.818
+        }
+      },
+      {
+        "size_bytes": 1048576,
+        "concurrency": 8,
+        "slow_stream": true,
+        "duration_seconds": 0.37272435799241066,
+        "outcomes": [
+          {
+            "status": 201,
+            "duration_seconds": 0.35525617003440857,
+            "upload_checksum_valid": true,
+            "attachment_id": "att_8e94c7c33b2f3534053c904e",
+            "download_checksum_valid": true
+          },
+          {
+            "status": 201,
+            "duration_seconds": 0.3502246148418635,
+            "upload_checksum_valid": true,
+            "attachment_id": "att_46fe86eb4e0c6f53f601ca32",
+            "download_checksum_valid": true
+          },
+          {
+            "status": 201,
+            "duration_seconds": 0.36531258979812264,
+            "upload_checksum_valid": true,
+            "attachment_id": "att_d053a7fcb9cdbab2731ab571",
+            "download_checksum_valid": true
+          },
+          {
+            "status": 201,
+            "duration_seconds": 0.3595647499896586,
+            "upload_checksum_valid": true,
+            "attachment_id": "att_3d4c76bdf7adc7f9c28fd9cf",
+            "download_checksum_valid": true
+          },
+          {
+            "status": 429,
+            "duration_seconds": 0.027918248903006315,
+            "error": {
+              "error": {
+                "code": "too_many_uploads",
+                "message": "too many concurrent uploads"
+              }
+            }
+          },
+          {
+            "status": 429,
+            "duration_seconds": 0.026929491898044944,
+            "error": {
+              "error": {
+                "code": "too_many_uploads",
+                "message": "too many concurrent uploads"
+              }
+            }
+          },
+          {
+            "status": 429,
+            "duration_seconds": 0.027453958988189697,
+            "error": {
+              "error": {
+                "code": "too_many_uploads",
+                "message": "too many concurrent uploads"
+              }
+            }
+          },
+          {
+            "status": 429,
+            "duration_seconds": 0.02682540495879948,
+            "error": {
+              "error": {
+                "code": "too_many_uploads",
+                "message": "too many concurrent uploads"
+              }
+            }
+          }
+        ],
+        "statuses": {
+          "201": 4,
+          "429": 4
+        },
+        "upload_latency_ms": {
+          "p50": 27.918,
+          "p95": 365.313,
+          "p99": 365.313,
+          "max": 365.313
+        }
+      }
+    ]
+  },
+  "finished_at": 1791553982.784826
+}

@@ -1,0 +1,111 @@
+{
+  "time": 1791554144.0684502,
+  "checks": {
+    "/v1/health": {
+      "status": 200,
+      "body": {
+        "status": "ok"
+      }
+    },
+    "/v1/ready": {
+      "status": 200,
+      "body": {
+        "status": "ready",
+        "shutting_down": false
+      }
+    },
+    "/v1/metrics": {
+      "status": 200,
+      "body": {
+        "posts": 82624,
+        "posts_replayed": 1,
+        "polls": 15366,
+        "errors_5xx": 5066,
+        "open_polls": 0,
+        "open_uploads": 0,
+        "pending_writes": 0,
+        "db_bytes": 4720459776,
+        "wal_bytes": 11577232,
+        "disk_free_bytes": 310236553216,
+        "uptime_seconds": 459.7229223251343
+      }
+    },
+    "/_bench/system": {
+      "status": 200,
+      "body": {
+        "time": 1791554144.4183629,
+        "pid": 1,
+        "python": "3.12.15",
+        "sqlite": "3.46.1",
+        "cpu_count": 16,
+        "cpu_seconds": 299.381002,
+        "max_rss_kib": 258904,
+        "process": {
+          "VmHWM": "258904 kB",
+          "VmRSS": "127180 kB",
+          "Threads": "10"
+        },
+        "cgroup": {
+          "cpu.max": "200000 100000",
+          "cpu.stat": "usage_usec 392722011\nuser_usec 272016128\nsystem_usec 120705882\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 3823\nnr_throttled 68\nthrottled_usec 934850\nnr_bursts 0\nburst_usec 0",
+          "memory.current": "4934332416",
+          "memory.max": "16000000000",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+        },
+        "dependencies": {
+          "fastapi": "0.142.4",
+          "uvicorn": "0.54.0",
+          "httpx": "0.28.1"
+        },
+        "limits": {
+          "max_body_bytes": 65536,
+          "max_metadata_bytes": 16384,
+          "max_attachments_per_message": 16,
+          "max_page_size": 500,
+          "default_page_size": 100,
+          "max_page_bytes": 4194304,
+          "max_wait_seconds": 30.0,
+          "max_open_polls": 2000,
+          "max_pending_writes": 512,
+          "reader_threads": 4,
+          "max_upload_bytes": 52428800,
+          "max_concurrent_uploads": 4,
+          "default_token_ttl": 86400,
+          "max_admin_token_ttl": 31536000
+        },
+        "bench_enabled": true
+      }
+    }
+  },
+  "unauthenticated_private_space_status": 404,
+  "worker_create_channel_status": 403,
+  "worker_post_and_replay_statuses": [
+    201,
+    200
+  ],
+  "worker_post_and_replay_sequences": [
+    1,
+    1
+  ],
+  "runtime": {
+    "stage": "RUNNING",
+    "hardware": {
+      "current": "cpu-basic",
+      "requested": "cpu-basic"
+    },
+    "gcTimeout": 172800,
+    "replicas": {
+      "current": 1,
+      "requested": 1
+    },
+    "devMode": false,
+    "domains": [
+      {
+        "domain": "lvwerra-flock-board.hf.space",
+        "stage": "READY"
+      }
+    ],
+    "sha": "565b82070d89f7f619b9d7a62e509e6a4f4375e3"
+  },
+  "private": true
+}

@@ -1,0 +1,14 @@
+{
+  "suite": "scenario",
+  "driver": "aiohttp",
+  "scenarios": [
+    {"name": "fill_64k_history", "concurrency": 32, "size": 65536, "duration": 6},
+    {"name": "64k_page1_c8", "concurrency": 8, "write_fraction": 0, "read_limit": 1, "duration": 6},
+    {"name": "64k_page100_c8", "concurrency": 8, "write_fraction": 0, "read_limit": 100, "duration": 6},
+    {"name": "64k_page500_c8", "concurrency": 8, "write_fraction": 0, "read_limit": 500, "duration": 6},
+    {"name": "64k_page500_c32", "concurrency": 32, "write_fraction": 0, "read_limit": 500, "duration": 6},
+    {"name": "steady_400_a", "rate": 400, "concurrency": 512, "size": 2048, "duration": 20},
+    {"name": "steady_400_b", "rate": 400, "concurrency": 512, "size": 2048, "duration": 20},
+    {"name": "steady_400_c", "rate": 400, "concurrency": 512, "size": 2048, "duration": 20}
+  ]
+}

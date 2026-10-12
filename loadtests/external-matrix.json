@@ -1,0 +1,17 @@
+{
+  "suite": "scenario",
+  "scenarios": [
+    {"name": "https_writers_1", "concurrency": 1, "size": 2048, "duration": 10},
+    {"name": "https_writers_8", "concurrency": 8, "size": 2048, "duration": 10},
+    {"name": "https_writers_32", "concurrency": 32, "size": 2048, "duration": 10},
+    {"name": "https_writers_128", "concurrency": 128, "size": 2048, "duration": 10},
+    {"name": "https_writers_512", "concurrency": 512, "size": 2048, "duration": 10},
+    {"name": "https_payload_256", "concurrency": 32, "size": 256, "duration": 10},
+    {"name": "https_payload_4096", "concurrency": 32, "size": 4096, "duration": 10},
+    {"name": "https_payload_16384", "concurrency": 32, "size": 16384, "duration": 10},
+    {"name": "https_payload_65536", "concurrency": 32, "size": 65536, "duration": 10},
+    {"name": "https_partitioned_32", "concurrency": 32, "size": 2048, "channel_count": 32, "duration": 10},
+    {"name": "https_90pct_reads", "concurrency": 32, "size": 2048, "channel_count": 32, "write_fraction": 0.1, "read_limit": 10, "duration": 10},
+    {"name": "https_burst_1500", "concurrency": 1500, "size": 2048, "duration": 30, "total_requests": 6000}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "suite": "scenario",
+  "scenarios": [
+    {"name": "https_offered_100", "rate": 100, "concurrency": 512, "size": 2048, "duration": 20},
+    {"name": "https_offered_300", "rate": 300, "concurrency": 512, "size": 2048, "duration": 20},
+    {"name": "https_offered_600", "rate": 600, "concurrency": 512, "size": 2048, "duration": 20},
+    {"name": "https_offered_1000", "rate": 1000, "concurrency": 1000, "size": 2048, "duration": 20},
+    {"name": "https_repeat_300_a", "rate": 300, "concurrency": 512, "size": 2048, "duration": 20},
+    {"name": "https_repeat_300_b", "rate": 300, "concurrency": 512, "size": 2048, "duration": 20}
+  ]
+}

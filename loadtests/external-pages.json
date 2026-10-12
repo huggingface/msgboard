@@ -1,0 +1,10 @@
+{
+  "suite": "scenario",
+  "scenarios": [
+    {"name": "https_fill_64k_history", "concurrency": 32, "size": 65536, "duration": 10},
+    {"name": "https_64k_history_page1", "concurrency": 8, "write_fraction": 0, "read_limit": 1, "duration": 10},
+    {"name": "https_64k_history_page100", "concurrency": 8, "write_fraction": 0, "read_limit": 100, "duration": 10},
+    {"name": "https_64k_history_page500", "concurrency": 8, "write_fraction": 0, "read_limit": 500, "duration": 10},
+    {"name": "https_64k_history_page500_c32", "concurrency": 32, "write_fraction": 0, "read_limit": 500, "duration": 10}
+  ]
+}

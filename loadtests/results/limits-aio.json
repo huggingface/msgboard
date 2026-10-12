@@ -1,0 +1,1293 @@
+{
+  "id": "02e407c67a2c452db9ab34dcf4eeecc0",
+  "status": "complete",
+  "started_at": 1791553862.1616852,
+  "configuration": {
+    "suite": "limits",
+    "duration": 6.0,
+    "driver": "aiohttp"
+  },
+  "pid": 15,
+  "returncode": 0,
+  "stdout": "{\"name\": \"open_poll_limit_2100\", \"rps\": 149.23, \"p95_ms\": 12858.415, \"statuses\": {\"429\": 100, \"200\": 2000}}\n{\"name\": \"burst_1500_connections\", \"rps\": 153.76, \"p95_ms\": 5241.132, \"statuses\": {\"201\": 934, \"503\": 5066}}\n",
+  "stderr": "",
+  "result": {
+    "started_at": 1791553862.5185196,
+    "target": "http://127.0.0.1:7860",
+    "transport": "loopback_shared_cpu",
+    "configuration": {
+      "suite": "limits",
+      "duration": 6.0,
+      "driver": "aiohttp"
+    },
+    "scenarios": [
+      {
+        "name": "open_poll_limit_2100",
+        "parameters": {
+          "concurrency": 32,
+          "body_bytes": 1024,
+          "duration": 15.0,
+          "channels": 1,
+          "write_fraction": 1.0,
+          "read_limit": 100,
+          "after": 0,
+          "offered_posts_per_second": null,
+          "readers": 2100,
+          "poll_capacity": true,
+          "total_requests": null
+        },
+        "duration_seconds": 13.402,
+        "requests": 2100,
+        "successes": 2000,
+        "statuses": {
+          "429": 100,
+          "200": 2000
+        },
+        "errors": {
+          "too_many_polls": 100
+        },
+        "successful_requests_per_second": 149.23,
+        "posts_per_second": 0.0,
+        "operations": {
+          "poll": 2000
+        },
+        "all_latency_ms": {
+          "p50": 12720.969,
+          "p95": 12858.216,
+          "p99": 12861.604,
+          "max": 12910.006
+        },
+        "success_latency_ms": {
+          "p50": 12737.335,
+          "p95": 12858.415,
+          "p99": 12861.774,
+          "max": 12910.006
+        },
+        "response_mib_per_second": 0.007,
+        "posted_body_mib": 0.0,
+        "duplicate_acknowledged_sequences": 0,
+        "sequence_gaps": 0,
+        "deliveries": 0,
+        "delivery_lag_ms": {},
+        "offered_dropped_by_generator": 0,
+        "scheduler_lag_ms": {},
+        "server_cpu_cores": 0.349,
+        "generator_cpu_cores": 0.109,
+        "ingress_limited": false,
+        "telemetry_error": null,
+        "system_before": {
+          "time": 1791553863.0118177,
+          "pid": 1,
+          "python": "3.12.15",
+          "sqlite": "3.46.1",
+          "cpu_count": 16,
+          "cpu_seconds": 121.337151,
+          "max_rss_kib": 85896,
+          "process": {
+            "VmHWM": "87428 kB",
+            "VmRSS": "87428 kB",
+            "Threads": "6"
+          },
+          "cgroup": {
+            "cpu.max": "200000 100000",
+            "cpu.stat": "usage_usec 159822671\nuser_usec 117933109\nsystem_usec 41889562\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1529\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+            "memory.current": "413171712",
+            "memory.max": "16000000000",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+          },
+          "dependencies": {
+            "fastapi": "0.142.4",
+            "uvicorn": "0.54.0",
+            "httpx": "0.28.1"
+          },
+          "limits": {
+            "max_body_bytes": 65536,
+            "max_metadata_bytes": 16384,
+            "max_attachments_per_message": 16,
+            "max_page_size": 500,
+            "default_page_size": 100,
+            "max_page_bytes": 4194304,
+            "max_wait_seconds": 30.0,
+            "max_open_polls": 2000,
+            "max_pending_writes": 512,
+            "reader_threads": 4,
+            "max_upload_bytes": 52428800,
+            "max_concurrent_uploads": 4,
+            "default_token_ttl": 86400,
+            "max_admin_token_ttl": 31536000
+          },
+          "bench_enabled": true
+        },
+        "system_after": {
+          "time": 1791553876.4203234,
+          "pid": 1,
+          "python": "3.12.15",
+          "sqlite": "3.46.1",
+          "cpu_count": 16,
+          "cpu_seconds": 126.015829,
+          "max_rss_kib": 116616,
+          "process": {
+            "VmHWM": "117072 kB",
+            "VmRSS": "117072 kB",
+            "Threads": "6"
+          },
+          "cgroup": {
+            "cpu.max": "200000 100000",
+            "cpu.stat": "usage_usec 165964271\nuser_usec 122175294\nsystem_usec 43788977\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1622\nnr_throttled 14\nthrottled_usec 240705\nnr_bursts 0\nburst_usec 0",
+            "memory.current": "494608384",
+            "memory.max": "16000000000",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+          },
+          "dependencies": {
+            "fastapi": "0.142.4",
+            "uvicorn": "0.54.0",
+            "httpx": "0.28.1"
+          },
+          "limits": {
+            "max_body_bytes": 65536,
+            "max_metadata_bytes": 16384,
+            "max_attachments_per_message": 16,
+            "max_page_size": 500,
+            "default_page_size": 100,
+            "max_page_bytes": 4194304,
+            "max_wait_seconds": 30.0,
+            "max_open_polls": 2000,
+            "max_pending_writes": 512,
+            "reader_threads": 4,
+            "max_upload_bytes": 52428800,
+            "max_concurrent_uploads": 4,
+            "default_token_ttl": 86400,
+            "max_admin_token_ttl": 31536000
+          },
+          "bench_enabled": true
+        },
+        "metrics_after": {
+          "posts": 44467,
+          "posts_replayed": 1,
+          "polls": 15366,
+          "errors_5xx": 0,
+          "open_polls": 0,
+          "open_uploads": 0,
+          "pending_writes": 0,
+          "db_bytes": 294395904,
+          "wal_bytes": 6674432,
+          "disk_free_bytes": 313350004736,
+          "uptime_seconds": 191.7746274471283
+        },
+        "observations": [
+          {
+            "system": {
+              "time": 1791553863.0154352,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 121.34087500000001,
+              "max_rss_kib": 85896,
+              "process": {
+                "VmHWM": "87428 kB",
+                "VmRSS": "87428 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 159827252\nuser_usec 117937690\nsystem_usec 41889562\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1529\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "413691904",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 13366,
+              "errors_5xx": 0,
+              "open_polls": 0,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 314059386880,
+              "uptime_seconds": 178.3713412284851
+            }
+          },
+          {
+            "system": {
+              "time": 1791553865.5069857,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 123.953729,
+              "max_rss_kib": 116104,
+              "process": {
+                "VmHWM": "117460 kB",
+                "VmRSS": "117460 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163279700\nuser_usec 120276297\nsystem_usec 43003402\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1554\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "495644672",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 2000,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313374498816,
+              "uptime_seconds": 180.86288213729858
+            }
+          },
+          {
+            "system": {
+              "time": 1791553866.5175538,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 123.962626,
+              "max_rss_kib": 116488,
+              "process": {
+                "VmHWM": "117752 kB",
+                "VmRSS": "117752 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163292101\nuser_usec 120288091\nsystem_usec 43004009\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1558\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "495931392",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 2000,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313343946752,
+              "uptime_seconds": 181.87218952178955
+            }
+          },
+          {
+            "system": {
+              "time": 1791553867.5266347,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 123.972455,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163305559\nuser_usec 120300665\nsystem_usec 43004894\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1567\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "496017408",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 2000,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313343356928,
+              "uptime_seconds": 182.8811423778534
+            }
+          },
+          {
+            "system": {
+              "time": 1791553868.535594,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 123.979907,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163316487\nuser_usec 120309723\nsystem_usec 43006763\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1572\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "495755264",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 2000,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313342795776,
+              "uptime_seconds": 183.89030075073242
+            }
+          },
+          {
+            "system": {
+              "time": 1791553869.5445743,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 123.987168,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163327147\nuser_usec 120319957\nsystem_usec 43007189\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1576\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "496009216",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 2000,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313342627840,
+              "uptime_seconds": 184.89905858039856
+            }
+          },
+          {
+            "system": {
+              "time": 1791553870.5539935,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 124.002665,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163354912\nuser_usec 120340977\nsystem_usec 43013935\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1582\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "495206400",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 2000,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313343016960,
+              "uptime_seconds": 185.90860390663147
+            }
+          },
+          {
+            "system": {
+              "time": 1791553871.5627437,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 124.009539,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163365143\nuser_usec 120342976\nsystem_usec 43022166\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1586\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "494944256",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 2000,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313344286720,
+              "uptime_seconds": 186.9168713092804
+            }
+          },
+          {
+            "system": {
+              "time": 1791553872.5709276,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 124.018753,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163377740\nuser_usec 120347478\nsystem_usec 43030262\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1592\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "494948352",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 2000,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313344286720,
+              "uptime_seconds": 187.925231218338
+            }
+          },
+          {
+            "system": {
+              "time": 1791553873.5794747,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 124.02680699999999,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163389710\nuser_usec 120359447\nsystem_usec 43030262\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1598\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "494944256",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 1999,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313344286720,
+              "uptime_seconds": 188.93398547172546
+            }
+          },
+          {
+            "system": {
+              "time": 1791553874.5883017,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 124.039631,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 163408087\nuser_usec 120366899\nsystem_usec 43041188\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1604\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "494690304",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 1994,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313344286720,
+              "uptime_seconds": 189.9427421092987
+            }
+          },
+          {
+            "system": {
+              "time": 1791553876.4123805,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 126.010379,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117836 kB",
+                "VmRSS": "117836 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 165955320\nuser_usec 122166342\nsystem_usec 43788977\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1622\nnr_throttled 14\nthrottled_usec 240705\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "494444544",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44467,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 0,
+              "open_polls": 0,
+              "open_uploads": 0,
+              "pending_writes": 0,
+              "db_bytes": 294395904,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313349718016,
+              "uptime_seconds": 191.76764965057373
+            }
+          }
+        ]
+      },
+      {
+        "name": "burst_1500_connections",
+        "parameters": {
+          "concurrency": 1500,
+          "body_bytes": 1024,
+          "duration": 30.0,
+          "channels": 1,
+          "write_fraction": 1.0,
+          "read_limit": 100,
+          "after": 0,
+          "offered_posts_per_second": null,
+          "readers": 0,
+          "poll_capacity": false,
+          "total_requests": 6000
+        },
+        "duration_seconds": 6.074,
+        "requests": 6000,
+        "successes": 934,
+        "statuses": {
+          "201": 934,
+          "503": 5066
+        },
+        "errors": {
+          "overloaded": 5066
+        },
+        "successful_requests_per_second": 153.76,
+        "posts_per_second": 153.76,
+        "operations": {
+          "post": 934
+        },
+        "all_latency_ms": {
+          "p50": 881.338,
+          "p95": 4214.811,
+          "p99": 5229.717,
+          "max": 5274.924
+        },
+        "success_latency_ms": {
+          "p50": 3398.521,
+          "p95": 5241.132,
+          "p99": 5271.103,
+          "max": 5274.924
+        },
+        "response_mib_per_second": 0.242,
+        "posted_body_mib": 0.912,
+        "duplicate_acknowledged_sequences": 0,
+        "sequence_gaps": 0,
+        "deliveries": 0,
+        "delivery_lag_ms": {},
+        "offered_dropped_by_generator": 0,
+        "scheduler_lag_ms": {},
+        "server_cpu_cores": 1.118,
+        "generator_cpu_cores": 0.434,
+        "ingress_limited": false,
+        "telemetry_error": null,
+        "system_before": {
+          "time": 1791553876.430969,
+          "pid": 1,
+          "python": "3.12.15",
+          "sqlite": "3.46.1",
+          "cpu_count": 16,
+          "cpu_seconds": 126.020903,
+          "max_rss_kib": 116616,
+          "process": {
+            "VmHWM": "117284 kB",
+            "VmRSS": "117284 kB",
+            "Threads": "6"
+          },
+          "cgroup": {
+            "cpu.max": "200000 100000",
+            "cpu.stat": "usage_usec 165970631\nuser_usec 122181654\nsystem_usec 43788977\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1622\nnr_throttled 14\nthrottled_usec 240705\nnr_bursts 0\nburst_usec 0",
+            "memory.current": "494698496",
+            "memory.max": "16000000000",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+          },
+          "dependencies": {
+            "fastapi": "0.142.4",
+            "uvicorn": "0.54.0",
+            "httpx": "0.28.1"
+          },
+          "limits": {
+            "max_body_bytes": 65536,
+            "max_metadata_bytes": 16384,
+            "max_attachments_per_message": 16,
+            "max_page_size": 500,
+            "default_page_size": 100,
+            "max_page_bytes": 4194304,
+            "max_wait_seconds": 30.0,
+            "max_open_polls": 2000,
+            "max_pending_writes": 512,
+            "reader_threads": 4,
+            "max_upload_bytes": 52428800,
+            "max_concurrent_uploads": 4,
+            "default_token_ttl": 86400,
+            "max_admin_token_ttl": 31536000
+          },
+          "bench_enabled": true
+        },
+        "system_after": {
+          "time": 1791553882.511399,
+          "pid": 1,
+          "python": "3.12.15",
+          "sqlite": "3.46.1",
+          "cpu_count": 16,
+          "cpu_seconds": 132.811498,
+          "max_rss_kib": 117148,
+          "process": {
+            "VmHWM": "118460 kB",
+            "VmRSS": "118460 kB",
+            "Threads": "6"
+          },
+          "cgroup": {
+            "cpu.max": "200000 100000",
+            "cpu.stat": "usage_usec 175404195\nuser_usec 129407184\nsystem_usec 45997011\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1683\nnr_throttled 26\nthrottled_usec 545477\nnr_bursts 0\nburst_usec 0",
+            "memory.current": "501506048",
+            "memory.max": "16000000000",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+          },
+          "dependencies": {
+            "fastapi": "0.142.4",
+            "uvicorn": "0.54.0",
+            "httpx": "0.28.1"
+          },
+          "limits": {
+            "max_body_bytes": 65536,
+            "max_metadata_bytes": 16384,
+            "max_attachments_per_message": 16,
+            "max_page_size": 500,
+            "default_page_size": 100,
+            "max_page_bytes": 4194304,
+            "max_wait_seconds": 30.0,
+            "max_open_polls": 2000,
+            "max_pending_writes": 512,
+            "reader_threads": 4,
+            "max_upload_bytes": 52428800,
+            "max_concurrent_uploads": 4,
+            "default_token_ttl": 86400,
+            "max_admin_token_ttl": 31536000
+          },
+          "bench_enabled": true
+        },
+        "metrics_after": {
+          "posts": 45401,
+          "posts_replayed": 1,
+          "polls": 15366,
+          "errors_5xx": 5066,
+          "open_polls": 0,
+          "open_uploads": 0,
+          "pending_writes": 0,
+          "db_bytes": 295931904,
+          "wal_bytes": 6674432,
+          "disk_free_bytes": 313562349568,
+          "uptime_seconds": 197.86619806289673
+        },
+        "observations": [
+          {
+            "system": {
+              "time": 1791553876.4341013,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 126.02408299999999,
+              "max_rss_kib": 116616,
+              "process": {
+                "VmHWM": "117284 kB",
+                "VmRSS": "117284 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 165980611\nuser_usec 122191633\nsystem_usec 43788977\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1622\nnr_throttled 14\nthrottled_usec 240705\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "494182400",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44548,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 1527,
+              "open_polls": 0,
+              "open_uploads": 0,
+              "pending_writes": 510,
+              "db_bytes": 294797312,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313350905856,
+              "uptime_seconds": 193.73798847198486
+            }
+          },
+          {
+            "system": {
+              "time": 1791553880.7188103,
+              "pid": 1,
+              "python": "3.12.15",
+              "sqlite": "3.46.1",
+              "cpu_count": 16,
+              "cpu_seconds": 131.279347,
+              "max_rss_kib": 117020,
+              "process": {
+                "VmHWM": "118240 kB",
+                "VmRSS": "118240 kB",
+                "Threads": "6"
+              },
+              "cgroup": {
+                "cpu.max": "200000 100000",
+                "cpu.stat": "usage_usec 173247557\nuser_usec 127707762\nsystem_usec 45539794\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1665\nnr_throttled 24\nthrottled_usec 523990\nnr_bursts 0\nburst_usec 0",
+                "memory.current": "502706176",
+                "memory.max": "16000000000",
+                "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+              },
+              "dependencies": {
+                "fastapi": "0.142.4",
+                "uvicorn": "0.54.0",
+                "httpx": "0.28.1"
+              },
+              "limits": {
+                "max_body_bytes": 65536,
+                "max_metadata_bytes": 16384,
+                "max_attachments_per_message": 16,
+                "max_page_size": 500,
+                "default_page_size": 100,
+                "max_page_bytes": 4194304,
+                "max_wait_seconds": 30.0,
+                "max_open_polls": 2000,
+                "max_pending_writes": 512,
+                "reader_threads": 4,
+                "max_upload_bytes": 52428800,
+                "max_concurrent_uploads": 4,
+                "default_token_ttl": 86400,
+                "max_admin_token_ttl": 31536000
+              },
+              "bench_enabled": true
+            },
+            "metrics": {
+              "posts": 44889,
+              "posts_replayed": 1,
+              "polls": 15366,
+              "errors_5xx": 5065,
+              "open_polls": 0,
+              "open_uploads": 0,
+              "pending_writes": 512,
+              "db_bytes": 295084032,
+              "wal_bytes": 6674432,
+              "disk_free_bytes": 313405079552,
+              "uptime_seconds": 197.02732372283936
+            }
+          }
+        ]
+      }
+    ],
+    "client": "aiohttp 3.13.2",
+    "system": {
+      "time": 1791553862.5455282,
+      "pid": 1,
+      "python": "3.12.15",
+      "sqlite": "3.46.1",
+      "cpu_count": 16,
+      "cpu_seconds": 121.171915,
+      "max_rss_kib": 85896,
+      "process": {
+        "VmHWM": "87428 kB",
+        "VmRSS": "87428 kB",
+        "Threads": "6"
+      },
+      "cgroup": {
+        "cpu.max": "200000 100000",
+        "cpu.stat": "usage_usec 159498158\nuser_usec 117648845\nsystem_usec 41849312\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1524\nnr_throttled 9\nthrottled_usec 107294\nnr_bursts 0\nburst_usec 0",
+        "memory.current": "411942912",
+        "memory.max": "16000000000",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+      },
+      "dependencies": {
+        "fastapi": "0.142.4",
+        "uvicorn": "0.54.0",
+        "httpx": "0.28.1"
+      },
+      "limits": {
+        "max_body_bytes": 65536,
+        "max_metadata_bytes": 16384,
+        "max_attachments_per_message": 16,
+        "max_page_size": 500,
+        "default_page_size": 100,
+        "max_page_bytes": 4194304,
+        "max_wait_seconds": 30.0,
+        "max_open_polls": 2000,
+        "max_pending_writes": 512,
+        "reader_threads": 4,
+        "max_upload_bytes": 52428800,
+        "max_concurrent_uploads": 4,
+        "default_token_ttl": 86400,
+        "max_admin_token_ttl": 31536000
+      },
+      "bench_enabled": true
+    },
+    "channel_ids": [
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128
+    ],
+    "boundary_checks": [
+      {
+        "check": "body_size",
+        "bytes": 65536,
+        "status": 201
+      },
+      {
+        "check": "body_size",
+        "bytes": 65537,
+        "status": 413
+      },
+      {
+        "check": "page_limit",
+        "limit": 500,
+        "status": 200
+      },
+      {
+        "check": "page_limit",
+        "limit": 501,
+        "status": 422
+      },
+      {
+        "check": "metadata_size",
+        "serialized_bytes": 16384,
+        "status": 201
+      },
+      {
+        "check": "metadata_size",
+        "serialized_bytes": 16385,
+        "status": 413
+      },
+      {
+        "check": "idempotency",
+        "body": "deduplication",
+        "status": 201,
+        "seq": 3
+      },
+      {
+        "check": "idempotency",
+        "body": "deduplication",
+        "status": 200,
+        "seq": 3
+      },
+      {
+        "check": "idempotency",
+        "body": "changed",
+        "status": 409,
+        "seq": null
+      }
+    ],
+    "finished_at": 1791553882.520207,
+    "final_metrics": {
+      "posts": 45401,
+      "posts_replayed": 1,
+      "polls": 15366,
+      "errors_5xx": 5066,
+      "open_polls": 0,
+      "open_uploads": 0,
+      "pending_writes": 0,
+      "db_bytes": 295931904,
+      "wal_bytes": 6674432,
+      "disk_free_bytes": 313562284032,
+      "uptime_seconds": 197.8714361190796
+    }
+  },
+  "finished_at": 1791553882.6702015
+}

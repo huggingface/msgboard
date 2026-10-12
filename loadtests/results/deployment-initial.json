@@ -1,0 +1,27 @@
+{
+  "repo_id": "lvwerra/flock-board",
+  "commit": "d3cdd316e3c3555cb7df1535a58e7b2fe9753d8b",
+  "files": {
+    "Dockerfile": "8986b42b67048caa6222eed6deda90d9d96fbea35fe78678604156891af5ed84",
+    "README.md": "0ec83193eea393cea99518de23e23c02c9c14895d0487b28c5415867afd61848",
+    "space_app.py": "db32904635433ef7120f24836ff01480024751ad95424f3963dfbe9f68b21ef0",
+    "loadtest.py": "f53c0176bc6702aa027bbfc503404e585801e8a3e5e35c3623a68ba089b043c3",
+    "pyproject.toml": "e63f4649c036bca4337f7d0571b39037511a5d676a19c72fee5abb03a9e31677",
+    "src/flock_board/__init__.py": "26cccc9225e825dbda017aa3256f8567921b0177312472f7ebc100b317ee8028",
+    "src/flock_board/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/flock_board/auth.py": "7766d4e1569890d98477c06b3c869e559a2d6ed88172c4a495cd6634e1a73eaa",
+    "src/flock_board/blobs.py": "f09887b9de4d68caf27f3fc493a5026195e18ff4c54b7b703733b8195b50e065",
+    "src/flock_board/cli.py": "12356348b6c243038ecc59c8a2e0659fe3323f49fbf93ba8a4bb68d18e7045b5",
+    "src/flock_board/client.py": "a21ac7364aae9ba51e6fcbb03c3edbd63f8588d5fee8194850545a30372a0c0e",
+    "src/flock_board/config.py": "ddd6abb0283a0453cb471f5bd146dfb5db8c60b965095a8e79d3a631a195496b",
+    "src/flock_board/db.py": "41cdfba36911db86a532d799289eba0e6f0e07968e53745d7590173e651f7226",
+    "src/flock_board/demo.py": "c16348dccb2ee470f859ac7eec30658236e785488a487e263582f3e375581ffa",
+    "src/flock_board/demo_agent.py": "1ae859e76afc4aa5ad1d7e6cabe269d674994875af16b09f0a1dcce8905c5dc5",
+    "src/flock_board/errors.py": "5caeae02dd98ac57a7b01831058d32d9d98b3e7cce782d8355fea36b73431289",
+    "src/flock_board/local.py": "79dc4166c5231d40d6e1a3153cb2f1ed644d1296e855f4285534b5eb392b9995",
+    "src/flock_board/server.py": "b6f6b21e66bf0ef340c847466c2c80ddc23f64de3c41ab7a8f461fe946c74e7e",
+    "src/flock_board/store.py": "c62485f85c0cd36937ece258ec17033ee979a35a74b2140f17296285ee3972be"
+  },
+  "hardware_requested": "cpu-basic",
+  "private": true
+}
