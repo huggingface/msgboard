@@ -601,6 +601,18 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             board.notifier.notify(channel_id)
         return message
 
+    @app.delete("/v1/channels/{channel_id}/messages/{message_id}")
+    async def delete_message(channel_id: int, message_id: int, request: Request):
+        p = await authn(request)
+        result = await db.write(store.delete_message, p, channel_id, message_id, time.time())
+        for key in result.pop("storage_keys"):
+            try:
+                board.blobs.path_for(key).unlink()
+            except FileNotFoundError:
+                pass
+        board.notifier.notify(channel_id)
+        return result
+
     @app.get("/v1/channels/{channel_id}/messages/{message_id}/revisions")
     async def message_revisions(channel_id: int, message_id: int, request: Request):
         p = await authn(request)

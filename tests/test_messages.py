@@ -252,3 +252,23 @@ def test_retry_of_message_stored_before_metadata_removal_still_replays(tmp_path)
     message, created = store.post_message(conn, principal, 1, "old-key", normalized, digest, time.time())
     conn.execute("COMMIT")
     assert not created and message["body"] == "before" and "metadata" not in message
+
+
+def test_admins_delete_messages_with_their_threads(env):
+    from msgboard.client import BoardError
+    import pytest
+    gen = env.op.create_channel("general")
+    _, _, ana = env.human("ana")
+    root = ana.post(gen["id"], "placeholder root needle")
+    reply = ana.post(gen["id"], "placeholder reply", reply_to=root["id"])
+    keep = ana.post(gen["id"], "a real message")
+    ana.react(gen["id"], root["id"], "👍")
+    with pytest.raises(BoardError) as e:
+        ana.delete_message(gen["id"], keep["id"])
+    assert e.value.status == 403
+    out = env.op.delete_message(gen["id"], root["id"])
+    assert sorted(out["deleted"]) == sorted([root["id"], reply["id"]])
+    assert [m["body"] for m in ana.read(gen["id"])["messages"]] == ["a real message"]
+    assert ana.search("needle")["messages"] == []
+    single = env.op.delete_message(gen["id"], keep["id"])
+    assert single["deleted"] == [keep["id"]]

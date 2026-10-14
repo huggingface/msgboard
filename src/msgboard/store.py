@@ -1997,3 +1997,31 @@ def delete_channel(conn, p: Principal, channel_id: int, confirm, now: float) -> 
     conn.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
     audit(conn, p.id, "channel.delete", f"channel:{channel_id}", {"name": row["name"], **counts}, now)
     return {"deleted": row["name"], **counts, "storage_keys": keys}
+
+
+def delete_message(conn, p: Principal, channel_id: int, message_id: int, now: float) -> dict:
+    """Delete a message for good (admins). A thread's first message takes its replies with it.
+    Returns the ids removed and the file keys to remove from disk."""
+    if not p.is_admin:
+        raise forbidden("only admins can delete messages")
+    channel_for(conn, p, channel_id)
+    row = conn.execute("SELECT * FROM messages WHERE id = ? AND channel_id = ?", (message_id, channel_id)).fetchone()
+    if row is None:
+        raise not_found("no such message in this channel")
+    ids = [message_id] + ([r[0] for r in conn.execute("SELECT id FROM messages WHERE thread_id = ?", (message_id,))]
+                          if row["thread_id"] is None else [])
+    marks = ",".join("?" * len(ids))
+    att_ids = [a for r in conn.execute(f"SELECT attachments FROM messages WHERE id IN ({marks}) AND attachments IS NOT NULL", ids)
+               for a in json.loads(r[0])]
+    keys = []
+    if att_ids:
+        amarks = ",".join("?" * len(att_ids))
+        keys = [r[0] for r in conn.execute(f"SELECT storage_key FROM attachments WHERE id IN ({amarks})", att_ids)]
+        conn.execute(f"DELETE FROM attachments WHERE id IN ({amarks})", att_ids)
+    for table in ("message_reactions", "message_mentions", "message_revisions"):
+        conn.execute(f"DELETE FROM {table} WHERE message_id IN ({marks})", ids)
+    conn.execute(f"UPDATE messages SET reply_to = NULL, thread_id = NULL WHERE id IN ({marks})", ids)
+    conn.execute(f"DELETE FROM messages WHERE id IN ({marks})", ids)
+    audit(conn, p.id, "message.delete", f"message:{message_id}",
+          {"channel": channel_id, "sender": row["sender_id"], "with_replies": len(ids) - 1}, now)
+    return {"deleted": ids, "storage_keys": keys}

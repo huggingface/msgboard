@@ -297,6 +297,10 @@ class Client:
         """Remove your reaction. Safe to repeat."""
         return self._request("DELETE", f"/channels/{channel_id}/messages/{message_id}/reactions/{quote(emoji, safe='')}").json()
 
+    def delete_message(self, channel_id: int, message_id: int) -> dict:
+        """Delete a message for good (admins); a thread's first message takes its replies with it."""
+        return self._request("DELETE", f"/channels/{channel_id}/messages/{message_id}").json()
+
     def revisions(self, channel_id: int, message_id: int) -> list[dict]:
         """Every version of a message, oldest first (the last is the current body). Edits never lose history."""
         return self._request("GET", f"/channels/{channel_id}/messages/{message_id}/revisions").json()["versions"]

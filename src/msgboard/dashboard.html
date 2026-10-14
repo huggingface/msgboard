@@ -1372,6 +1372,7 @@ const ICONS = {
   copy: `<svg viewBox="0 0 18 18" aria-hidden="true"><rect x="6.5" y="6.5" width="8" height="8.5"/><path d="M4 11.5H3.5v-8h8V4"/></svg>`,
   link: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M7.6 10.4a3 3 0 0 0 4.2 0l2.2-2.2a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M10.4 7.6a3 3 0 0 0-4.2 0L4 9.8a3 3 0 0 0 4.2 4.2l1-1"/></svg>`,
   edit: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M11.8 3.6l2.6 2.6-7.9 7.9-3.3.7.7-3.3z"/><path d="M10.4 5l2.6 2.6"/></svg>`,
+  trash: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 5h11M7 5V3.5h4V5M5 5l.7 9.5h6.6L13 5"/><path d="M7.6 7.5v5M10.4 7.5v5"/></svg>`,
   check: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.8 9.4l3.2 3.2 7.2-7.4"/></svg>`,
 };
 const QUICK_REACTIONS = ["👍", "👎", "✅", "👀", "🎉", "❤️", "😂", "🙏"];
@@ -1500,6 +1501,27 @@ async function openHistory(id) {
       <div class="${bodyClass()}">${renderBody(v.body, m.mentions || [])}</div></div>`).join("") + `</div>`;
   hydrate($("panel-scroll"));
 }
+async function deleteMessage(id) {
+  const c = state.current, m = state.byId.get(id);
+  if (!c || !m) return;
+  const n = !m.thread_id && m.replies ? m.replies.count : 0;
+  if (!confirm(`Delete this message by ${nameOf(m.sender)}${n ? ` and its ${n} ${n === 1 ? "reply" : "replies"}` : ""} for everyone? This cannot be undone.`)) return;
+  let out;
+  try { out = await api("DELETE", `/channels/${c.id}/messages/${id}`); } catch (e) { alert("Not deleted: " + e.message); return; }
+  const gone = new Set(out.deleted);
+  gone.forEach((x) => state.byId.delete(x));
+  state.roots = state.roots.filter((x) => !gone.has(x.id));
+  if (state.panel && state.panel.type === "thread") {
+    if (gone.has(state.panel.root.id)) closePanel();
+    else {
+      state.thread = state.thread.filter((x) => !gone.has(x.id));
+      const r = state.panel.root.replies; if (r) r.count = state.thread.length;
+      renderThread(false);
+    }
+  }
+  if (m.thread_id) { const root = state.byId.get(m.thread_id); if (root && root.replies) root.replies.count = Math.max(0, root.replies.count - 1); }
+  renderFeed(false);
+}
 function lastOwnMessage(list) {
   for (let i = list.length - 1; i >= 0; i--) if (list[i].sender.id === state.me.id) return list[i];
   return null;
@@ -1549,6 +1571,7 @@ function messageHTML(m, first, { inThread = false, rootId = null } = {}) {
   acts.push(act(`data-copy-text="${m.id}"`, "copy", "Copy message text"));
   acts.push(act(`data-copy-link="${m.id}"`, "link", "Copy link to message"));
   if (!editingThis && state.me && m.sender.id === state.me.id && state.me.identity_type === "user" && canWriteHere()) acts.push(act(`data-edit="${m.id}" data-where="${where}"`, "edit", "Edit message"));
+  if (can("manage")) acts.push(act(`data-delete-msg="${m.id}"`, "trash", "Delete message (admin)"));
   if (acts.length) h += `<div class="actions">${acts.join("")}</div>`;
   return h;
 }
@@ -1835,6 +1858,8 @@ document.addEventListener("keydown", (e) => {
 });
 document.addEventListener("click", (e) => {
   if (e.target.closest("dialog")) return;
+  const del = e.target.closest("[data-delete-msg]");
+  if (del) { deleteMessage(Number(del.dataset.deleteMsg)); return; }
   const ct = e.target.closest("[data-copy-text]");
   if (ct) { const msg = state.byId.get(Number(ct.dataset.copyText)); if (msg) copyText(msg.body, ct); return; }
   const cl = e.target.closest("[data-copy-link]");
