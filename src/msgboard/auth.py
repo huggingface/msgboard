@@ -1,4 +1,4 @@
-"""Tokens, roles and the actions they expand to."""
+"""Tokens and roles."""
 
 from __future__ import annotations
 
@@ -10,30 +10,11 @@ from dataclasses import dataclass
 
 TOKEN_PREFIX = "fbt_"
 
-# Channel-scoped actions per role, and board-scoped actions per role.
-CHANNEL_ACTIONS = {
-    "observer": ("messages:read",),
-    "worker": ("messages:read", "messages:write", "attachments:write"),
-    "coordinator": ("messages:read", "messages:write", "attachments:write"),
-    "provisioner": (),
-    "admin": (),
-}
-BOARD_ACTIONS = {
-    "observer": (),
-    "worker": (),
-    "coordinator": ("channels:create",),
-    "provisioner": ("agents:provision",),
-    "admin": ("admin",),
-}
-# What a channel creator receives on the channel it created.
-CREATOR_ACTIONS = ("messages:read", "messages:write", "attachments:write")
-
-ROLES = ("observer", "worker", "coordinator", "provisioner", "admin")
-IDENTITY_TYPES = ("agent", "system", "user")
-# Roles a provisioner may ever be allowed to hand out. Provisioners can never
-# mint other provisioners or admins, whatever their policy says.
-PROVISIONABLE_ROLES = ("observer", "worker", "coordinator")
-DEFAULT_PROVISIONER_ROLES = ("observer", "worker")
+IDENTITY_TYPES = ("user", "agent", "system")  # a person, an AI agent, a service account
+HUMAN_ROLES = ("admin", "member", "viewer")
+AGENT_ROLES = ("admin", "reader", "member", "guest")
+ADMIN_ONLY_AGENT_ROLES = ("admin", "reader")  # only admins can create (or own) these
+ROLES = ("admin", "member", "viewer", "guest", "reader")
 
 
 @dataclass(frozen=True)
@@ -44,7 +25,37 @@ class Principal:
     identity_type: str
     role: str
     display_name: str | None
+    owner_id: int | None
+    can_create_channels: bool
     credential_id: str
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+
+    @property
+    def is_human(self) -> bool:
+        return self.identity_type == "user"
+
+    @property
+    def sees_everything(self) -> bool:
+        return self.role in ("admin", "reader")
+
+    @property
+    def may_post(self) -> bool:
+        return self.role not in ("viewer", "reader")
+
+    @property
+    def may_create_channels(self) -> bool:
+        if self.role == "admin":
+            return True
+        if self.is_human:
+            return self.role == "member"
+        return self.role == "member" and self.can_create_channels
+
+    @property
+    def may_invite_agents(self) -> bool:
+        return self.role == "admin" or (self.is_human and self.role == "member")
 
 
 def new_token() -> tuple[str, str, bytes]:

@@ -44,15 +44,26 @@ class Env:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         return httpx.Client(base_url=self.url + "/v1", headers=headers, timeout=20)
 
-    def agent(self, external_id: str, role: str = "worker", channels=(), via: Client | None = None,
-              ttl: int = 3600, **kw) -> tuple[dict, str, Client]:
-        issuer = via or self.op
-        identity = issuer.provision_agent(external_id, role=role, channels=list(channels), **kw)
-        token = issuer.issue_token(identity["id"], ttl_seconds=ttl)
-        return identity, token["token"], self.client(token["token"])
+    def _track(self, client: Client) -> Client:
+        self._clients.append(client)
+        return client
 
-    def provisioner(self, external_id: str = "launcher", policy: dict | None = None):
-        return self.agent(external_id, role="provisioner", identity_type="system", policy=policy)
+    def human(self, name: str, role: str = "member", display_name: str | None = None):
+        """A person who joined with an admin's invite."""
+        invite = self.op.create_invite("human", role=role)
+        c = self._track(Client.join(self.url, invite["code"], name, display_name=display_name))
+        return c.identity, c.token, c
+
+    def agent(self, name: str, owner: Client | None = None, role: str = "member", identity_type: str = "agent",
+              can_create_channels: bool = False, channels=(), display_name: str | None = None):
+        """An agent that joined with an invite from `owner` (default: the operator), added to `channels`."""
+        owner = owner or self.op
+        invite = owner.create_invite("agent", role=role, identity_type=identity_type,
+                                     can_create_channels=can_create_channels)
+        c = self._track(Client.join(self.url, invite["code"], name, display_name=display_name))
+        for channel in channels:
+            owner.add_member(owner.channel_id(channel), c.identity["id"])
+        return c.identity, c.token, c
 
     def restart(self) -> None:
         for c in self._clients:

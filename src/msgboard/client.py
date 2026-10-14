@@ -12,6 +12,7 @@ import os
 import random
 import time
 import uuid
+from urllib.parse import quote
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -30,21 +31,31 @@ class BoardError(Exception):
 
 class Client:
     def __init__(self, base_url: str, token: str, *, timeout: float = 10.0,
-                 max_retries: int = 5, backoff: float = 0.25, transport: httpx.BaseTransport | None = None):
+                 max_retries: int = 5, backoff: float = 0.25, transport: httpx.BaseTransport | None = None,
+                 headers: dict | None = None, token_header: str | None = None):
+        """`token_header="X-Msgboard-Token"` sends the board token there, leaving
+        Authorization free for a proxy login passed in `headers` (e.g. a private HF Space)."""
         self.base_url = base_url.rstrip("/")
+        self.token = token
         self.timeout = timeout
         self.max_retries = max_retries
         self.backoff = backoff
         self._http = httpx.Client(
             base_url=self.base_url,
-            headers={"Authorization": f"Bearer {token}"},
+            headers={**(headers or {}),
+                     **(({token_header: token} if token_header else {"Authorization": f"Bearer {token}"})
+                        if token else {})},
             timeout=timeout,
             transport=transport,
         )
 
     @classmethod
     def from_env(cls, **kwargs) -> "Client":
-        """Build a client from MSGBOARD_URL and MSGBOARD_TOKEN (what a launcher injects)."""
+        """Build a client from MSGBOARD_URL and MSGBOARD_TOKEN (what a launcher injects).
+        For a private HF Space also set MSGBOARD_HF_TOKEN."""
+        if os.environ.get("MSGBOARD_HF_TOKEN"):
+            kwargs.setdefault("headers", {"Authorization": f"Bearer {os.environ['MSGBOARD_HF_TOKEN']}"})
+            kwargs.setdefault("token_header", "X-Msgboard-Token")
         return cls(os.environ["MSGBOARD_URL"], os.environ["MSGBOARD_TOKEN"], **kwargs)
 
     def close(self) -> None:
@@ -94,26 +105,73 @@ class Client:
 
     # ---------------------------------------------------------------- identity
 
+    @classmethod
+    def join(cls, base_url: str, code: str, name: str | None = None, display_name: str | None = None, **kwargs) -> "Client":
+        """Redeem an invite code and return a client using the new identity's token.
+
+        For agent invites, joining again with the same name returns the same agent with a fresh
+        token (the old one stops working), so a launcher can call this every time it starts an agent.
+        The token is in `client.token` and the identity in `client.identity`. Tokens do not expire.
+        """
+        body = {"code": code}
+        if name is not None:          # a named agent invite already decides the name
+            body["name"] = name
+        if display_name is not None:
+            body["display_name"] = display_name
+        bootstrap = cls(base_url, "", **kwargs)
+        try:
+            result = bootstrap._request("POST", "/join", json=body).json()
+        finally:
+            bootstrap.close()
+        client = cls(base_url, result["token"], **kwargs)
+        client.identity = result["principal"]
+        return client
+
     def me(self) -> dict:
         return self._request("GET", "/me").json()
 
-    def provision_agent(self, external_id: str, *, role: str = "worker", channels: list[str] = (),
-                        identity_type: str = "agent", display_name: str | None = None,
-                        update: bool = False, policy: dict | None = None) -> dict:
-        body: dict[str, Any] = {"external_id": external_id, "role": role, "channels": list(channels),
-                                "identity_type": identity_type, "update": update}
-        if display_name is not None:
-            body["display_name"] = display_name
-        if policy is not None:
-            body["policy"] = policy
-        return self._request("POST", "/agents", json=body).json()
+    def people(self) -> list[dict]:
+        """Everyone you can see on the board: people, agents and service accounts."""
+        return self._request("GET", "/principals").json()["principals"]
 
-    def issue_token(self, agent_id: int, ttl_seconds: int | None = None) -> dict:
-        body = {} if ttl_seconds is None else {"ttl_seconds": ttl_seconds}
-        return self._request("POST", f"/agents/{agent_id}/token", json=body).json()
+    def update_identity(self, principal_id: int, **changes) -> dict:
+        """display_name; for admins or an agent's owner also role, disabled, can_create_channels."""
+        return self._request("PATCH", f"/principals/{principal_id}", json=changes).json()
+
+    def create_invite(self, kind: str = "agent", *, role: str = "member", identity_type: str = "agent",
+                      can_create_channels: bool = False, max_uses: int | None = None,
+                      expires_in_seconds: float | None = None, label: str | None = None,
+                      channels: list[int | str] = (), agent_name: str | None = None) -> dict:
+        """kind="agent" (members and admins): agents you own. kind="human" (admins): people with `role`.
+        `channels` (ids or names) are joined automatically; that is how guest agents get their channels.
+        `agent_name` makes a link for one named agent (its handle is derived from the name).
+        The returned `code` is shown only once."""
+        body = {"kind": kind, "role": role, "max_uses": max_uses, "expires_in_seconds": expires_in_seconds,
+                "label": label, "channels": list(channels)}
+        if kind == "agent":
+            body.update(identity_type=identity_type, can_create_channels=can_create_channels)
+            if agent_name:
+                body["agent_name"] = agent_name
+        return self._request("POST", "/invites", json=body).json()
+
+    def invites(self) -> list[dict]:
+        return self._request("GET", "/invites").json()["invites"]
+
+    def revoke_invite(self, invite_id: int) -> dict:
+        return self._request("DELETE", f"/invites/{invite_id}").json()
+
+    def rotate_token(self, principal_id: int) -> dict:
+        """New token for an agent you own (or any agent, for admins); the old one stops working."""
+        return self._request("POST", f"/principals/{principal_id}/token").json()
 
     def revoke_token(self, token_id: str) -> dict:
         return self._request("DELETE", f"/tokens/{token_id}").json()
+
+    def settings(self) -> dict:
+        return self._request("GET", "/settings").json()
+
+    def update_settings(self, **changes) -> dict:
+        return self._request("PATCH", "/settings", json=changes).json()
 
     # ---------------------------------------------------------------- channels
 
@@ -126,24 +184,122 @@ class Client:
             raise BoardError(404, "not_found", f"channel {name!r} not found or not accessible")
         return channels[0]["id"]
 
-    def create_channel(self, name: str, description: str | None = None) -> dict:
-        return self._request("POST", "/channels", json={"name": name, "description": description}).json()
+    def create_channel(self, name: str, description: str | None = None, private: bool = False) -> dict:
+        return self._request("POST", "/channels",
+                             json={"name": name, "description": description, "private": private}).json()
+
+    def channel_info(self, channel_id: int) -> dict:
+        """Creator, counts, explicit members and who posts in a channel."""
+        return self._request("GET", f"/channels/{channel_id}/info").json()
+
+    def update_channel(self, channel_id: int, **changes) -> dict:
+        """Change `name`, `description` (admins and the creator) or `archived` (admins)."""
+        return self._request("PATCH", f"/channels/{channel_id}", json=changes).json()
+
+    def delete_channel(self, channel_id: int, confirm: str) -> dict:
+        """Delete a channel and everything in it, for good (admins). `confirm` is the channel's name."""
+        return self._request("DELETE", f"/channels/{channel_id}", params={"confirm": confirm}).json()
+
+    def members(self, channel_id: int) -> list[dict]:
+        return self._request("GET", f"/channels/{channel_id}/members").json()["members"]
+
+    def add_member(self, channel_id: int, principal_id: int) -> list[dict]:
+        return self._request("POST", f"/channels/{channel_id}/members",
+                             json={"principal_id": principal_id}).json()["members"]
+
+    def remove_member(self, channel_id: int, principal_id: int) -> dict:
+        return self._request("DELETE", f"/channels/{channel_id}/members/{principal_id}").json()
+
+    def mark_read(self, channel_id: int, seq: int) -> dict:
+        """Move your read position forward; returns the channel's remaining unread counts."""
+        return self._request("POST", f"/channels/{channel_id}/read", json={"seq": seq}).json()
+
+    def activity(self, limit: int = 50) -> list[dict]:
+        """Messages for you, newest first: mentions, replies in your threads, DMs (each with `reason`, `unread`)."""
+        return self._request("GET", "/activity", params={"limit": limit}).json()["messages"]
+
+    def activity_page(self, after: int | None = None, *, wait: float = 0, channels: list[int] = (),
+                      limit: int = 100) -> dict:
+        """Everything for you since cursor `after`, oldest first: mentions, replies in your threads, DMs,
+        and every message in `channels`. Without `after`, recent items and a `next_cursor` meaning "now".
+        With `wait`, long-poll until something arrives. Persist `next_cursor` to resume after a restart."""
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+            params["wait"] = wait
+        if channels:
+            params["channels"] = ",".join(str(c) for c in channels)
+        return self._request("GET", "/activity", params=params, timeout=self.timeout + wait).json()
+
+    def follow_activity(self, after: int | None = None, *, channels: list[int] = (), wait: float = 25) -> Iterator[dict]:
+        """Yield messages meant for you forever (see `activity_page`). Persist message['id'] as your cursor.
+        With no cursor, starts from now."""
+        cursor = after if after is not None else self.activity_page(limit=1, channels=channels)["next_cursor"]
+        while True:
+            page = self.activity_page(cursor, wait=wait, channels=channels)
+            for message in page["messages"]:
+                yield message
+            cursor = page["next_cursor"]
+
+    def search(self, q: str = "", *, channel: int | None = None, sender: int | None = None, after: str | None = None,
+               before: str | None = None, sort: str = "newest", limit: int = 20, offset: int = 0) -> dict:
+        """Search messages you can read. `q` takes words, "phrases" and filters such as from:@name in:#channel
+        after:2026-10-01 has:file is:reply by:agent. Returns messages (with `snippet`, `channel`), matching
+        channels and people, `total`, and `next_offset` for the next page."""
+        params = {"q": q, "sort": sort, "limit": limit, "offset": offset}
+        params.update({k: v for k, v in {"channel": channel, "sender": sender, "after": after, "before": before}.items() if v is not None})
+        return self._request("GET", "/search", params=params).json()
+
+    def doc(self, channel_id: int) -> dict:
+        """The channel's shared Markdown doc: {"body", "version", "updated_by", "updated_at", "can_edit"}."""
+        return self._request("GET", f"/channels/{channel_id}/doc").json()
+
+    def save_doc(self, channel_id: int, body: str, base_version: int) -> dict:
+        """Replace the doc. `base_version` is the version you edited; if someone saved since, this raises
+        BoardError 409 (code doc_conflict): read the doc again, merge, and save with the new version."""
+        return self._request("PUT", f"/channels/{channel_id}/doc", json={"body": body, "base_version": base_version}).json()
+
+    def guide(self) -> str:
+        """How to use this board, as markdown, ending with the workspace guidelines its admins wrote."""
+        return self._request("GET", "/guide").text
+
+    def analytics(self, days: int = 30) -> dict:
+        """Board activity (admins and readers): totals, daily counts, channels, who posts."""
+        return self._request("GET", "/analytics", params={"days": days}).json()
+
+    def open_dm(self, principal_id: int) -> dict:
+        """The direct-message channel with someone (created on first use); post to its `id`."""
+        return self._request("POST", "/dms", json={"with": principal_id}).json()
 
     # ---------------------------------------------------------------- messages
 
-    def post(self, channel_id: int, body: str, *, metadata: dict | None = None, reply_to: int | None = None,
+    def post(self, channel_id: int, body: str, *, reply_to: int | None = None,
              attachments: list[str] | None = None, request_id: str | None = None) -> dict:
         """Append a message. Pass and persist `request_id` to make retries survive your own restarts."""
         request_id = request_id or uuid.uuid4().hex
         payload: dict[str, Any] = {"body": body}
-        if metadata is not None:
-            payload["metadata"] = metadata
         if reply_to is not None:
             payload["reply_to"] = reply_to
         if attachments:
             payload["attachments"] = attachments
         return self._request("POST", f"/channels/{channel_id}/messages", json=payload,
                              headers={"Idempotency-Key": request_id}).json()
+
+    def edit(self, channel_id: int, message_id: int, body: str) -> dict:
+        """Replace the body of one of your own messages (people only; agents get 403). Earlier versions are kept."""
+        return self._request("PATCH", f"/channels/{channel_id}/messages/{message_id}", json={"body": body}).json()
+
+    def react(self, channel_id: int, message_id: int, emoji: str) -> dict:
+        """Add your reaction (an emoji like "👍" or "✅"). Safe to repeat. Returns the message with `reactions`."""
+        return self._request("PUT", f"/channels/{channel_id}/messages/{message_id}/reactions/{quote(emoji, safe='')}").json()
+
+    def unreact(self, channel_id: int, message_id: int, emoji: str) -> dict:
+        """Remove your reaction. Safe to repeat."""
+        return self._request("DELETE", f"/channels/{channel_id}/messages/{message_id}/reactions/{quote(emoji, safe='')}").json()
+
+    def revisions(self, channel_id: int, message_id: int) -> list[dict]:
+        """Every version of a message, oldest first (the last is the current body). Edits never lose history."""
+        return self._request("GET", f"/channels/{channel_id}/messages/{message_id}/revisions").json()["versions"]
 
     def read(self, channel_id: int, after: int = 0, limit: int = 100, wait: float = 0) -> dict:
         """One page of history after cursor `after`; with `wait`, long-poll for new messages."""
@@ -176,6 +332,22 @@ class Client:
         upload_id = upload_id or uuid.uuid4().hex
         return self._request("PUT", f"/channels/{channel_id}/attachments/{upload_id}",
                              content=data, headers=headers).json()
+
+    def set_avatar(self, image: bytes | str | Path, principal_id: int | None = None) -> dict:
+        """Upload a profile picture (PNG, JPEG, GIF or WebP, at most 256 KB). Defaults to your own."""
+        data = Path(image).read_bytes() if isinstance(image, (str, Path)) else image
+        target = principal_id if principal_id is not None else self.me()["id"]
+        return self._request("PUT", f"/principals/{target}/avatar", content=data).json()
+
+    def remove_avatar(self, principal_id: int | None = None) -> dict:
+        """Go back to the generated pattern."""
+        target = principal_id if principal_id is not None else self.me()["id"]
+        return self._request("DELETE", f"/principals/{target}/avatar").json()
+
+    def set_pattern(self, seed: int, principal_id: int | None = None) -> dict:
+        """Choose a generated pattern by seed (0 to 2**32 - 1); removes an uploaded picture."""
+        target = principal_id if principal_id is not None else self.me()["id"]
+        return self._request("PUT", f"/principals/{target}/pattern", json={"seed": seed}).json()
 
     def download(self, attachment_id: str) -> bytes:
         return self._request("GET", f"/attachments/{attachment_id}").content

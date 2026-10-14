@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import os
+import signal
 import sys
 import time
 from pathlib import Path
@@ -106,7 +107,7 @@ def cmd_init(args) -> int:
     finally:
         conn.close()
     print(f"{'Initialized schema in existing' if existed else 'Created'} board in {data_dir} (schema v{version}).")
-    print(f"Operator token saved to {token_path} (mode 0600). Keep it secret; give launchers a provisioner token instead.")
+    print(f"Operator token saved to {token_path} (mode 0600). Keep it secret; open the dashboard with it to create invite links.")
     return 0
 
 
@@ -166,14 +167,22 @@ def _is_loopback(host: str) -> bool:
 
 
 def cmd_serve(args) -> int:
-    import uvicorn
-
-    from .server import AlreadyRunning, Board, NotInitialized, create_app
+    from .server import AlreadyRunning, Board, NotInitialized
 
     data_dir = Path(args.data_dir).expanduser()
     _warn_fs(data_dir)
+    replicator = None
+    if args.replica:
+        from .replicate import Replicator, restore, store_from_url
+
+        store = store_from_url(args.replica)
+        if not (data_dir / DB_NAME).exists():
+            manifest = restore(store, data_dir)
+            print(f"Restored {manifest['snapshot']} from replica." if manifest
+                  else "Replica is empty; nothing to restore.", file=sys.stderr)
+        replicator = Replicator(store, data_dir, interval=args.snapshot_interval)
     try:
-        board = Board(data_dir)
+        board = Board(data_dir, replicator=replicator)
     except (NotInitialized, AlreadyRunning, dbmod.SchemaError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -181,20 +190,49 @@ def cmd_serve(args) -> int:
         print(f"warning: listening on {args.host}. Tokens travel in plain HTTP; "
               "put HTTPS in front of this outside isolated local development.", file=sys.stderr)
 
+    run_board(board, args.host, args.port, args.log_level)
+    return 0
+
+
+def run_board(board, host: str, port: int, log_level: str = "info", app=None) -> None:
+    """Serve `board` in the foreground until SIGINT/SIGTERM, then close it (final snapshot included)."""
+    import uvicorn
+
+    from .server import create_app
+
     class BoardServer(uvicorn.Server):
         def handle_exit(self, sig, frame):
             board.begin_shutdown()
             super().handle_exit(sig, frame)
 
     config = uvicorn.Config(
-        create_app(board), host=args.host, port=args.port, log_level=args.log_level,
+        app or create_app(board), host=host, port=port, log_level=log_level,
         timeout_graceful_shutdown=5, server_header=False,
     )
+
+    # uvicorn re-raises the signal it caught after shutting down. With the
+    # default SIGTERM action that kills the process before board.close() runs,
+    # so the final snapshot would be lost. Turn it into a normal exit instead.
+    def _exit(signum, frame):
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, _exit)
+    signal.signal(signal.SIGINT, _exit)
     try:
         BoardServer(config).run()
     finally:
         board.close()
         print("Board stopped cleanly.", file=sys.stderr)
+
+
+def cmd_restore(args) -> int:
+    from .replicate import restore, store_from_url
+
+    manifest = restore(store_from_url(args.replica), Path(args.data_dir).expanduser())
+    if manifest is None:
+        print("error: replica has no snapshot", file=sys.stderr)
+        return 1
+    print(f"Restored {manifest['snapshot']} ({manifest['size']} bytes) into {args.data_dir}.")
     return 0
 
 
@@ -217,7 +255,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
     p.add_argument("--log-level", default="info")
+    p.add_argument("--replica", default=None,
+                   help="snapshot target: hf://buckets/<ns>/<bucket>[/<prefix>] or a directory; "
+                        "an empty data dir is restored from it first")
+    p.add_argument("--snapshot-interval", type=float, default=10.0, help="seconds between snapshots")
     p.set_defaults(func=cmd_serve)
+
+    p = sub.add_parser("restore", help="restore an empty data dir from a replica")
+    p.add_argument("--data-dir", required=True)
+    p.add_argument("--replica", required=True)
+    p.set_defaults(func=cmd_restore)
 
     p = sub.add_parser("backup", help="write a consistent SQLite snapshot")
     p.add_argument("--data-dir", required=True)

@@ -1,12 +1,13 @@
 class ApiError(Exception):
     """An error with an HTTP status and a stable machine-readable code."""
 
-    def __init__(self, status: int, code: str, message: str, headers: dict | None = None):
+    def __init__(self, status: int, code: str, message: str, headers: dict | None = None, details: dict | None = None):
         super().__init__(message)
         self.status = status
         self.code = code
         self.message = message
         self.headers = headers or {}
+        self.details = details
 
 
 def not_found(what: str = "not found") -> ApiError:

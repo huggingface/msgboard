@@ -19,9 +19,8 @@ def test_space_header_auth_and_benchmark_permissions(tmp_path, monkeypatch):
         assert response.status_code == 200
         assert response.json()["bench_enabled"] is False
         assert client.post("/_bench/jobs", headers=headers, json={"suite": "smoke"}).status_code == 403
-        agent = client.post("/v1/agents", headers=headers, json={
-            "external_id": "worker", "role": "worker", "channels": []}).json()
-        issued = client.post(f"/v1/agents/{agent['id']}/token", headers=headers, json={}).json()
+        invite = client.post("/v1/invites", headers=headers, json={"kind": "agent"}).json()
+        issued = client.post("/v1/join", json={"code": invite["code"], "name": "worker"}).json()
         assert client.get("/_bench/system", headers={"X-Flock-Token": issued["token"]}).status_code == 403
         assert client.get("/_bench/system", headers={"X-Flock-Token": "invalid"}).status_code == 401
         assert client.get("/_bench/system", headers={"Authorization": "Bearer " + token}).status_code == 200

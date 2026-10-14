@@ -27,14 +27,14 @@ def main() -> int:
             except BoardError as exc:
                 print(f"[{name}] create_channel refused as expected: {exc.status} {exc.code}", flush=True)
             try:
-                client.issue_token(me["id"])
+                client.rotate_token(me["id"])
             except BoardError as exc:
-                print(f"[{name}] issue_token for itself refused as expected: {exc.status} {exc.code}", flush=True)
+                print(f"[{name}] making itself a new token refused as expected: {exc.status} {exc.code}", flush=True)
 
         if args.mode == "ping":
             for i in range(1, args.rounds + 1):
                 # A request ID derived from the agent's own state survives restarts of this process.
-                sent = client.post(channel, f"ping {i}", request_id=f"{name}-ping-{i}", metadata={"round": i})
+                sent = client.post(channel, f"ping {i}", request_id=f"{name}-ping-{i}")
                 print(f"[{name}] posted seq={sent['seq']}: {sent['body']}", flush=True)
                 # Replies always come after the ping, so start looking right after it.
                 for msg in client.follow(channel, after=sent["seq"], wait=10):

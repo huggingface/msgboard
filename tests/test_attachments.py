@@ -11,8 +11,8 @@ def test_upload_publish_download(env):
     ch = env.op.create_channel("files")
     other = env.op.create_channel("other")
     _, _, alice = env.agent("alice", channels=["files"])
-    _, _, bob = env.agent("bob", role="observer", channels=["files"])
-    _, _, eve = env.agent("eve", channels=["other"])
+    _, _, bob = env.agent("bob", role="guest", channels=["files"])
+    _, _, eve = env.agent("eve", role="guest", channels=["other"])
 
     att = alice.upload(ch["id"], b"hello file", upload_id="up-1", filename="../../etc/passwd")
     assert att["state"] == "ready" and att["filename"] == "passwd" and not att["published"]
@@ -69,3 +69,14 @@ def test_unready_or_foreign_attachment_cannot_be_referenced(env):
         b.post(ch["id"], "not mine", attachments=[att["id"]])
     with pytest.raises(BoardError):
         a.post(ch["id"], "missing", attachments=["att_doesnotexist"])
+
+
+def test_attachment_order_is_kept(env):
+    ch = env.op.create_channel("ordered")
+    ids = [env.op.upload(ch["id"], f"file {i}".encode(), filename=f"f{i}.txt")["id"] for i in range(5)]
+    wanted = [ids[3], ids[0], ids[4], ids[1], ids[2]]
+    msg = env.op.post(ch["id"], "five files", attachments=wanted, request_id="ordered-1")
+    assert msg["attachments"] == wanted
+    assert env.op.read(ch["id"])["messages"][0]["attachments"] == wanted
+    # a retry listing the same files in another order is the same message, not a conflict
+    assert env.op.post(ch["id"], "five files", attachments=sorted(wanted), request_id="ordered-1")["id"] == msg["id"]

@@ -120,11 +120,11 @@ class LoadTest:
     async def fixture(self, channel_count=32, token_count=32):
         for channel_index in range(channel_count):
             self.channels.append(await self.control("POST", "/v1/channels", json={"name": f"{self.prefix}-{channel_index}"}))
-        names = [channel["name"] for channel in self.channels]
+        # Writers join with one agent invite; as member agents they see every public channel.
+        invite = await self.control("POST", "/v1/invites", json={"kind": "agent", "label": f"{self.prefix} writers"})
         for token_index in range(token_count):
-            agent = await self.control("POST", "/v1/agents", json={
-                "external_id": f"{self.prefix}-writer-{token_index}", "role": "worker", "channels": names})
-            issued = await self.control("POST", f"/v1/agents/{agent['id']}/token", json={"ttl_seconds": 7200})
+            issued = await self.control("POST", "/v1/join", json={
+                "code": invite["code"], "name": f"{self.prefix}-writer-{token_index}"})
             self.tokens.append(issued["token"])
 
     async def observe(self, stop, snapshots):
@@ -349,12 +349,6 @@ class LoadTest:
             response = await self.client.get(f"/v1/channels/{channel_id}/messages",
                 headers=self.headers(self.tokens[0]), params={"limit": limit})
             checks.append({"check": "page_limit", "limit": limit, "status": response.status_code})
-        for metadata_size in (16375, 16376):
-            metadata = {"x": "a" * metadata_size}
-            response = await self.client.post(f"/v1/channels/{channel_id}/messages",
-                headers={**self.headers(self.tokens[0]), "Idempotency-Key": uuid.uuid4().hex},
-                json={"body": "metadata boundary", "metadata": metadata})
-            checks.append({"check": "metadata_size", "serialized_bytes": len(json.dumps(metadata).encode()), "status": response.status_code})
         request_id = uuid.uuid4().hex
         for text in ("deduplication", "deduplication", "changed"):
             response = await self.client.post(f"/v1/channels/{channel_id}/messages",

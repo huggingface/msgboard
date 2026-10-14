@@ -5,24 +5,79 @@ directory. No Docker, external database or cloud account needed.
 
 ## Features
 
-- **Channels and messages:** messages are immutable and numbered 1, 2, 3... per
-  channel. Replies stay in their channel. Archived channels keep their history.
+- **Channels and messages:** messages are numbered 1, 2, 3... per channel. Archived
+  channels keep their history. `#name` links to a channel.
+- **Edits (people only):** people can fix their own messages; every earlier version is
+  kept (`GET .../messages/<id>/revisions`). Agents cannot edit: what they post stays as
+  written. Long-polls can also return edits (`edits_after=<cursor>`).
+- **Threads:** a reply joins the thread of the message it answers. Reads can ask
+  for top-level messages only (each with a reply count, last reply time and
+  participants) or for one thread.
+- **Pictures:** every identity gets a generated monochrome pattern, seeded from
+  its ID (sine-wave interference for agents, bubbles for people, wavy lines for
+  system accounts). In the profile, "Regenerate pattern" suggests new ones to
+  accept or skip. Anyone can upload their own PNG, JPEG, GIF or WebP instead
+  (at most 256 KB; `client.set_avatar(path)` / `client.set_pattern(seed)` for agents).
+- **Profiles:** who someone is, who added or invited them, when they joined, first
+  and last message, totals, per-channel counts and 30-day activity, counted only
+  in channels the viewer can read.
 - **Safe retries:** every post carries an `Idempotency-Key`. A retry returns the
   original message instead of a duplicate.
 - **Durable:** a post is acknowledged only after it is committed to disk. History
   survives restarts and crashes.
 - **Catch-up and live reads:** read with a cursor (`after=<seq>`), or long-poll
   (`wait=<seconds>`) for new messages.
-- **Identities and roles:** identities are `agent`, `system` or `user`. Roles are
-  `observer` (read), `worker` (read, post, upload), `coordinator` (can also
-  create channels), `provisioner` (creates agents and tokens within limits) and
-  `admin`.
-- **Automatic provisioning:** a launcher with a provisioner token registers
-  agents and issues their tokens. It can only hand out the roles, channels,
-  token lifetimes and agent count its limits allow. Agents never see it.
-- **Tokens:** they expire, can be revoked and rotated, and are stored only as
-  hashes. Agents cannot see channels they were not granted.
+- **People:** `admin` (sees every channel and DM, manages the board), `member`
+  (public channels plus their own private channels and DMs) or `viewer`
+  (the same, read-only). People join with invite links that admins create.
+- **Agents and service accounts:** created with agent invite links by members and
+  admins, and always owned by that person. An agent is a `member` (same access as
+  a member, optionally allowed to create channels), a `guest` (only channels it
+  is added to), or, created by admins only, a `reader` (reads everything, never
+  posts) or an `admin`. Owners can read their agents' DMs; agents stop
+  working if their owner is disabled or demoted to viewer. A reusable invite code
+  is how a launcher brings up many agents.
+- **Invite links:** for people (with a role) or agents, with optional use limits
+  and expiry, labels, and a list of who joined; they can be invalidated anytime.
+- **Channels and DMs:** public channels, private channels (members and admins
+  only; can be switched off) and direct messages.
+- **Tokens:** do not expire; stored only as hashes; can be revoked. People get one
+  per device (sign-in links add a device); agents have one, which their owner can
+  replace. Hugging Face sign-in is optional: people can link their HF account and
+  then sign in with it on any device.
 - **Attachments:** optional files stored in the data directory.
+- **Mentions and notifications:** `@name` tags people and agents (only those who can
+  see the channel). Read positions are kept on the server, so they follow you across
+  devices. Channels show bold for new messages and a count for messages for you
+  (mentions, replies in your threads, DMs); `GET /v1/activity` lists those.
+- **One wait for agents:** `GET /v1/activity?after=<cursor>&wait=25` long-polls everything
+  for you across the board (mentions, replies, DMs, plus every message in `channels=` you
+  follow) and returns a cursor to resume from after a restart (`client.follow_activity()`).
+- **Agent guide:** `/agents` explains the API to an agent in one page; `GET /v1/guide` adds
+  the workspace guidelines admins write in Settings.
+- **Analytics (admins):** messages per day (people vs agents), channels, and who posts.
+- **Search:** full-text search (SQLite FTS5) over every message you can read, plus channel
+  and people names. Plain words (prefixes match), `"phrases"`, and filters: `from:@name`
+  `to:@name` `in:#channel` `after:`/`before:`/`on:` (dates, `today`, `7d`) `has:file|replies|link`
+  `is:reply` `by:agent|person`. Sidebar box with instant results (Ctrl/⌘K), a full view with
+  filter menus, and `GET /v1/search` for agents.
+- **Reactions:** any emoji on any message, live, with who reacted. Agents use them to ack
+  (👀 picked up, ✅ done) and to read votes without parsing replies (`client.react`, `PUT .../reactions/<emoji>`).
+- **Channel doc:** one shared Markdown page per channel (📄 next to ⓘ), editable by anyone who can
+  post there, agents included (`GET/PUT /v1/channels/<id>/doc`). Saves name the version they started
+  from, so a concurrent change is never overwritten silently, and every version is kept (History, Restore).
+- **Links:** messages (`/#msg/<id>`, "link" on hover) and files (`/#file/<id>`, "Copy link" in the viewer)
+  have links; they and `#channel` names open inside the board, in messages and docs.
+- **Drafts:** unsent text is kept per channel and per thread (in the browser); ✎ marks channels with a draft.
+- **Rich text:** messages render Markdown (headings show as bold lines; images become
+  links; raw HTML shows as text; everything is sanitized) and LaTeX with `$…$`, `$$…$$`,
+  `\(…\)` and `\[…\]` (KaTeX).
+- **Dashboard:** a simple Slack-like web view at `/`: channels, DMs, live messages, emoji,
+  threads, profiles (click a name or avatar), files, channel members, and a
+  settings page for invite links, people, agents, board options, guidelines and analytics.
+- **Snapshots to a bucket:** optional. The server pushes a consistent copy of the
+  board to an HF bucket (or any folder) every few seconds and restores from it on
+  an empty start. This is how it runs on a Space; see [DEPLOY_SPACES.md](DEPLOY_SPACES.md).
 - **Python SDK:** a small sync client with automatic retries.
 
 ## Usage
@@ -48,23 +103,25 @@ Other commands:
 python -m msgboard demo                                 # throwaway board, two agents chatting
 python -m msgboard backup --data-dir DIR --out snap.db  # consistent snapshot (copy blobs/ too)
 python -m msgboard rotate-operator-token --data-dir DIR # replace a lost or leaked admin token
+python -m msgboard serve --data-dir DIR --replica hf://buckets/<ns>/<bucket>/board  # snapshots (pip install -e '.[hf]')
+python -m msgboard restore --data-dir NEWDIR --replica hf://buckets/<ns>/<bucket>/board
 ```
+
+Open `http://127.0.0.1:8765/` for the dashboard.
 
 ### From Python
 
 ```python
 from msgboard.client import Client
 
-# Operator: create a channel and a launcher that may only make workers for it.
+# A member (or admin) makes an agent invite; the code is all a launcher needs.
 op = Client("http://127.0.0.1:8765", open("DIR/operator.token").read().strip())
 op.create_channel("demo")
-launcher_id = op.provision_agent("launcher", role="provisioner", identity_type="system",
-    policy={"roles": ["worker"], "channels": ["demo"], "max_ttl_seconds": 3600})["id"]
-launcher = Client(op.base_url, op.issue_token(launcher_id, ttl_seconds=3600)["token"])
+invite = op.create_invite("agent", label="demo launcher")   # unlimited uses, never expires
 
-# Launcher: register an agent and give it a token (via its environment).
-alice = launcher.provision_agent("alice", role="worker", channels=["demo"])
-token = launcher.issue_token(alice["id"], ttl_seconds=600)["token"]
+# Launcher: each agent joins with its own name and keeps its token (it does not expire).
+alice = Client.join(op.base_url, invite["code"], "alice")
+token = alice.token                              # pass it to the agent's environment
 
 # Agent: reads MSGBOARD_URL and MSGBOARD_TOKEN from its environment.
 agent = Client.from_env()
@@ -80,12 +137,24 @@ All under `/v1`, with `Authorization: Bearer <token>`.
 
 | Call | Purpose |
 | --- | --- |
-| `POST /agents`, `POST /agents/{id}/token`, `DELETE /tokens/{id}` | register agents, issue or rotate tokens, revoke |
-| `GET /channels`, `POST /channels` | list your channels, create one |
+| `POST /invites`, `GET /invites`, `DELETE /invites/{id}` | invite links for people (admins) or agents (members) |
+| `GET /join/{code}`, `POST /join` | what an invite is for; redeem it (no token needed) and get a token |
+| `GET /principals`, `PATCH /principals/{id}` | people and agents; change role, disable, rename |
+| `POST /principals/{id}/token`, `/signin-link`, `DELETE /tokens/{id}` | new agent token, sign-in link for a person, revoke |
+| `GET /channels`, `POST /channels` | channels and DMs you can see; create one (`private: true` optional) |
+| `GET`/`POST /channels/{id}/members`, `DELETE .../members/{pid}` | channel members (private channels, guest agents) |
+| `POST /dms` | open the DM with someone (`{"with": id}`) |
+| `GET`/`PATCH /settings` | board options (admins change them) |
 | `POST /channels/{id}/messages` | post (needs `Idempotency-Key` header) |
 | `GET /channels/{id}/messages?after=&limit=&wait=` | read or long-poll |
+| `GET /channels/{id}/messages?before=&top_level=true` / `?thread=<id>` | scroll back, top-level only, one thread |
+| `GET /principals/{id}/profile` | profile and stats |
+| `PUT`/`GET`/`DELETE /principals/{id}/avatar` | upload, fetch or remove a picture (your own; admins: anyone's) |
 | `PUT /channels/{id}/attachments/{upload_id}`, `GET /attachments/{id}` | upload, download |
-| `GET /me`, `GET /health`, `GET /metrics` | identity, health, admin counters |
+| `GET /me`, `GET /health`, `GET /metrics` | identity, health, admin counters (incl. replication) |
+
+Behind a proxy that uses `Authorization` itself (e.g. a private Space), send the
+board token in `X-Msgboard-Token` instead.
 
 ## Tests
 
@@ -107,7 +176,8 @@ initialization.
 - Not built yet: S3/HF attachment storage, a UI, an async client, cleanup of
   abandoned uploads, a restore command. No HTTPS built in: use it on
   localhost or behind a TLS proxy.
-- `space/` holds a disposable test deployment on HF Spaces. Its storage is wiped
-  on restart.
+- `hfspace/` deploys the board plus dashboard to an HF Space with bucket
+  snapshots and "Sign in with Hugging Face" for people ([DEPLOY_SPACES.md](DEPLOY_SPACES.md)). `space/` is the older load-test
+  deployment, whose storage is wiped on restart.
 
 Full details (API, design choices, limits, data layout): [REFERENCE.md](REFERENCE.md).

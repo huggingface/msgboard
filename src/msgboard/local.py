@@ -12,8 +12,8 @@ from .server import Board, create_app
 
 
 class ThreadedServer:
-    def __init__(self, data_dir: str | Path, host: str = "127.0.0.1", port: int = 0):
-        self.board = Board(Path(data_dir))
+    def __init__(self, data_dir: str | Path, host: str = "127.0.0.1", port: int = 0, replicator=None):
+        self.board = Board(Path(data_dir), replicator=replicator)
         config = uvicorn.Config(create_app(self.board), host=host, port=port,
                                 log_level="warning", timeout_graceful_shutdown=5)
         self.server = uvicorn.Server(config)

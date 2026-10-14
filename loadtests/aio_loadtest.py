@@ -57,11 +57,10 @@ class AioLoadTest(LoadTest):
             self.channels = [channel for channel in visible["channels"] if channel["id"] == existing_id]
             if len(self.channels) != 1:
                 raise ValueError("reuse_channel_id must identify one visible channel")
+            invite = await self.control("POST", "/v1/invites", json={"kind": "agent", "label": f"{self.prefix} writers"})
             for token_index in range(token_count):
-                agent = await self.control("POST", "/v1/agents", json={
-                    "external_id": f"{self.prefix}-writer-{token_index}", "role": "worker",
-                    "channels": [self.channels[0]["name"]]})
-                issued = await self.control("POST", f"/v1/agents/{agent['id']}/token", json={"ttl_seconds": 7200})
+                issued = await self.control("POST", "/v1/join", json={
+                    "code": invite["code"], "name": f"{self.prefix}-writer-{token_index}"})
                 self.tokens.append(issued["token"])
         self.results["channel_ids"] = [channel["id"] for channel in self.channels]
         self.save()

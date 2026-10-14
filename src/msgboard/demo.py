@@ -1,4 +1,4 @@
-"""Two-agent demo: operator -> provisioner (launcher) -> two worker processes."""
+"""Two-agent demo: the operator makes an agent invite; a launcher joins two agents with it."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import tempfile
 from argparse import Namespace
 from pathlib import Path
 
-from .client import BoardError, Client
+from .client import Client
 from .config import OPERATOR_TOKEN_FILE
 from .local import ThreadedServer
 
@@ -26,28 +26,20 @@ def run_demo(data_dir: str | None, port: int = 0) -> int:
         print(f"\nBoard running at {server.url} (data in {data_dir})\n")
         with Client(server.url, operator_token) as operator:
             channel = operator.create_channel("demo", "two-agent demo")
-            # The operator creates a restricted provisioner for the launcher.
-            launcher_identity = operator.provision_agent(
-                "demo-launcher", role="provisioner", identity_type="system",
-                policy={"roles": ["worker"], "channels": ["demo"], "max_ttl_seconds": 3600, "max_agents": 10},
-            )
-            launcher_token = operator.issue_token(launcher_identity["id"], ttl_seconds=3600)["token"]
+            # The operator makes an agent invite for the launcher: agents joining with it belong to
+            # the operator, see public channels and cannot create channels.
+            invite = operator.create_invite("agent", role="member", max_uses=10, label="demo launcher")
 
         procs = []
-        with Client(server.url, launcher_token) as launcher:
-            try:
-                launcher.provision_agent("sneaky", role="provisioner")
-            except BoardError as exc:
-                print(f"[launcher] creating another provisioner refused as expected: {exc.status} {exc.code}")
-            for name, mode in (("bob", "pong"), ("alice", "ping")):
-                agent = launcher.provision_agent(name, role="worker", channels=["demo"], display_name=name.title())
-                token = launcher.issue_token(agent["id"], ttl_seconds=600)["token"]
-                # The worker only gets its own runtime token, through its environment.
-                env = {k: v for k, v in os.environ.items() if not k.startswith("MSGBOARD_")}
-                env.update(MSGBOARD_URL=server.url, MSGBOARD_TOKEN=token, MSGBOARD_CHANNEL="demo")
-                procs.append(subprocess.Popen(
-                    [sys.executable, "-m", "msgboard.demo_agent", "--mode", mode, "--rounds", "3"], env=env))
-                print(f"[launcher] started {name} (agent id {agent['id']}, role worker)")
+        for name, mode in (("bob", "pong"), ("alice", "ping")):
+            agent = Client.join(server.url, invite["code"], name, display_name=name.title())
+            # The agent only gets its own token, through its environment.
+            env = {k: v for k, v in os.environ.items() if not k.startswith("MSGBOARD_")}
+            env.update(MSGBOARD_URL=server.url, MSGBOARD_TOKEN=agent.token, MSGBOARD_CHANNEL="demo")
+            agent.close()
+            procs.append(subprocess.Popen(
+                [sys.executable, "-m", "msgboard.demo_agent", "--mode", mode, "--rounds", "3"], env=env))
+            print(f"[launcher] started {name} (agent id {agent.identity['id']}, owned by the operator)")
 
         codes = [p.wait(timeout=120) for p in procs]
 

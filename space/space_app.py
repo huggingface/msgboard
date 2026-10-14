@@ -114,7 +114,7 @@ def build_app(data_dir: Path):
         header = request.headers.get("authorization", "")
         token = header.removeprefix("Bearer ")
         principal = await board.db.read(store.authenticate, token, time.time())
-        if not await board.db.read(store.is_admin, principal.id):
+        if not principal.is_admin:
             raise forbidden("operator only")
         return principal
 

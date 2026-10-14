@@ -110,7 +110,7 @@ def test_cursor_pagination(env):
 
 def test_long_poll_wakes_on_post_and_times_out(env):
     ch = env.op.create_channel("poll")
-    _, _, reader = env.agent("reader", role="observer", channels=["poll"])
+    _, _, reader = env.human("reader", role="viewer")
     result = {}
 
     def poll():
@@ -209,3 +209,46 @@ def test_clean_shutdown_with_open_long_poll(env):
     t.join(timeout=5)
     env.server = ThreadedServer(env.data_dir).start()  # lock released, restart works
     env.url = env.server.url
+
+
+def test_messages_have_no_metadata(env):
+    ch = env.op.create_channel("plain")
+    with env.http(env.operator_token) as h:
+        r = h.post(f"/channels/{ch['id']}/messages", headers={"Idempotency-Key": "m1"},
+                   json={"body": "hi", "metadata": {"source": "x"}})
+        assert r.status_code == 400 and "metadata" in r.json()["error"]["message"]
+        ok = h.post(f"/channels/{ch['id']}/messages", headers={"Idempotency-Key": "m2"}, json={"body": "hi"})
+    assert ok.status_code == 201 and "metadata" not in ok.json()
+
+
+def test_retry_of_message_stored_before_metadata_removal_still_replays(tmp_path):
+    """Messages stored under schema v3 hashed {.., "metadata": null}; a retry after upgrading must replay."""
+    import hashlib
+    import json
+
+    from msgboard import db as dbmod
+    from msgboard import store
+
+    path = tmp_path / "board.db"
+    conn = dbmod.connect(path)
+    for version, script in enumerate(dbmod.MIGRATIONS[:3]):
+        conn.execute("BEGIN IMMEDIATE")
+        for statement in dbmod._split(script):
+            conn.execute(statement)
+        conn.execute(f"PRAGMA user_version={version + 1}")
+        conn.execute("COMMIT")
+    conn.execute("BEGIN IMMEDIATE")
+    pid, token = store.create_operator(conn, time.time())
+    conn.execute("INSERT INTO channels (name, created_by, created_at, next_seq) VALUES ('c', ?, 0, 2)", (pid,))
+    old = {"channel_id": 1, "body": "before", "metadata": None, "reply_to": None, "attachments": []}
+    old_hash = hashlib.sha256(json.dumps(old, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    conn.execute("""INSERT INTO messages (channel_id, seq, sender_id, body, request_id, payload_hash, created_at)
+                    VALUES (1, 1, ?, 'before', 'old-key', ?, 0)""", (pid, old_hash))
+    conn.execute("COMMIT")
+    assert dbmod.migrate(conn, path) == dbmod.SCHEMA_VERSION
+    principal = store.authenticate(conn, token, time.time())
+    normalized, digest = store.normalize_payload(1, {"body": "before"})
+    conn.execute("BEGIN IMMEDIATE")
+    message, created = store.post_message(conn, principal, 1, "old-key", normalized, digest, time.time())
+    conn.execute("COMMIT")
+    assert not created and message["body"] == "before" and "metadata" not in message
