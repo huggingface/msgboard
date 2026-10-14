@@ -1252,7 +1252,9 @@ function renderChannels() {
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
-  for (const c of state.channels) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
+  // archived channels stay listed, after the active ones (a stable sort keeps the server's order otherwise)
+  const ordered = [...state.channels].sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0));
+  for (const c of ordered) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
   if (!$("dms").children.length) $("dms").innerHTML = `<li class="small" style="padding:2px 16px">None yet</li>`;
   hydrate($("dms"));
 }
