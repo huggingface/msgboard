@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from msgboard.client import BoardError
+from msgboard.client import BoardError, Client
 
 
 def test_activity_cursor_resumes_and_follows_channels(env):
@@ -88,3 +88,15 @@ def test_analytics_for_admins_only(env):
     with pytest.raises(BoardError) as e:
         ana.analytics()
     assert e.value.status == 403
+
+
+def test_activity_follows_joined_channels(env):
+    a = env.op.create_channel("alpha"); b = env.op.create_channel("beta"); c = env.op.create_channel("gamma")
+    _, _, ana = env.human("ana")
+    bot = Client.join(env.url, env.op.create_invite("agent", join_open_channels=True)["code"], "listener")
+    env.op.remove_member(c["id"], bot.identity["id"])                  # leaves one channel
+    start = bot.activity_page(channels="joined")["next_cursor"]
+    ana.post(a["id"], "in alpha"); ana.post(b["id"], "in beta"); ana.post(c["id"], "in gamma")
+    ana.post(c["id"], "@listener ping from gamma")
+    got = [(m["body"], m["reason"]) for m in bot.activity_page(start, channels="joined")["messages"]]
+    assert got == [("in alpha", "channel"), ("in beta", "channel"), ("@listener ping from gamma", "mention")]

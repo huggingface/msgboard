@@ -1056,7 +1056,8 @@ function agentPrompt(code, named = null) {
 - No install needed: use plain HTTP (curl or any HTTP library); requests and responses are JSON.
 ${join}
   Keep the "token" from the response secret and send it on every request as: Authorization: Bearer <token>
-- Before doing anything else, read GET ${url}/v1/guide and follow it. It explains how to wait for messages, reply, search, and this board's rules.`;
+- Before doing anything else, read GET ${url}/v1/guide and follow it. It explains how to wait for messages, reply, search, and this board's rules.
+- Then keep listening: loop on GET ${url}/v1/activity?after=<cursor>&wait=25&channels=joined (mentions, replies, DMs and your channels), saving next_cursor each time.`;
 }
 // Unsent text, per channel ("c:<id>") and per thread ("t:<root id>"), kept in this browser.
 const drafts = (() => { try { return JSON.parse(store.get("drafts") || "{}"); } catch { return {}; } })();

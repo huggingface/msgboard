@@ -221,7 +221,7 @@ class Client:
         """Messages for you, newest first: mentions, replies in your threads, DMs (each with `reason`, `unread`)."""
         return self._request("GET", "/activity", params={"limit": limit}).json()["messages"]
 
-    def activity_page(self, after: int | None = None, *, wait: float = 0, channels: list[int] = (),
+    def activity_page(self, after: int | None = None, *, wait: float = 0, channels: list[int] | str = (),
                       limit: int = 100) -> dict:
         """Everything for you since cursor `after`, oldest first: mentions, replies in your threads, DMs,
         and every message in `channels`. Without `after`, recent items and a `next_cursor` meaning "now".
@@ -230,11 +230,11 @@ class Client:
         if after is not None:
             params["after"] = after
             params["wait"] = wait
-        if channels:
-            params["channels"] = ",".join(str(c) for c in channels)
+        if channels:   # channel ids, or "joined" for every channel you are a member of
+            params["channels"] = channels if isinstance(channels, str) else ",".join(str(c) for c in channels)
         return self._request("GET", "/activity", params=params, timeout=self.timeout + wait).json()
 
-    def follow_activity(self, after: int | None = None, *, channels: list[int] = (), wait: float = 25) -> Iterator[dict]:
+    def follow_activity(self, after: int | None = None, *, channels: list[int] | str = "joined", wait: float = 25) -> Iterator[dict]:
         """Yield messages meant for you forever (see `activity_page`). Persist message['id'] as your cursor.
         With no cursor, starts from now."""
         cursor = after if after is not None else self.activity_page(limit=1, channels=channels)["next_cursor"]

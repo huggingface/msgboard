@@ -1653,6 +1653,13 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     return out
 
 
+def joined_channel_ids(conn, p: Principal) -> list[int]:
+    """Channels (not DMs, not archived) the caller is a member of and can read."""
+    return [r["id"] for r in conn.execute("""SELECT c.* FROM channels c JOIN channel_members cm ON cm.channel_id = c.id
+                                             WHERE cm.principal_id = ? AND c.kind != 'dm' AND c.archived = 0""", (p.id,))
+            if can_see(conn, p, r)]
+
+
 def _reactions_to_me(conn, p: Principal, scope: str, limit: int) -> list[dict]:
     """Reactions others left on my messages, one entry per message (newest reaction first)."""
     rows = conn.execute(f"""SELECT r.message_id, r.emoji, r.created_at, r.principal_id FROM message_reactions r

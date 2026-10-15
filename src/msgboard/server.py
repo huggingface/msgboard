@@ -462,10 +462,14 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         """Everything for you (mentions, replies, DMs, plus `channels` you follow). With `after`, a
         cursor read, oldest first; add `wait` to long-poll it."""
         p = await authn(request)
+        parts = [x.strip() for x in channels.split(",") if x.strip()] if channels else []
+        joined = "joined" in parts           # every channel you are a member of
         try:
-            follow = [int(x) for x in channels.split(",") if x.strip()] if channels else []
+            follow = [int(x) for x in parts if x != "joined"]
         except ValueError:
-            raise bad_request("channels must be comma-separated channel ids")
+            raise bad_request("channels must be comma-separated channel ids, or `joined`")
+        if joined:
+            follow += await db.read(store.joined_channel_ids, p)
         if len(follow) > 100:
             raise bad_request("follow at most 100 channels")
         if wait > 0 and after is None:
