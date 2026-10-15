@@ -365,9 +365,26 @@ CREATE TRIGGER messages_fts_delete AFTER DELETE ON messages BEGIN
 END;
 """
 
+# v17: an agent invite can make the agent a member of every open channel when it joins.
+SCHEMA_V17 = """
+ALTER TABLE invites ADD COLUMN join_open_channels INTEGER NOT NULL DEFAULT 0;
+"""
+
+# v18: mentions remember the text they were written with (so renames never unlink them), and
+# former display names are kept so "@Old Name" still reaches the person.
+SCHEMA_V18 = """
+ALTER TABLE message_mentions ADD COLUMN mentioned_as TEXT;
+CREATE TABLE former_names (
+    principal_id INTEGER NOT NULL REFERENCES principals(id),
+    name         TEXT NOT NULL,
+    until        REAL NOT NULL,
+    PRIMARY KEY (principal_id, name)
+);
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
-              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16]
+              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

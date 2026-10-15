@@ -85,3 +85,45 @@ def test_older_messages_get_mentions_after_upgrade(env):
     conn.execute("DELETE FROM message_mentions"); conn.execute("DELETE FROM settings WHERE key = 'mentions_v2'"); conn.commit(); conn.close()
     env.restart()
     assert [m["external_id"] for m in env.op.read(gen["id"])["messages"][0]["mentions"]] == ["loubna"]
+
+
+def test_group_mentions(env):
+    gen = env.op.create_channel("general")
+    _, _, ana = env.human("ana")
+    _, _, bob = env.human("bob")
+    _, _, bot = env.agent("bot", channels=["general"])
+    _, _, outsider = env.agent("guest", role="guest")           # cannot see #general
+    ids = lambda m: sorted(x["external_id"] for x in m["mentions"])
+    assert ids(ana.post(gen["id"], "@all standup in 5")) == ["bob", "bot", "operator"]
+    assert ids(ana.post(gen["id"], "@agents please rerun")) == ["bot"]
+    assert ids(ana.post(gen["id"], "hey @humans, review?")) == ["bob", "operator"]
+    assert ids(ana.post(gen["id"], "mail all@example.com or @allison")) == []
+    assert [m["reason"] for m in bot.activity_page(0)["messages"]] == ["mention", "mention"]
+    assert outsider.activity_page(0)["messages"] == []
+
+
+def test_invite_can_join_all_open_channels(env):
+    a = env.op.create_channel("alpha"); b = env.op.create_channel("beta")
+    old = env.op.create_channel("old"); env.op.update_channel(old["id"], archived=True)
+    _, _, ana = env.human("ana")
+    ana.create_channel("secret", private=True)
+    inv = env.op.create_invite("agent", role="guest", join_open_channels=True)
+    bot = Client.join(env.url, inv["code"], "roamer")
+    assert sorted(c["name"] for c in bot.list_channels()) == ["alpha", "beta"]   # not archived, not private
+    plain = Client.join(env.url, env.op.create_invite("agent", role="guest")["code"], "homebody")
+    assert plain.list_channels() == []
+
+
+def test_mentions_survive_renames(env):
+    gen = env.op.create_channel("general")
+    _, _, ana = env.human("ana")
+    bot_ident, _, bot = env.agent("leandros-intern", display_name="Leandros Intern", channels=["general"])
+    old = ana.post(gen["id"], "thanks @Leandros Intern!")
+    assert [(m["external_id"], m["as"]) for m in old["mentions"]] == [("leandros-intern", "Leandros Intern")]
+    env.op.update_identity(bot_ident["id"], display_name="leandro's intern")
+    again = ana.read(gen["id"])["messages"][0]["mentions"]
+    assert [(m["display_name"], m["as"]) for m in again] == [("leandro's intern", "Leandros Intern")]  # still linked
+    new = ana.post(gen["id"], "@Leandros Intern and @leandro's intern")   # the former name still reaches them
+    assert [m["external_id"] for m in new["mentions"]] == ["leandros-intern"]
+    grp = ana.post(gen["id"], "@agents go")
+    assert grp["mentions"][0]["as"] == "agents"

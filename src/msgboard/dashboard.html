@@ -413,6 +413,7 @@ button.fchip:hover { border-color: var(--ink); }
 .body .mention:hover { text-decoration-thickness: 2px; }
 .body .mention:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .body .mention.mine { background: var(--ink); color: var(--bg); text-decoration: none; padding: 0 3px; }
+.body .mention.group { cursor: default; text-decoration-style: dotted; }
 .body .chan-link { font-weight: 600; cursor: pointer; text-decoration: underline dotted; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .body .chan-link:hover { text-decoration-style: solid; }
 .body .chan-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
@@ -825,6 +826,8 @@ function mentionNames(m) {
   return [m.display_name, m.external_id, m.hf_username, String(m.external_id || "").replace(/^hf:/, "")]
     .filter(Boolean).map((n) => n.trim().toLowerCase()).filter(Boolean);
 }
+const GROUP_KINDS = { all: ["user", "agent"], everyone: ["user", "agent"], agents: ["agent"], humans: ["user"], people: ["user"] };
+const GROUP_TAGS = { all: "everyone in this channel", everyone: "everyone in this channel", agents: "all agents in this channel", humans: "all people in this channel", people: "all people in this channel" };
 // Links to channels you can see: `#name` (names may contain dots and dashes, so "#general." still finds general).
 function channelRef(text, i) {
   let name = (/^[a-z0-9][a-z0-9_.-]*/i.exec(text.slice(i + 1)) || [""])[0].toLowerCase();
@@ -847,8 +850,17 @@ function decorate(html, mentions) {
       }
     } else { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   });
-  const names = (mentions || []).flatMap((m) => mentionNames(m).map((n) => [n, m])).sort((a, b) => b[0].length - a[0].length);
-  if (!names.length && !state.chanIndex.size) return t.innerHTML;
+  // each mention carries the text it was written with ("as"), so a later rename never unlinks it
+  const names = (mentions || []).filter((m) => !(m.as && GROUP_TAGS[m.as.toLowerCase()]))
+    .flatMap((m) => [...new Set([...mentionNames(m), ...(m.as ? [m.as.toLowerCase()] : [])])].map((n) => [n, m])).sort((a, b) => b[0].length - a[0].length);
+  // a message that tags a group styles every group tag in it; a tag is "mine" when it covers my kind and I was tagged
+  const groups = new Map();
+  if ((mentions || []).some((m) => m.as && GROUP_TAGS[m.as.toLowerCase()])) {
+    const meTagged = state.me && (mentions || []).some((m) => m.id === state.me.id && m.as && GROUP_TAGS[m.as.toLowerCase()]);
+    const myKind = state.me ? (state.me.identity_type === "user" ? "user" : "agent") : null;
+    for (const g of Object.keys(GROUP_KINDS)) groups.set(g, !!meTagged && GROUP_KINDS[g].includes(myKind));
+  }
+  if (!names.length && !groups.size && !state.chanIndex.size) return t.innerHTML;
   const walker = document.createTreeWalker(t.content, NodeFilter.SHOW_TEXT), texts = [];
   for (let n = walker.nextNode(); n; n = walker.nextNode()) if (!n.parentElement || !n.parentElement.closest("code, pre, a, .katex")) texts.push(n);
   for (const node of texts) {
@@ -861,7 +873,12 @@ function decorate(html, mentions) {
       const span = document.createElement("span");
       span.setAttribute("role", "link"); span.tabIndex = 0;
       let end;
-      if (ch === "@") {
+      const g = ch === "@" && [...groups.keys()].sort((a, b) => b.length - a.length).find((x) => low.startsWith(x, i + 1) && !/[\w-]/.test(text[i + 1 + x.length] || ""));
+      if (g) {   // @all / @agents / @humans: highlighted when it includes me
+        end = i + 1 + g.length;
+        span.className = "mention group" + (groups.get(g) ? " mine" : ""); span.removeAttribute("role"); span.removeAttribute("tabindex");
+        span.title = `Tags ${GROUP_TAGS[g]}`;
+      } else if (ch === "@") {
         const hit = names.find(([n]) => low.startsWith(n, i + 1) && !/[\w]/.test(text[i + 1 + n.length] || ""));
         if (!hit) continue;
         const [n, m] = hit; end = i + 1 + n.length;
@@ -885,7 +902,7 @@ function decorate(html, mentions) {
 }
 const renderedBodies = new Map();
 function renderBody(text, mentions = []) {
-  const key = text + "\u0000" + mentions.map((m) => `${m.id}:${m.display_name || ""}`).join(",") + (md ? "" : "\u0000plain") +
+  const key = text + "\u0000" + mentions.map((m) => `${m.id}:${m.display_name || ""}:${m.as || ""}`).join(",") + (md ? "" : "\u0000plain") +
     (/#/.test(text) ? "\u0000" + state.chanKey : "");   // channel links change when the channel list does
   let html = renderedBodies.get(key);
   if (html === undefined) {
@@ -2133,9 +2150,12 @@ function attachAssist(host, input, autosize) {
           (c.description ? `<small>${esc(c.description.length > 40 ? c.description.slice(0, 39) + "…" : c.description)}</small>` : "") }));
     } else {
       const people = (await loadPeople()).filter((p) => !p.disabled && p.id !== state.me.id);
-      options = people.map((p) => [rank(q, handleOf(p), nameOf(p)) + (p.identity_type === "user" ? 0.5 : 0), p]).filter(([s]) => s > 0)
-        .sort((a, b) => b[0] - a[0] || nameOf(a[1]).localeCompare(nameOf(b[1]))).slice(0, 7)
-        .map(([, p]) => ({ insert: `@${nameOf(p)} `, html: `${avatar(p, "xs", false)}<span>${esc(nameOf(p))}</span><small>@${esc(handleOf(p))} · ${esc(kindLabel(p))}</small>` }));
+      const tags = state.current && state.current.kind !== "dm"
+        ? ["all", "agents", "humans"].filter((g) => !q || g.startsWith(q)).map((g) => ({ insert: `@${g} `,
+            html: `<span class="glyph">@</span><span>${g}</span><small>${esc(GROUP_TAGS[g])}</small>` })) : [];
+      options = tags.concat(people.map((p) => [rank(q, handleOf(p), nameOf(p)) + (p.identity_type === "user" ? 0.5 : 0), p]).filter(([s]) => s > 0)
+        .sort((a, b) => b[0] - a[0] || nameOf(a[1]).localeCompare(nameOf(b[1]))).slice(0, 7 - Math.min(tags.length, 3))
+        .map(([, p]) => ({ insert: `@${nameOf(p)} `, html: `${avatar(p, "xs", false)}<span>${esc(nameOf(p))}</span><small>@${esc(handleOf(p))} · ${esc(kindLabel(p))}</small>` })));
     }
     if (!options.length) return closeMentions();
     active = Math.min(active, options.length - 1);
@@ -3038,6 +3058,7 @@ async function settingsInvites() {
         <label>Type<select id="ai-type"><option value="agent">agent</option><option value="system">service account</option></select></label>
         <label>Access<select id="ai-role"><option value="member">member (all public channels)</option><option value="guest">guest (only channels it is added to)</option>${can("invite_admin_agents") ? `<option value="reader">reader (reads everything, never posts)</option><option value="admin">admin (same rights as an admin)</option>` : ""}</select></label>
         <label class="check"><input type="checkbox" id="ai-create"> can create channels</label>
+        <label class="check" title="Adds the agent to every public, non-archived channel when it joins (guests too)"><input type="checkbox" id="ai-open" checked> join all open channels</label>
         <label>Uses<input type="number" id="ai-uses" min="1" placeholder="unlimited"></label>
         <label>Expires${expirySelect("ai-exp")}</label>
         <label>Agent name<input type="text" id="ai-name" maxlength="128" placeholder="optional, e.g. Eval Runner"></label>
@@ -3053,7 +3074,7 @@ async function settingsInvites() {
     <div class="tablewrap"><table class="list"><thead><tr><th>Label</th><th>For</th>${can("manage") ? "<th>By</th>" : ""}<th>Uses</th><th>Expires</th><th>Status</th><th>Joined</th><th></th></tr></thead>
     <tbody>${invites.length ? invites.map((i) => `<tr>
       <td>${esc(i.label || "—")}</td>
-      <td class="mono">${i.kind === "human" ? esc(i.role) : `${i.identity_type === "system" ? "service" : "agent"} · ${esc(i.role)}${i.can_create_channels ? " · +ch" : ""}${i.agent_name ? ` · “${esc(i.agent_display || i.agent_name)}”` : ""}`}${i.channels.length
+      <td class="mono">${i.kind === "human" ? esc(i.role) : `${i.identity_type === "system" ? "service" : "agent"} · ${esc(i.role)}${i.can_create_channels ? " · +ch" : ""}${i.agent_name ? ` · “${esc(i.agent_display || i.agent_name)}”` : ""}${i.join_open_channels ? " · all open channels" : ""}`}${i.channels.length
         ? `<div class="small">${i.channels.map((c) => (c.kind === "private" ? "private · " : "#") + esc(c.name)).join(", ")}</div>` : ""}</td>
       ${can("manage") ? `<td>${i.created_by ? `<span class="link" data-profile="${i.created_by.id}">${esc(nameOf(i.created_by))}</span>` : ""}</td>` : ""}
       <td class="mono">${i.uses}${i.max_uses ? " / " + i.max_uses : ""}</td>
@@ -3085,7 +3106,7 @@ async function settingsInvites() {
   $("ai-create-btn").onclick = async () => {
     try {
       const inv = await api("POST", "/invites", { body: { kind: "agent", identity_type: $("ai-type").value, role: $("ai-role").value,
-        can_create_channels: $("ai-create").checked, max_uses: intOrNull($("ai-uses").value), channels: chosen(),
+        can_create_channels: $("ai-create").checked, join_open_channels: $("ai-open").checked, max_uses: intOrNull($("ai-uses").value), channels: chosen(),
         expires_in_seconds: intOrNull($("ai-exp").value), label: $("ai-label").value.trim() || null,
         ...($("ai-name").value.trim() ? { agent_name: $("ai-name").value.trim() } : {}) } });
       showValue("Agent invite", `Paste this into your agent's prompt. Each agent joins with its own name and keeps the token it gets back (tokens do not expire). The code is shown only once.`,

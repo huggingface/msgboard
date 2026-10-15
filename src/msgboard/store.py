@@ -107,7 +107,7 @@ MAX_GUIDELINES = 20_000
 
 
 def get_settings(conn) -> dict:
-    values = dict(conn.execute("SELECT key, value FROM settings WHERE key NOT IN ('reads_since', 'mentions_v2')").fetchall())
+    values = dict(conn.execute("SELECT key, value FROM settings WHERE key NOT IN ('reads_since', 'mentions_v2', 'mentions_v3')").fetchall())
     return {"allow_private_channels": values.get("allow_private_channels", "true") == "true",
             "channel_docs": values.get("channel_docs", "true") == "true",
             "guidelines": values.get("guidelines", "")}
@@ -340,6 +340,9 @@ def update_principal(conn, p: Principal, target_id: int, changes: dict, now: flo
         if name is not None and (not isinstance(name, str) or not name.strip() or len(name) > 128):
             raise bad_request("display_name must be 1 to 128 characters")
         updates["display_name"] = name.strip() if name else None
+        if t["display_name"] and t["display_name"] != updates["display_name"]:
+            conn.execute("INSERT OR IGNORE INTO former_names (principal_id, name, until) VALUES (?, ?, ?)",
+                         (target_id, t["display_name"], now))
     if "role" in changes:
         roles = auth.HUMAN_ROLES if t["identity_type"] == "user" else auth.AGENT_ROLES
         if changes["role"] not in roles:
@@ -634,7 +637,8 @@ def remove_member(conn, p: Principal, channel_id: int, target_id: int, now: floa
 
 
 INVITE_PUBLIC_FIELDS = ("id", "kind", "role", "identity_type", "can_create_channels", "max_uses", "uses",
-                        "expires_at", "revoked_at", "label", "created_at", "agent_name", "agent_display")
+                        "expires_at", "revoked_at", "label", "created_at", "agent_name", "agent_display",
+                        "join_open_channels")
 
 
 def _handle_from(display: str) -> str:
@@ -710,6 +714,9 @@ def create_invite(conn, p: Principal, req: dict, now: float) -> dict:
     else:
         raise bad_request("kind must be human or agent")
     agent_display = agent_name = None
+    join_open = req.get("join_open_channels", False)
+    if not isinstance(join_open, bool) or (join_open and kind != "agent"):
+        raise bad_request("join_open_channels must be true or false, and only for agent invites")
     if kind == "agent" and (req.get("agent_name") or req.get("agent_handle")):
         # a named invite: the link makes exactly this agent (joining again re-keys it)
         agent_display = req.get("agent_name")
@@ -737,11 +744,11 @@ def create_invite(conn, p: Principal, req: dict, now: float) -> dict:
     code = secrets.token_urlsafe(16)
     cur = conn.execute(
         """INSERT INTO invites (code_hash, created_by, created_at, kind, role, identity_type, can_create_channels,
-                                max_uses, expires_at, label, channel_ids, agent_name, agent_display)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                max_uses, expires_at, label, channel_ids, agent_name, agent_display, join_open_channels)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (hashlib.sha256(code.encode()).digest(), p.id, now, kind, role, identity_type, int(create), max_uses,
          now + expires_in if expires_in else None, label, json.dumps(channel_ids) if channel_ids else None,
-         agent_name, agent_display))
+         agent_name, agent_display, int(join_open)))
     audit(conn, p.id, "invite.create", f"invite:{cur.lastrowid}", {"kind": kind, "role": role}, now)
     out = _invite_json(conn, conn.execute("SELECT * FROM invites WHERE id = ?", (cur.lastrowid,)).fetchone(), now)
     out["code"] = code
@@ -805,11 +812,15 @@ def lookup_invite(conn, code: str, now: float) -> dict:
         out["channels"] = [c["name"] for c in _invite_channels(conn, row)]
         if row["agent_name"]:
             out["agent_name"], out["agent_display"] = row["agent_name"], row["agent_display"]
+        out["join_open_channels"] = bool(row["join_open_channels"])
     return out
 
 
 def _join_channels(conn, invite, principal_id: int, now: float) -> None:
-    for ch in _invite_channels(conn, invite):
+    chans = _invite_channels(conn, invite)
+    if invite["join_open_channels"]:   # every public, non-archived channel at the time of joining
+        chans += [dict(r) for r in conn.execute("SELECT * FROM channels WHERE kind = 'public' AND archived = 0")]
+    for ch in chans:
         if ch["kind"] != "dm":
             conn.execute("INSERT OR IGNORE INTO channel_members (channel_id, principal_id, added_by, added_at) "
                          "VALUES (?, ?, ?, ?)", (ch["id"], principal_id, invite["created_by"], now))
@@ -1362,21 +1373,31 @@ def resolve_mention(conn, name: str) -> list:
            OR (identity_type = 'user' AND lower(external_id) = 'hf:' || lower(?)))""", (name, name, name)).fetchall()
 
 
-def _mention_names(row) -> set[str]:
-    """Everything `@...` may say to mean this identity: display name (spaces allowed), username, HF username."""
-    names = {row["display_name"], row["external_id"], row["hf_username"]}
-    if row["external_id"].startswith("hf:"):
-        names.add(row["external_id"][3:])
+def _mention_names(row, former: tuple = ()) -> set[str]:
+    """Everything `@...` may say to mean this identity: display name (spaces allowed), username, HF username,
+    former display names, and the handle read as words ("leandros-intern" -> "leandros intern")."""
+    names = {row["display_name"], row["external_id"], row["hf_username"], *former}
+    handle = row["external_id"][3:] if row["external_id"].startswith("hf:") else row["external_id"]
+    names.add(handle)
+    if any(c in handle for c in "-_."):
+        names.add(re.sub(r"[-_.]+", " ", handle))
     return {n.strip().lower() for n in names if n and n.strip()}
 
 
-def find_mentions(conn, body: str) -> list:
-    """Identities mentioned in `body`. At each @, the longest matching name wins, so
-    `@Loubna Ben Allal` beats a shorter `@Loubna`; the name must end at a word boundary."""
+def _mention_candidates(conn) -> list:
+    former: dict[int, list] = {}
+    for pid, name in conn.execute("SELECT principal_id, name FROM former_names"):
+        former.setdefault(pid, []).append(name)
+    return sorted(((name, row) for row in conn.execute("SELECT * FROM principals WHERE disabled = 0")
+                   for name in _mention_names(row, tuple(former.get(row["id"], ())))), key=lambda c: -len(c[0]))
+
+
+def find_mention_spans(conn, body: str) -> list[tuple]:
+    """(identity row, the text after @ as written) for each identity mentioned in `body`. At each @, the
+    longest matching name wins, so `@Loubna Ben Allal` beats a shorter `@Loubna`; it must end at a word boundary."""
     if "@" not in body:
         return []
-    candidates = sorted(((name, row) for row in conn.execute("SELECT * FROM principals WHERE disabled = 0")
-                         for name in _mention_names(row)), key=lambda c: -len(c[0]))
+    candidates = _mention_candidates(conn)
     low, found = body.lower(), {}
     for i, ch in enumerate(body):
         if ch != "@" or (i and (body[i - 1].isalnum() or body[i - 1] in "@/_")):
@@ -1388,19 +1409,42 @@ def find_mentions(conn, body: str) -> list:
                 break                        # every identity sharing the longest name has been collected
             if low.startswith(name, i + 1) and (end == len(body) or not (body[end].isalnum() or body[end] in "_")):
                 best = len(name)
-                found[row["id"]] = row
+                found.setdefault(row["id"], (row, body[i + 1:end]))
         if len(found) >= 50:
             break
     return list(found.values())
 
 
+def find_mentions(conn, body: str) -> list:
+    return [row for row, _ in find_mention_spans(conn, body)]
+
+
+GROUP_MENTIONS = {"all": ("user", "agent", "system"), "agents": ("agent", "system"), "humans": ("user",),
+                  "people": ("user",), "everyone": ("user", "agent", "system")}
+GROUP_RE = re.compile(r"(?<![\w@/])@(" + "|".join(GROUP_MENTIONS) + r")(?![\w-])", re.I)
+
+
+def group_mentions(body: str) -> set[str]:
+    """Which of @all, @agents, @humans (and @everyone, @people) a message uses."""
+    return {m.group(1).lower() for m in GROUP_RE.finditer(body)} if "@" in body else set()
+
+
 def _record_mentions(conn, channel, message_id: int, body: str, sender_id: int) -> None:
-    for row in find_mentions(conn, body):
+    kinds = {k for g in group_mentions(body) for k in GROUP_MENTIONS[g]}
+    # a personal mention first (it keeps the exact text), then the groups fill in everyone else
+    for row, text in find_mention_spans(conn, body):
         # only people who can read the channel get the mention: it must not reveal the channel to anyone else
         if row["id"] == sender_id or not can_see(conn, _principal_obj(row), channel):
             continue
-        conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id) VALUES (?, ?)",
-                     (message_id, row["id"]))
+        conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id, mentioned_as) VALUES (?, ?, ?)",
+                     (message_id, row["id"], text))
+    if kinds:   # @all / @agents / @humans: everyone of that kind who can read the channel
+        marks = ",".join("?" * len(kinds))
+        group_of = {k: g for g in sorted(group_mentions(body), key=lambda g: len(GROUP_MENTIONS[g])) for k in GROUP_MENTIONS[g]}
+        for row in conn.execute(f"SELECT * FROM principals WHERE disabled = 0 AND identity_type IN ({marks})", sorted(kinds)):
+            if row["id"] != sender_id and can_see(conn, _principal_obj(row), channel):
+                conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id, mentioned_as) VALUES (?, ?, ?)",
+                             (message_id, row["id"], group_of[row["identity_type"]]))
 
 
 def backfill_mentions(conn) -> int:
@@ -1480,16 +1524,37 @@ def react(conn, p: Principal, channel_id: int, message_id: int, emoji, on: bool,
     return out, changed
 
 
+def backfill_mentioned_as(conn) -> int:
+    """One-time: work out the text older mentions were written with (current names, former names, handle, groups)."""
+    if conn.execute("SELECT 1 FROM settings WHERE key = 'mentions_v3'").fetchone():
+        return 0
+    n = 0
+    rows = conn.execute("""SELECT mm.message_id, mm.principal_id, m.body, p.identity_type FROM message_mentions mm
+                           JOIN messages m ON m.id = mm.message_id JOIN principals p ON p.id = mm.principal_id
+                           WHERE mm.mentioned_as IS NULL""").fetchall()
+    spans: dict[int, dict] = {}
+    for mid, pid, body, kind in rows:
+        if mid not in spans:
+            spans[mid] = {r["id"]: text for r, text in find_mention_spans(conn, body)}
+        text = spans[mid].get(pid) or next((g for g in sorted(group_mentions(body)) if kind in GROUP_MENTIONS[g]), None)
+        if text:
+            conn.execute("UPDATE message_mentions SET mentioned_as = ? WHERE message_id = ? AND principal_id = ?", (text, mid, pid))
+            n += 1
+    conn.execute("INSERT INTO settings (key, value) VALUES ('mentions_v3', 'done')")
+    return n
+
+
 def _attach_mentions(conn, messages: list[dict]) -> None:
     if not messages:
         return
     ids = [m["id"] for m in messages]
     found: dict[int, list] = {}
-    for r in conn.execute(f"""SELECT mm.message_id, p.id, p.external_id, p.display_name, p.identity_type, p.hf_username
+    for r in conn.execute(f"""SELECT mm.message_id, p.id, p.external_id, p.display_name, p.identity_type, p.hf_username,
+                                     mm.mentioned_as
                               FROM message_mentions mm JOIN principals p ON p.id = mm.principal_id
                               WHERE mm.message_id IN ({",".join("?" * len(ids))})""", ids):
         found.setdefault(r[0], []).append({"id": r[1], "external_id": r[2], "display_name": r[3], "identity_type": r[4],
-                                           "hf_username": r[5]})
+                                           "hf_username": r[5], "as": r[6]})
     for m in messages:
         m["mentions"] = found.get(m["id"], [])
 

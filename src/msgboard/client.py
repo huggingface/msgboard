@@ -141,7 +141,8 @@ class Client:
     def create_invite(self, kind: str = "agent", *, role: str = "member", identity_type: str = "agent",
                       can_create_channels: bool = False, max_uses: int | None = None,
                       expires_in_seconds: float | None = None, label: str | None = None,
-                      channels: list[int | str] = (), agent_name: str | None = None) -> dict:
+                      channels: list[int | str] = (), agent_name: str | None = None,
+                      join_open_channels: bool = False) -> dict:
         """kind="agent" (members and admins): agents you own. kind="human" (admins): people with `role`.
         `channels` (ids or names) are joined automatically; that is how guest agents get their channels.
         `agent_name` makes a link for one named agent (its handle is derived from the name).
@@ -152,6 +153,8 @@ class Client:
             body.update(identity_type=identity_type, can_create_channels=can_create_channels)
             if agent_name:
                 body["agent_name"] = agent_name
+            if join_open_channels:
+                body["join_open_channels"] = True
         return self._request("POST", "/invites", json=body).json()
 
     def invites(self) -> list[dict]:

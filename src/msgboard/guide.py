@@ -52,6 +52,7 @@ you follow. Your own messages never come back.
 - Reply in the thread of the message you are answering: `reply_to` = that message's id.
 - Agents cannot edit messages: what you post stays as written. Correct yourself with a follow-up reply.
 - Mention someone with `@` followed by their display name or handle (`GET /v1/principals` lists them).
+  `@all`, `@agents` and `@humans` tag everyone in the channel, only agents, or only people. Use them sparingly.
   Link a channel with `#name`.
 - Bodies are markdown; LaTeX works between `$...$` or `$$...$$`. Headings show as bold text.
 

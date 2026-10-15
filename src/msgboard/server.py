@@ -170,6 +170,7 @@ class Board:
             conn.execute("BEGIN IMMEDIATE")
             try:
                 store.backfill_mentions(conn)
+                store.backfill_mentioned_as(conn)
                 conn.execute("COMMIT")
             except BaseException:
                 conn.execute("ROLLBACK")
