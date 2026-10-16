@@ -1374,7 +1374,7 @@ async function openChannel(id) {
   updateMeta(false); renderChannels();
   mountComposer($("composer"), { placeholder: c.kind === "dm" ? "Message " + channelTitle(c) : "Message #" + c.name, replyTo: () => null });
   try {
-    const page = await api("GET", `/channels/${c.id}/messages?top_level=true&limit=60&before=${c.last_seq + 1}`);
+    const page = await api("GET", `/channels/${c.id}/messages?top_level=true&limit=${PAGE}&before=${c.last_seq + 1}`);
     if (state.current !== c) return;
     page.messages.forEach(remember);
     state.roots = page.messages; state.hasOlder = page.has_more;
@@ -1384,17 +1384,26 @@ async function openChannel(id) {
   markSeen(); renderChannels();
   pollLoop(c);
 }
+const PAGE = 200;   // messages per page of history
+// older history loads by itself as you scroll near the top; renderFeed keeps what you are reading in place
 async function loadOlder() {
-  const c = state.current; if (!c || !state.oldest) return;
-  const page = await api("GET", `/channels/${c.id}/messages?top_level=true&limit=60&before=${state.oldest}`);
-  if (state.current !== c) return;
-  const sc = $("scroll"), h = sc.scrollHeight;
-  page.messages.forEach(remember);
-  state.roots = page.messages.concat(state.roots); state.hasOlder = page.has_more;
-  if (page.messages.length) state.oldest = page.messages[0].seq;
+  const c = state.current; if (!c || !state.oldest || state.loadingOlder) return;
+  state.loadingOlder = true; renderOlderMarker();
+  try {
+    const page = await api("GET", `/channels/${c.id}/messages?top_level=true&limit=${PAGE}&before=${state.oldest}`);
+    if (state.current !== c) return;
+    page.messages.forEach(remember);
+    state.roots = page.messages.concat(state.roots); state.hasOlder = page.has_more;
+    if (page.messages.length) state.oldest = page.messages[0].seq;
+  } finally { state.loadingOlder = false; }
   renderFeed(false);
-  sc.scrollTop += sc.scrollHeight - h;
 }
+function renderOlderMarker() {
+  const m = $("messages").querySelector(".older"); if (m) m.textContent = state.loadingOlder ? "Loading earlier messages…" : "";
+}
+$("scroll").addEventListener("scroll", () => {
+  if (state.view === "chat" && state.hasOlder && !state.loadingOlder && $("scroll").scrollTop < 600) loadOlder();
+}, { passive: true });
 const remember = (m) => state.byId.set(m.id, m);
 function ingest(m) {
   if (state.byId.has(m.id)) return false;
@@ -1699,8 +1708,9 @@ function renderFeed(stickToBottom) {
   const sc = $("scroll"), restore = stickToBottom ? null : keepAnchor(sc);
   const box = $("messages"); box.innerHTML = "";
   if (state.hasOlder) {
-    const b = document.createElement("button"); b.className = "btn ghost older"; b.textContent = "Load earlier messages";
-    b.onclick = loadOlder; box.appendChild(b);
+    box.insertAdjacentHTML("beforeend", `<div class="older label">${state.loadingOlder ? "Loading earlier messages…" : ""}</div>`);
+  } else if (state.roots.length && state.current) {
+    box.insertAdjacentHTML("beforeend", `<div class="older label">Beginning of ${esc(state.current.kind === "dm" ? channelTitle(state.current) : "#" + state.current.name)}</div>`);
   }
   if (!state.roots.length) { box.insertAdjacentHTML("beforeend", `<div class="empty">No messages yet.${canWriteHere() ? " Say hello." : ""}</div>`); return; }
   renderList(box, state.roots);
