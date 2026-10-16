@@ -286,8 +286,32 @@ def _valid_runtime(value) -> str | None:
     return json.dumps(out) if out else None
 
 
+def get_prefs(conn, pid: int) -> dict:
+    row = conn.execute("SELECT prefs FROM principals WHERE id = ?", (pid,)).fetchone()
+    return json.loads(row[0]) if row and row[0] else {}
+
+
+def update_prefs(conn, p: Principal, changes, now: float) -> dict:
+    """Your own preferences. `channel_order`: channel ids in the order you want them in the sidebar."""
+    if not isinstance(changes, dict) or set(changes) - {"channel_order"}:
+        raise bad_request("supported preferences: channel_order (a list of channel ids)")
+    prefs = get_prefs(conn, p.id)
+    if "channel_order" in changes:
+        order = changes["channel_order"]
+        if order is not None and (not isinstance(order, list) or len(order) > 1000
+                                  or not all(isinstance(i, int) and not isinstance(i, bool) for i in order)):
+            raise bad_request("channel_order must be a list of channel ids")
+        if order:
+            prefs["channel_order"] = list(dict.fromkeys(order))
+        else:
+            prefs.pop("channel_order", None)
+    conn.execute("UPDATE principals SET prefs = ? WHERE id = ?", (json.dumps(prefs) if prefs else None, p.id))
+    return prefs
+
+
 def me(conn, p: Principal) -> dict:
     out = principal_json(conn, _principal_row(conn, p.id))
+    out["prefs"] = get_prefs(conn, p.id)
     out["token"] = {"id": p.credential_id}
     out["permissions"] = {
         "post": p.may_post,

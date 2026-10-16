@@ -64,3 +64,15 @@ def test_creators_archive_and_admins_delete(env, tmp_path):
     assert not list((env.data_dir / "blobs" / "objects").rglob(att["id"] + "*"))
     assert [i for i in env.op.invites() if i["id"] == inv["id"]][0]["channels"] == []
     assert env.op.create_channel("scratch")["name"] == "scratch"                    # the name is free again
+
+
+def test_channel_order_preference(env):
+    _, _, ana = env.human("ana")
+    a = env.op.create_channel("alpha"); b = env.op.create_channel("beta")
+    http = env.http(ana.token)
+    assert ana.me()["prefs"] == {}
+    assert http.put("/me/prefs", json={"channel_order": [b["id"], a["id"], b["id"]]}).json() == {"channel_order": [b["id"], a["id"]]}
+    assert ana.me()["prefs"]["channel_order"] == [b["id"], a["id"]]            # follows the account, any device
+    assert http.put("/me/prefs", json={"channel_order": "nope"}).status_code == 400
+    assert http.put("/me/prefs", json={"theme": "dark"}).status_code == 400
+    assert http.put("/me/prefs", json={"channel_order": []}).json() == {}

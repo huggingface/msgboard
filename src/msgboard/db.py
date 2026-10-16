@@ -402,9 +402,14 @@ ALTER TABLE channel_reads ADD COLUMN thread_floor INTEGER NOT NULL DEFAULT 0;
 UPDATE channel_reads SET thread_floor = last_read_seq;
 """
 
+# v21: per-person preferences that follow you across devices (for now: the order of channels in the sidebar).
+SCHEMA_V21 = """
+ALTER TABLE principals ADD COLUMN prefs TEXT;
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
-              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20]
+              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

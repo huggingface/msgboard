@@ -310,6 +310,11 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         p = await authn(request)
         return await db.read(store.me, p)
 
+    @app.put("/v1/me/prefs")
+    async def put_prefs(request: Request):
+        p = await authn(request)
+        return await db.write(store.update_prefs, p, await _json_body(request, 64 * 1024), time.time())
+
     @app.get("/v1/principals")
     async def list_principals(request: Request):
         p = await authn(request)

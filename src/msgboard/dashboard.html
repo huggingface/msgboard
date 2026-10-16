@@ -75,6 +75,12 @@ aside { background: var(--panel); border-right: 1px solid var(--rule); display: 
 .navlist button.unread { color: var(--ink); font-weight: 650; }
 .navlist .count { font: 10.5px/1 var(--mono); background: var(--ink); color: var(--bg); padding: 3px 5px; }
 .navlist .draft { font-size: 12px; color: var(--ink-3); }
+#channels li[draggable="true"] { cursor: grab; }
+#channels li.dragging { opacity: .4; }
+#channels li.drop-before { box-shadow: inset 0 2px 0 var(--ink); }
+#channels li.drop-after { box-shadow: inset 0 -2px 0 var(--ink); }
+.new-below { position: absolute; left: 50%; transform: translateX(-50%); bottom: 116px; z-index: 4; border: 1px solid var(--ink); background: var(--ink); color: var(--bg);
+  padding: 4px 12px; font: 600 12px var(--mono); box-shadow: 0 2px 8px rgba(0,0,0,.15); }
 .doc-edit, .doc-view { padding: 14px 20px 24px; display: flex; flex-direction: column; gap: 10px; min-height: 100%; }
 .doc-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .doc-bar .label { flex: 1; min-width: 0; }
@@ -170,6 +176,7 @@ mark { background: var(--ink); color: var(--bg); padding: 0 1px; }
 .me .who .label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 main, #panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+main { position: relative; }
 #panel { border-left: 1px solid var(--rule); background: var(--bg); position: relative; }
 /* drag the panel's left edge to resize it; double-click resets */
 .resizer { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 3; touch-action: none; }
@@ -643,6 +650,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     </div>
     <div id="chat-view" style="display:contents">
       <div class="scroll" id="scroll"><div id="messages"></div></div>
+      <button class="new-below hidden" id="new-below" type="button"></button>
       <div class="composer" id="composer"></div>
     </div>
     <div id="settings" class="hidden"></div>
@@ -1277,15 +1285,44 @@ function navButton(c) {
     (draft ? `<span class="draft" title="Unsent draft">✎</span>` : "") + (forMe ? `<span class="count">${forMe > 99 ? "99+" : forMe}</span>` : "");
   b.onclick = () => { $("app").classList.remove("nav"); openChannel(c.id); };
   li.appendChild(b);
+  if (c.kind !== "dm") {   // drag to reorder channels
+    li.draggable = true; li.dataset.cid = c.id;
+    li.addEventListener("dragstart", (e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/x-channel", String(c.id)); li.classList.add("dragging"); });
+    li.addEventListener("dragend", () => { li.classList.remove("dragging"); clearDrop(); });
+    li.addEventListener("dragover", (e) => {
+      if (![...e.dataTransfer.types].includes("text/x-channel")) return;
+      e.preventDefault(); clearDrop();
+      const r = li.getBoundingClientRect(); li.classList.add(e.clientY < r.top + r.height / 2 ? "drop-before" : "drop-after");
+    });
+    li.addEventListener("drop", (e) => {
+      const id = Number(e.dataTransfer.getData("text/x-channel")); if (!id || id === c.id) return clearDrop();
+      e.preventDefault();
+      const before = li.classList.contains("drop-before"); clearDrop();
+      const ids = [...$("channels").querySelectorAll("li[data-cid]")].map((x) => Number(x.dataset.cid)).filter((x) => x !== id);
+      ids.splice(ids.indexOf(c.id) + (before ? 0 : 1), 0, id);
+      saveChannelOrder(ids);
+    });
+  }
   return li;
+}
+$("new-below").onclick = () => { const sc = $("scroll"); sc.scrollTop = sc.scrollHeight; newBelow(0); };
+$("scroll").addEventListener("scroll", () => { if (unseenBelow && nearBottom($("scroll"))) newBelow(0); }, { passive: true });
+const clearDrop = () => document.querySelectorAll(".drop-before, .drop-after").forEach((x) => x.classList.remove("drop-before", "drop-after"));
+async function saveChannelOrder(ids) {
+  state.me.prefs = Object.assign({}, state.me.prefs, { channel_order: ids });
+  renderChannels();
+  try { state.me.prefs = await api("PUT", "/me/prefs", { body: { channel_order: ids } }); }
+  catch (e) { alert("Could not save the order: " + e.message); }
 }
 function renderChannels() {
   const total = state.channels.reduce((n, c) => n + ((state.view === "chat" && state.current && state.current.id === c.id) ? 0 : c.for_me || 0), 0);
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
-  // archived channels stay listed, after the active ones (a stable sort keeps the server's order otherwise)
-  const ordered = [...state.channels].sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0));
+  // your order first (saved on your account), unknown channels after it, archived ones last
+  const pos = new Map(((state.me && state.me.prefs && state.me.prefs.channel_order) || []).map((id, i) => [id, i]));
+  const ordered = [...state.channels].sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0)
+    || (pos.has(a.id) ? pos.get(a.id) : 1e6) - (pos.has(b.id) ? pos.get(b.id) : 1e6));
   for (const c of ordered) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
   if (!$("dms").children.length) $("dms").innerHTML = `<li class="small" style="padding:2px 16px">None yet</li>`;
   hydrate($("dms"));
@@ -1324,6 +1361,7 @@ async function openChannel(id) {
   if (state.poll) state.poll.abort();
   if (state.panel && state.panel.type !== "profile") closePanel();
   Object.assign(state, { current: c, roots: [], cursor: c.last_seq, oldest: null, hasOlder: false, editCursor: c.edit_rev || 0, editing: null });
+  newBelow(0);
   state.byId.clear();
   store.set("channel", c.name);
   history.replaceState(null, "", location.pathname + "#" + encodeURIComponent(c.name));
@@ -1371,7 +1409,7 @@ function ingest(m) {
     if (!open && m.sender.id !== state.me.id && (inThread || (m.mentions || []).some((x) => x.id === state.me.id))) r.for_me_unread = (r.for_me_unread || 0) + 1;
     r.participants = [m.sender].concat(r.participants.filter((p) => p.id !== m.sender.id)).slice(0, 5);
   }
-  if (state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id) { state.thread.push(m); renderThread(true); markThreadSeen(); }
+  if (state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id) { state.thread.push(m); renderThread(nearBottom($("panel-scroll")) || m.sender.id === state.me.id); markThreadSeen(); }
   return true;
 }
 // opening a thread reads it: its "for you" badge and its share of the channel's count go away
@@ -1398,10 +1436,11 @@ async function pollLoop(c) {
       if (page.edit_cursor != null) state.editCursor = Math.max(state.editCursor, page.edit_cursor);
       if (page.edits && page.edits.length && page.edits.map(applyEdit).some(Boolean) && !page.messages.length) rerenderAfterEdit();
       if (page.messages.length) {
-        const sc = $("scroll"), atBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80;
+        const sc = $("scroll"), atBottom = nearBottom(sc);
+        const fresh = page.messages.filter((m) => !state.byId.has(m.id) && !m.thread_id && m.sender.id !== state.me.id).length;
         page.messages.forEach(ingest);
         state.cursor = page.next_cursor; c.last_seq = Math.max(c.last_seq, state.cursor);
-        if (state.view === "chat") renderFeed(atBottom);
+        if (state.view === "chat") { renderFeed(atBottom); if (!atBottom && fresh) newBelow(unseenBelow + fresh); }
         if (document.visibilityState === "visible" && state.view === "chat") markSeen();
       }
       delay = 1000;
@@ -1644,7 +1683,20 @@ function renderList(container, list, opts = {}) {
   hydrate(container);
   wireEditor(container);
 }
+// Re-render without moving what you are reading: remember the first visible message and its offset, put it back after.
+const nearBottom = (sc) => sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80;
+function keepAnchor(sc) {
+  const top = sc.getBoundingClientRect().top;
+  const el = [...sc.querySelectorAll(".msg[data-mid]")].find((m) => m.getBoundingClientRect().bottom > top + 1);
+  if (!el) return () => {};
+  const mid = el.dataset.mid, off = el.getBoundingClientRect().top - top;
+  return () => {
+    const again = sc.querySelector(`.msg[data-mid="${mid}"]`);
+    if (again) sc.scrollTop += again.getBoundingClientRect().top - sc.getBoundingClientRect().top - off;
+  };
+}
 function renderFeed(stickToBottom) {
+  const sc = $("scroll"), restore = stickToBottom ? null : keepAnchor(sc);
   const box = $("messages"); box.innerHTML = "";
   if (state.hasOlder) {
     const b = document.createElement("button"); b.className = "btn ghost older"; b.textContent = "Load earlier messages";
@@ -1652,7 +1704,15 @@ function renderFeed(stickToBottom) {
   }
   if (!state.roots.length) { box.insertAdjacentHTML("beforeend", `<div class="empty">No messages yet.${canWriteHere() ? " Say hello." : ""}</div>`); return; }
   renderList(box, state.roots);
-  if (stickToBottom) { const sc = $("scroll"); sc.scrollTop = sc.scrollHeight; }
+  if (stickToBottom) { sc.scrollTop = sc.scrollHeight; newBelow(0); } else restore();
+}
+// "N new messages" while you are scrolled up; clicking it (or scrolling down) clears it
+let unseenBelow = 0;
+function newBelow(n) {
+  unseenBelow = n;
+  const b = $("new-below");
+  b.classList.toggle("hidden", !n);
+  b.textContent = n ? `${n} new message${n === 1 ? "" : "s"} ↓` : "";
 }
 // ---------- attachments: kinds, chips, thumbnails, download
 const IMAGE_EXT = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp", avif: "image/avif", ico: "image/x-icon" };
@@ -2250,13 +2310,13 @@ async function openThread(rootId) {
   markThreadSeen();
 }
 function renderThread(stickToBottom) {
-  const root = state.panel.root, box = $("panel-scroll");
+  const root = state.panel.root, box = $("panel-scroll"), restore = stickToBottom ? null : keepAnchor(box);
   box.innerHTML = "";
   renderList(box, [root], { inThread: true, noDays: true, rootId: root.id });
   const n = state.thread.length;
   box.insertAdjacentHTML("beforeend", `<div class="thread-count label">${n ? n + (n === 1 ? " reply" : " replies") : "No replies yet"}</div>`);
   renderList(box, state.thread, { inThread: true, noDays: true, rootId: root.id });
-  if (stickToBottom) box.scrollTop = box.scrollHeight;
+  if (stickToBottom) box.scrollTop = box.scrollHeight; else restore();
 }
 
 $("members-open").onclick = () => openMembers();
