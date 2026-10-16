@@ -449,6 +449,12 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         p = await authn(request)
         return await db.write(store.archive_channel, p, channel_id, time.time())
 
+    @app.post("/v1/channels/{channel_id}/threads/{thread_id}/read")
+    async def mark_thread_read(channel_id: int, thread_id: int, request: Request):
+        p = await authn(request)
+        body = body_dict(await _json_body(request, 1024))
+        return await db.write(store.mark_thread_read, p, channel_id, thread_id, body.get("seq"), time.time())
+
     @app.post("/v1/channels/{channel_id}/read")
     async def mark_read(channel_id: int, request: Request):
         p = await authn(request)

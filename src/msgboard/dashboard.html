@@ -358,6 +358,8 @@ button.fchip:hover { border-color: var(--ink); }
 .replies:hover { border-color: var(--rule-2); background: var(--bg); }
 .replies .faces { display: inline-flex; gap: 3px; }
 .replies b { font-weight: 650; text-decoration: underline; text-underline-offset: 2px; }
+.replies.for-me { border-color: var(--ink); }
+.replies .rbadge { font: 600 10.5px/1 var(--mono); background: var(--ink); color: var(--bg); padding: 3px 5px; }
 .replies .when { color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .msg.open-thread { background: var(--hover); box-shadow: inset 2px 0 0 var(--ink); }
 .actions { position: absolute; right: 20px; top: -10px; display: none; background: var(--bg); border: 1px solid var(--rule-2); }
@@ -1298,10 +1300,12 @@ function markSeen() {
   const c = state.current;
   if (!c || state.view !== "chat") return;
   const seq = Math.max(state.cursor, c.last_seq);
-  c.unread = 0; c.for_me = 0;
+  c.unread = 0;   // what stays "for me" (unopened threads) comes back from the server
   if ((state.readSent[c.id] || 0) >= seq) return;
   state.readSent[c.id] = seq;
-  api("POST", `/channels/${c.id}/read`, { body: { seq } }).catch(() => { state.readSent[c.id] = 0; });
+  api("POST", `/channels/${c.id}/read`, { body: { seq } })
+    .then((counts) => { c.for_me = counts.for_me; renderChannels(); })
+    .catch(() => { state.readSent[c.id] = 0; });
 }
 function updateMeta(live) {
   const c = state.current; if (!c) return;
@@ -1362,10 +1366,26 @@ function ingest(m) {
   if (root) {
     const r = root.replies || (root.replies = { count: 0, last_at: 0, participants: [] });
     r.count += 1; r.last_at = m.created_at;
+    const open = state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id;
+    const inThread = root.sender.id === state.me.id || r.participants.some((p) => p.id === state.me.id);
+    if (!open && m.sender.id !== state.me.id && (inThread || (m.mentions || []).some((x) => x.id === state.me.id))) r.for_me_unread = (r.for_me_unread || 0) + 1;
     r.participants = [m.sender].concat(r.participants.filter((p) => p.id !== m.sender.id)).slice(0, 5);
   }
-  if (state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id) { state.thread.push(m); renderThread(true); }
+  if (state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id) { state.thread.push(m); renderThread(true); markThreadSeen(); }
   return true;
+}
+// opening a thread reads it: its "for you" badge and its share of the channel's count go away
+function markThreadSeen() {
+  const c = state.current, P = state.panel;
+  if (!c || !P || P.type !== "thread" || document.visibilityState !== "visible") return;
+  const root = P.root, seq = Math.max(root.seq, ...state.thread.map((x) => x.seq));
+  if ((P.readSent || 0) >= seq) return;
+  P.readSent = seq;
+  if (root.replies) root.replies.for_me_unread = 0;
+  api("POST", `/channels/${c.id}/threads/${root.id}/read`, { body: { seq } })
+    .then((counts) => { const ch = state.channels.find((x) => x.id === c.id); if (ch) Object.assign(ch, { for_me: counts.for_me }); renderChannels(); })
+    .catch(() => { P.readSent = 0; });
+  if (state.view === "chat") renderFeed(false);
 }
 async function pollLoop(c) {
   const ctrl = new AbortController(); state.poll = ctrl;
@@ -1393,7 +1413,7 @@ async function pollLoop(c) {
     }
   }
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.view === "chat") { markSeen(); renderChannels(); } });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.view === "chat") { markSeen(); markThreadSeen(); renderChannels(); } });
 
 // ------------------------------------------------------------------ reactions
 const ICONS = {
@@ -1590,8 +1610,9 @@ function messageHTML(m, first, { inThread = false, rootId = null } = {}) {
   h += reactionsHTML(m);
   if (!inThread && m.replies && m.replies.count) {
     const r = m.replies;
-    h += `<button class="replies" data-thread="${m.id}"><span class="faces">${r.participants.slice(0, 4).map((p) => avatar(p, "xs", false)).join("")}</span>` +
-      `<b>${r.count} ${r.count === 1 ? "reply" : "replies"}</b><span class="when">Last reply ${esc(ago(r.last_at))}</span></button>`;
+    const mine = r.for_me_unread || 0;   // mentions or replies for me in this thread that I have not opened yet
+    h += `<button class="replies${mine ? " for-me" : ""}" data-thread="${m.id}"><span class="faces">${r.participants.slice(0, 4).map((p) => avatar(p, "xs", false)).join("")}</span>` +
+      `<b>${r.count} ${r.count === 1 ? "reply" : "replies"}</b>${mine ? `<span class="rbadge" title="Unread for you in this thread">${mine} for you</span>` : ""}<span class="when">Last reply ${esc(ago(r.last_at))}</span></button>`;
   }
   h += `</div>`;
   const acts = [];
@@ -2226,6 +2247,7 @@ async function openThread(rootId) {
   for (const m of page.messages) { if (!state.byId.has(m.id)) remember(m); }
   state.thread = page.messages.filter((m) => m.id !== rootId);
   renderThread(true);
+  markThreadSeen();
 }
 function renderThread(stickToBottom) {
   const root = state.panel.root, box = $("panel-scroll");

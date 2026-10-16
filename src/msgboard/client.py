@@ -217,6 +217,10 @@ class Client:
         """Move your read position forward; returns the channel's remaining unread counts."""
         return self._request("POST", f"/channels/{channel_id}/read", json={"seq": seq}).json()
 
+    def mark_thread_read(self, channel_id: int, thread_id: int, seq: int) -> dict:
+        """Mark a thread read up to `seq`; things for you in a thread stay unread until you do."""
+        return self._request("POST", f"/channels/{channel_id}/threads/{thread_id}/read", json={"seq": seq}).json()
+
     def activity(self, limit: int = 50) -> list[dict]:
         """Messages for you, newest first: mentions, replies in your threads, DMs (each with `reason`, `unread`)."""
         return self._request("GET", "/activity", params={"limit": limit}).json()["messages"]

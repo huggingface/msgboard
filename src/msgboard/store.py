@@ -1115,7 +1115,7 @@ def read_edits(conn, p: Principal, channel_id: int, after_rev: int, limit: int) 
     rows = conn.execute(MESSAGE_SELECT + " WHERE m.channel_id = ? AND m.edit_rev > ? ORDER BY m.edit_rev LIMIT ?",
                         (channel_id, after_rev, limit)).fetchall()
     edits = [_message_json(r) for r in rows]
-    _attach_thread_summaries(conn, edits)
+    _attach_thread_summaries(conn, edits, p)
     _attach_mentions(conn, edits)
     _attach_reactions(conn, edits, p.id)
     cursor = rows[-1]["edit_rev"] if len(rows) == limit else channel["edit_rev"]   # a full page may have more
@@ -1160,7 +1160,7 @@ def read_messages(conn, p: Principal, channel_id: int, after: int, limit: int, b
     has_more = len(messages) < len(rows)
     if before is not None:
         messages.reverse()
-    _attach_thread_summaries(conn, messages)
+    _attach_thread_summaries(conn, messages, p)
     _attach_mentions(conn, messages)
     _attach_reactions(conn, messages, p.id)
     if before is not None:
@@ -1170,7 +1170,7 @@ def read_messages(conn, p: Principal, channel_id: int, after: int, limit: int, b
     return {"messages": messages, "next_cursor": cursor, "has_more": has_more}
 
 
-def _attach_thread_summaries(conn, messages: list[dict]) -> None:
+def _attach_thread_summaries(conn, messages: list[dict], viewer: Principal | None = None) -> None:
     roots = [m["id"] for m in messages if m["thread_id"] is None]
     if not roots:
         return
@@ -1190,10 +1190,36 @@ def _attach_thread_summaries(conn, messages: list[dict]) -> None:
         people.setdefault(r[0], []).append(
             {"id": r[1], "external_id": r[2], "display_name": r[3], "identity_type": r[4], "avatar": r[6],
              "pattern": r[7], "role": r[8]})
+    for_me = _threads_for_me(conn, viewer, roots, messages) if viewer is not None else {}
     for m in messages:
         if m["id"] in counts:
             n, last = counts[m["id"]]
-            m["replies"] = {"count": n, "last_at": last, "participants": people.get(m["id"], [])[:5]}
+            m["replies"] = {"count": n, "last_at": last, "participants": people.get(m["id"], [])[:5],
+                            "for_me_unread": for_me.get(m["id"], 0)}
+
+
+def _threads_for_me(conn, p: Principal, roots: list[int], messages: list[dict]) -> dict[int, int]:
+    """Per thread: replies for me (mentions, replies in a thread I am in, DMs) that I have not read in the thread."""
+    out: dict[int, int] = {}
+    by_channel: dict[int, list[int]] = {}
+    for m in messages:
+        if m["id"] in roots:
+            by_channel.setdefault(m["channel_id"], []).append(m["id"])
+    for cid, ids in by_channel.items():
+        ch = conn.execute("SELECT * FROM channels WHERE id = ?", (cid,)).fetchone()
+        row = conn.execute("SELECT thread_floor FROM channel_reads WHERE principal_id = ? AND channel_id = ?", (p.id, cid)).fetchone()
+        params = {"me": p.id, "floor": row[0] if row else 0, "has_row": 1 if row else 0, "baseline": _reads_baseline(conn, p),
+                  "dm": 1 if ch["kind"] == "dm" and _is_channel_member(conn, cid, p.id) else 0}
+        marks = ",".join(str(int(i)) for i in ids)
+        for tid, n in conn.execute(f"""
+                SELECT m.thread_id, COUNT(*) FROM messages m
+                LEFT JOIN message_mentions mm ON mm.message_id = m.id AND mm.principal_id = :me
+                LEFT JOIN thread_reads tr ON tr.principal_id = :me AND tr.thread_id = m.thread_id
+                WHERE m.thread_id IN ({marks}) AND m.sender_id != :me AND {FOR_ME} AND {THREAD_UNREAD}
+                  AND (:has_row = 1 OR m.created_at > :baseline)
+                GROUP BY m.thread_id""", params):
+            out[tid] = n
+    return out
 
 
 # ------------------------------------------------------------------- attachments
@@ -1610,20 +1636,46 @@ MY_THREADS = """(SELECT id FROM messages WHERE sender_id = :me AND thread_id IS 
                  UNION SELECT thread_id FROM messages WHERE sender_id = :me AND thread_id IS NOT NULL)"""
 
 
+FOR_ME = f"""(:dm = 1 OR mm.principal_id IS NOT NULL OR m.thread_id IN {MY_THREADS})"""
+# thread replies are read when their thread is opened; top-level messages when the channel is
+THREAD_UNREAD = "m.seq > max(COALESCE(tr.last_read_seq, 0), :floor)"
+
+
 def unread_counts(conn, p: Principal, channel) -> dict:
-    """unread: new top-level messages; for_me: mentions, replies in my threads, and DMs to me."""
-    row = conn.execute("SELECT last_read_seq FROM channel_reads WHERE principal_id = ? AND channel_id = ?",
+    """unread: new top-level messages; for_me: mentions, replies in my threads, and DMs to me. A thread
+    reply stays "for me" until I open its thread, even after I have looked at the channel."""
+    row = conn.execute("SELECT last_read_seq, thread_floor FROM channel_reads WHERE principal_id = ? AND channel_id = ?",
                        (p.id, channel["id"])).fetchone()
-    params = {"me": p.id, "c": channel["id"], "lr": row[0] if row else 0, "has_row": 1 if row else 0,
-              "baseline": _reads_baseline(conn, p),
+    params = {"me": p.id, "c": channel["id"], "lr": row[0] if row else 0, "floor": row[1] if row else 0,
+              "has_row": 1 if row else 0, "baseline": _reads_baseline(conn, p),
               "dm": 1 if channel["kind"] == "dm" and _is_channel_member(conn, channel["id"], p.id) else 0}
     r = conn.execute(f"""
-        SELECT COALESCE(SUM(CASE WHEN m.thread_id IS NULL THEN 1 ELSE 0 END), 0),
-               COALESCE(SUM(CASE WHEN :dm = 1 OR mm.principal_id IS NOT NULL OR m.thread_id IN {MY_THREADS} THEN 1 ELSE 0 END), 0)
+        SELECT COALESCE(SUM(CASE WHEN m.thread_id IS NULL AND m.seq > :lr THEN 1 ELSE 0 END), 0),
+               COALESCE(SUM(CASE WHEN {FOR_ME} AND ((m.thread_id IS NULL AND m.seq > :lr)
+                                                OR (m.thread_id IS NOT NULL AND {THREAD_UNREAD})) THEN 1 ELSE 0 END), 0),
+               COUNT(DISTINCT CASE WHEN m.thread_id IS NOT NULL AND {FOR_ME} AND {THREAD_UNREAD} THEN m.thread_id END)
         FROM messages m LEFT JOIN message_mentions mm ON mm.message_id = m.id AND mm.principal_id = :me
-        WHERE m.channel_id = :c AND m.seq > :lr AND m.sender_id != :me AND (:has_row = 1 OR m.created_at > :baseline)""",
-        params).fetchone()
-    return {"last_read": params["lr"], "unread": r[0], "for_me": r[1]}
+        LEFT JOIN thread_reads tr ON tr.principal_id = :me AND tr.thread_id = m.thread_id
+        WHERE m.channel_id = :c AND m.sender_id != :me AND (m.seq > :lr OR (m.thread_id IS NOT NULL AND m.seq > :floor))
+          AND (:has_row = 1 OR m.created_at > :baseline)""", params).fetchone()
+    return {"last_read": params["lr"], "unread": r[0], "for_me": r[1], "threads_for_me": r[2]}
+
+
+def mark_thread_read(conn, p: Principal, channel_id: int, thread_id: int, seq, now: float) -> dict:
+    """Mark a thread read up to `seq` (its newest reply you have seen). Returns the channel's counts."""
+    ch = channel_for(conn, p, channel_id)
+    root = conn.execute("SELECT id FROM messages WHERE id = ? AND channel_id = ? AND thread_id IS NULL",
+                        (thread_id, channel_id)).fetchone()
+    if root is None:
+        raise not_found("no such thread in this channel")
+    if not isinstance(seq, int) or isinstance(seq, bool) or seq < 0:
+        raise bad_request("seq must be a message sequence number")
+    seq = min(seq, ch["next_seq"] - 1)
+    conn.execute("""INSERT INTO thread_reads (principal_id, thread_id, last_read_seq, updated_at) VALUES (?, ?, ?, ?)
+                    ON CONFLICT (principal_id, thread_id) DO UPDATE
+                    SET last_read_seq = max(last_read_seq, excluded.last_read_seq), updated_at = excluded.updated_at""",
+                 (p.id, thread_id, seq, now))
+    return unread_counts(conn, p, ch)
 
 
 def mark_read(conn, p: Principal, channel_id: int, seq, now: float) -> dict:
@@ -1668,6 +1720,8 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     _attach_reactions(conn, messages, p.id)
     my_threads = {r[0] for r in conn.execute(MY_THREADS.strip()[1:-1], {"me": p.id})} if messages else set()
     reads = dict(conn.execute("SELECT channel_id, last_read_seq FROM channel_reads WHERE principal_id = ?", (p.id,)).fetchall())
+    floors = dict(conn.execute("SELECT channel_id, thread_floor FROM channel_reads WHERE principal_id = ?", (p.id,)).fetchall())
+    thread_reads = dict(conn.execute("SELECT thread_id, last_read_seq FROM thread_reads WHERE principal_id = ?", (p.id,)).fetchall())
     baseline = _reads_baseline(conn, p)
     channels = {}
     for m in messages:
@@ -1679,7 +1733,11 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
         m["reason"] = ("dm" if channels[cid]["kind"] == "dm" and any(x and x["id"] == p.id for x in channels[cid]["members"])
                        else "mention" if any(x["id"] == p.id for x in m["mentions"])
                        else "reply" if m["thread_id"] in my_threads else "channel")
-        m["unread"] = m["seq"] > reads.get(cid, 0) and (cid in reads or m["created_at"] > baseline)
+        if m["thread_id"]:
+            tr = thread_reads.get(m["thread_id"])
+            m["unread"] = m["seq"] > max(tr or 0, floors.get(cid, 0)) and (cid in reads or m["created_at"] > baseline)
+        else:
+            m["unread"] = m["seq"] > reads.get(cid, 0) and (cid in reads or m["created_at"] > baseline)
     if after is None:
         cursor = conn.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]   # "everything up to now"
     else:

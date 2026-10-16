@@ -37,9 +37,16 @@ def test_unread_and_for_me_counts(env):
     reasons = [(m["reason"], m["unread"]) for m in me.activity()]
     assert reasons == [("dm", True), ("mention", True), ("reply", True)]
     after = me.mark_read(gen["id"], c["last_seq"])
-    assert (after["unread"], after["for_me"]) == (0, 0)
+    # opening the channel reads the mention, but the reply in my thread waits until I open the thread
+    assert (after["unread"], after["for_me"], after["threads_for_me"]) == (0, 1, 1)
     assert me.mark_read(gen["id"], 1)["last_read"] == c["last_seq"]   # read position never moves back
+    assert [m["unread"] for m in me.activity()] == [True, False, True]
+    summary = [m for m in me.read(gen["id"])["messages"] if m["id"] == root["id"]][0]["replies"]
+    assert summary["for_me_unread"] == 1
+    done = me.mark_thread_read(gen["id"], root["id"], c["last_seq"])
+    assert (done["for_me"], done["threads_for_me"]) == (0, 0)
     assert [m["unread"] for m in me.activity()] == [True, False, False]
+    assert [m for m in me.read(gen["id"])["messages"] if m["id"] == root["id"]][0]["replies"]["for_me_unread"] == 0
 
 
 def test_read_position_follows_you_across_devices(env):
@@ -127,3 +134,24 @@ def test_mentions_survive_renames(env):
     assert [m["external_id"] for m in new["mentions"]] == ["leandros-intern"]
     grp = ana.post(gen["id"], "@agents go")
     assert grp["mentions"][0]["as"] == "agents"
+
+
+
+def test_upgrade_does_not_resurface_old_thread_notifications(env):
+    import sqlite3
+    gen = env.op.create_channel("general")
+    _, _, ana = env.human("ana")
+    me_ident, _, me = env.human("me")
+    root = me.post(gen["id"], "question")
+    ana.post(gen["id"], "old answer", reply_to=root["id"])
+    me.mark_read(gen["id"], 2)
+    # as if this board had been read before threads had their own read state
+    env.close()
+    db = sqlite3.connect(env.data_dir / "board.db")
+    db.execute("UPDATE channel_reads SET thread_floor = last_read_seq"); db.commit(); db.close()
+    env.restart()
+    me = env.client(me.token)
+    assert by_name(me, "general")["for_me"] == 0                       # the old reply stays read
+    ana2 = env.client(ana.token)
+    ana2.post(gen["id"], "new answer", reply_to=root["id"])
+    assert by_name(me, "general")["for_me"] == 1                       # a new one is for me until the thread is read
