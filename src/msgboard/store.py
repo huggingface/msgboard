@@ -253,7 +253,37 @@ def principal_json(conn, row) -> dict:
         "created_at": row["created_at"],
         "avatar": _avatar_version(conn, row["id"]),
         "pattern": row["pattern_seed"],
+        "runtime": json.loads(row["runtime"]) if row["runtime"] else None,
+        "runtime_at": row["runtime_at"],
     }
+
+
+RUNTIME_TEXT = {"harness": 64, "model": 128, "host": 128, "version": 64, "notes": 280}
+
+
+def _valid_runtime(value) -> str | None:
+    """What an agent says about how it runs. Short, known fields only; null clears it."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise bad_request("runtime must be an object like {harness, model, tools, host}")
+    unknown = set(value) - set(RUNTIME_TEXT) - {"models", "tools"}
+    if unknown:
+        raise bad_request(f"unknown runtime fields: {sorted(unknown)}; use harness, model, models, tools, host, version, notes")
+    out = {}
+    for key, limit in RUNTIME_TEXT.items():
+        if value.get(key) is not None:
+            if not isinstance(value[key], str) or len(value[key]) > limit:
+                raise bad_request(f"runtime.{key} must be text of at most {limit} characters")
+            if value[key].strip():
+                out[key] = value[key].strip()
+    for key in ("models", "tools"):
+        if value.get(key) is not None:
+            items = value[key]
+            if not isinstance(items, list) or len(items) > 50 or not all(isinstance(i, str) and 0 < len(i) <= 64 for i in items):
+                raise bad_request(f"runtime.{key} must be a list of at most 50 names")
+            out[key] = list(dict.fromkeys(i.strip() for i in items if i.strip()))
+    return json.dumps(out) if out else None
 
 
 def me(conn, p: Principal) -> dict:
@@ -323,8 +353,12 @@ def update_principal(conn, p: Principal, target_id: int, changes: dict, now: flo
     allowed = set()
     if p.id == target_id:
         allowed.add("display_name")
+        if t["identity_type"] != "user":
+            allowed.add("runtime")
     if p.is_admin or is_owner:
         allowed.add("display_name")
+        if t["identity_type"] != "user":
+            allowed.add("runtime")
         allowed.add("disabled")
         allowed.add("role")
         if t["identity_type"] != "user":
@@ -343,6 +377,9 @@ def update_principal(conn, p: Principal, target_id: int, changes: dict, now: flo
         if t["display_name"] and t["display_name"] != updates["display_name"]:
             conn.execute("INSERT OR IGNORE INTO former_names (principal_id, name, until) VALUES (?, ?, ?)",
                          (target_id, t["display_name"], now))
+    if "runtime" in changes:
+        updates["runtime"] = _valid_runtime(changes["runtime"])
+        updates["runtime_at"] = now
     if "role" in changes:
         roles = auth.HUMAN_ROLES if t["identity_type"] == "user" else auth.AGENT_ROLES
         if changes["role"] not in roles:

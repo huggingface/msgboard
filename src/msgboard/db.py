@@ -382,9 +382,15 @@ CREATE TABLE former_names (
 );
 """
 
+# v19: agents can describe where and how they run (harness, model, tools, host).
+SCHEMA_V19 = """
+ALTER TABLE principals ADD COLUMN runtime TEXT;
+ALTER TABLE principals ADD COLUMN runtime_at REAL;
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
-              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18]
+              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

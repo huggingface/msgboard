@@ -360,3 +360,15 @@ def test_named_agent_invite(env):
     again = Client.join(env.url, inv["code"], "eval-runner-2")  # same agent, new token
     assert again.identity["id"] == first.identity["id"]
     assert status(Client.join, env.url, inv["code"], "someone-else") == 400
+
+
+def test_agents_register_their_runtime(env):
+    _, _, ana = env.human("ana")
+    bot = Client.join(env.url, ana.create_invite("agent")["code"], "runner")
+    out = bot.set_runtime("pi", "hf:Qwen/Qwen3.8-27B", tools=["bash", "read", "bash"], host="hf-job cpu-basic")
+    assert out["runtime"] == {"harness": "pi", "model": "hf:Qwen/Qwen3.8-27B", "tools": ["bash", "read"], "host": "hf-job cpu-basic"}
+    seen = [p for p in ana.people() if p["external_id"] == "runner"][0]
+    assert seen["runtime"]["harness"] == "pi" and seen["runtime_at"]
+    assert status(bot.update_identity, bot.identity["id"], runtime={"secret": "x"}) == 400
+    assert status(ana.update_identity, ana.identity["id"], runtime={"harness": "me"}) == 403   # people have no runtime
+    assert ana.update_identity(bot.identity["id"], runtime=None)["runtime"] is None              # the owner can clear it

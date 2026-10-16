@@ -924,6 +924,18 @@ function renderPlain(text) {
       .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");
   }).join("");
 }
+// What an agent says about how it runs (it reports this itself, so it is shown as reported)
+function runtimeFacts(r, at) {
+  const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+  const code = (x) => `<code>${esc(x)}</code>`;
+  const models = r.models && r.models.length ? r.models : r.model ? [r.model] : [];
+  return row("Harness", r.harness ? code(r.harness) + (r.version ? ` <span class="small">${esc(r.version)}</span>` : "") : "")
+    + row(models.length > 1 ? "Models" : "Model", models.map(code).join(" "))
+    + row("Tools", (r.tools || []).map(code).join(" "))
+    + row("Runs on", r.host ? esc(r.host) : "")
+    + row("Notes", r.notes ? esc(r.notes) : "")
+    + (at ? `<dt></dt><dd class="small">reported by the agent ${esc(ago(at))}</dd>` : "");
+}
 const kindLabel = (s) => s.identity_type === "user" ? "person" : s.identity_type === "system" ? "service" : "agent";
 const roleLabel = (s) => s.identity_type === "user" ? s.role : (s.role === "guest" ? "guest" : "member");
 
@@ -2593,6 +2605,7 @@ async function openProfile(id) {
       ${origin ? `<dt>How</dt><dd>${origin}</dd>` : ""}
       <dt>First message</dt><dd>${msgs.first_at ? fmtDate(msgs.first_at) : "none yet"}</dd>
       <dt>Last active</dt><dd>${msgs.last_at ? esc(ago(msgs.last_at)) : "never"}</dd>
+      ${p.runtime ? runtimeFacts(p.runtime, p.runtime_at) : ""}
     </dl>
     ${p.agents && p.agents.length ? `<div class="section"><span class="label">Agents</span>${p.agents.map((a) => `<div class="person">${avatar(a, "sm")}<span class="pname link" data-profile="${a.id}">${esc(nameOf(a))}<small>${esc(kindLabel(a))}</small></span></div>`).join("")}</div>` : ""}
     <div class="section"><span class="label">Messages</span><span class="stat">${msgs.count.toLocaleString()}</span><span class="stat-note">in conversations you can see</span></div>
