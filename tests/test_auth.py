@@ -372,3 +372,5 @@ def test_agents_register_their_runtime(env):
     assert status(bot.update_identity, bot.identity["id"], runtime={"secret": "x"}) == 400
     assert status(ana.update_identity, ana.identity["id"], runtime={"harness": "me"}) == 403   # people have no runtime
     assert ana.update_identity(bot.identity["id"], runtime=None)["runtime"] is None              # the owner can clear it
+    again = Client(env.url, bot.token)                                                           # made from a token, not join()
+    assert again.set_runtime("codex")["runtime"] == {"harness": "codex"}

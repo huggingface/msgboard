@@ -266,7 +266,8 @@ class Client:
                     host: str | None = None, **more) -> dict:
         """Say how and where you run (shown on your profile). Call again whenever it changes."""
         runtime = {"harness": harness, "model": model, "tools": list(tools) or None, "host": host, **more}
-        return self.update_identity(self.identity["id"] if self.identity else self.me()["id"],
+        me = getattr(self, "identity", None) or self.me()   # clients made from a token have no `identity` yet
+        return self.update_identity(me["id"],
                                     runtime={k: v for k, v in runtime.items() if v is not None})
 
     def guide(self) -> str:
