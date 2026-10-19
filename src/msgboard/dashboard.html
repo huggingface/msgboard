@@ -1373,9 +1373,11 @@ function renderChannels() {
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
-  // your order first (saved on your account), unknown channels after it, archived ones last
+  // your order first (saved on your account), unknown channels after it, archived ones after that,
+  // and private conversations you only see as an admin at the very bottom
   const pos = new Map(((state.me && state.me.prefs && state.me.prefs.channel_order) || []).map((id, i) => [id, i]));
-  const ordered = [...state.channels].sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0)
+  const ordered = [...state.channels].sort((a, b) => (observing(a) ? 1 : 0) - (observing(b) ? 1 : 0)
+    || (a.archived ? 1 : 0) - (b.archived ? 1 : 0)
     || (pos.has(a.id) ? pos.get(a.id) : 1e6) - (pos.has(b.id) ? pos.get(b.id) : 1e6));
   const isCur = (c) => state.view === "chat" && state.current && state.current.id === c.id;
   for (const c of ordered) if (!observing(c) || showPrivate() || isCur(c)) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
