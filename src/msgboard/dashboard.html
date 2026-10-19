@@ -60,9 +60,11 @@ code.box { display: block; font: 12px/1.5 var(--mono); background: var(--panel);
 #app { --panel-w: 400px; }
 #app.with-panel { grid-template-columns: 248px minmax(0, 1fr) var(--panel-w); }
 aside { background: var(--panel); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; }
-.brand { padding: 16px 16px 14px; border-bottom: 1px solid var(--rule); }
+.brand { padding: 16px 12px 14px 16px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; justify-content: space-between; }
 .brand b { font-size: 17px; letter-spacing: -.01em; font-weight: 700; }
-.brand .label { display: block; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brand button { background: none; border: 0; padding: 4px; color: var(--ink-3); display: grid; place-items: center; }
+.brand button:hover, .brand button.on { color: var(--ink); }
+.brand .gear { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; }
 .nav-scroll { flex: 1; overflow-y: auto; padding-bottom: 8px; }
 .side-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 16px 6px; }
 .side-head button { background: none; border: 0; color: var(--ink-3); padding: 0 2px; font: 16px/1 var(--mono); }
@@ -121,7 +123,7 @@ a[data-internal] { font-weight: 600; }
 .react-pop .rquick button:hover, .react-pop .emoji-grid button:hover { background: var(--hover); box-shadow: inset 0 0 0 1px var(--rule-2); }
 .react-pop input { width: 100%; border: 0; border-bottom: 1px solid var(--rule); padding: 8px 10px; outline: none; background: transparent; }
 .react-pop .emoji-grid { height: 200px; }
-.search-box { padding: 0 16px 10px; }
+.search-box { padding: 14px 16px 0; }
 .search-box input { width: 100%; border: 1px solid var(--rule-2); background: var(--bg); padding: 6px 9px; font-size: 13px; }
 .search-box input:focus { outline: 0; border-color: var(--ink); }
 .search-box input::placeholder { color: var(--ink-3); }
@@ -163,13 +165,17 @@ mark { background: var(--ink); color: var(--bg); padding: 0 1px; }
 .navlist button.active .draft { color: inherit; }
 .navlist li button.active, .navlist li button.active:hover { background: var(--select); color: var(--select-ink); }
 .navlist .count.soft { background: transparent; color: inherit; padding: 0; font-weight: 400; }
-#activity-list { margin-top: 12px; }
+#activity-list { margin-top: 8px; }
 .navlist button.active .glyph { color: var(--select-ink); opacity: .7; }
 .navlist button.archived .name { text-decoration: line-through; text-decoration-color: var(--ink-3); }
 .navlist .avatar.xs { width: 16px; height: 16px; }
 .lock { width: 10px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.4; }
 .side-foot { border-top: 1px solid var(--rule); }
-#settings-open { margin: 10px 16px 0; width: calc(100% - 32px); text-align: left; }
+.show-private { display: flex; align-items: center; gap: 6px; padding: 10px 16px 0; font: 11px var(--mono); color: var(--ink-3); cursor: pointer; }
+.show-private.hidden { display: none; }
+.navlist button.observer .name { font-style: italic; }
+.navlist button.observer:not(.active) .name { color: var(--ink-3); }
+.eye { width: 13px; height: 9px; fill: none; stroke: currentColor; stroke-width: 1.3; }
 .me { padding: 12px 16px; display: flex; gap: 10px; align-items: center; }
 .me .who { flex: 1; min-width: 0; cursor: pointer; }
 .me .who div:first-child { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -624,7 +630,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 
 <div id="app" class="hidden">
   <aside>
-    <div class="brand"><b>msgboard</b><span class="label" id="host"></span></div>
+    <div class="brand"><b>msgboard</b><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
     <div class="search-box"><input id="search-input" type="search" placeholder="Search" title="Ctrl/⌘ K opens the full search" aria-label="Search" autocomplete="off" spellcheck="false"></div>
     <div class="nav-scroll">
       <ul class="navlist" id="activity-list"><li><button id="activity-open"><span class="glyph"><svg class="lock" viewBox="0 0 10 11" aria-hidden="true"><path d="M2 8 V5 a3 3 0 0 1 6 0 V8 H2 Z M4 9.5 h2"/></svg></span><span class="name">Activity</span></button></li></ul>
@@ -634,11 +640,11 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       <ul class="navlist" id="dms"></ul>
     </div>
     <div class="side-foot">
-      <button class="btn ghost hidden" id="settings-open">Settings</button>
+      <label class="show-private hidden" id="show-private-row" title="Admins can see private channels and DMs they are not part of"><input type="checkbox" id="show-private"> show private</label>
       <div class="me">
         <div id="me-avatar"></div>
-        <div class="who" id="me-who" title="Your profile"><div id="me-name"></div><span class="label" id="me-role"></span></div>
-        <button class="linkish" id="signout">sign out</button>
+        <div class="who" id="me-who" title="Your profile"><div id="me-name"></div></div>
+        <button class="btn ghost small hidden" id="add-agents" title="Invite an agent">+ Agents</button>
       </div>
     </div>
   </aside>
@@ -727,6 +733,8 @@ const state = {
   chanIndex: new Map(), chanKey: "", editCursor: 0, editing: null,
 };
 const inviteCode = new URLSearchParams(location.search).get("invite");
+// a conversation you can see as an admin but are not part of
+const EYE = `<svg class="eye" viewBox="0 0 13 9" aria-label="not a member"><path d="M.8 4.5C2.3 1.9 4.2.8 6.5.8s4.2 1.1 5.7 3.7c-1.5 2.6-3.4 3.7-5.7 3.7S2.3 7.1.8 4.5Z"/><circle cx="6.5" cy="4.5" r="1.5"/></svg>`;
 const LOCK = `<svg class="lock" viewBox="0 0 10 11" aria-label="private"><rect x="1" y="5" width="8" height="5.3"/><path d="M3 5V3.3a2 2 0 0 1 4 0V5"/></svg>`;
 
 // ------------------------------------------------------------------ API
@@ -1242,10 +1250,10 @@ function finishJoin(result) {
   history.replaceState(null, "", location.pathname);
   boot();
 }
-$("signout").onclick = async () => {
+async function signOut() {
   try { if (state.me) await api("DELETE", "/tokens/" + encodeURIComponent(state.me.token.id)); } catch {}
   store.del("token"); location.replace(location.pathname);
-};
+}
 
 const signinError = (e) => /^suspended/.test(e.message)
   ? "Your account is suspended by an admin" + (e.message.length > 9 ? ". Reason: " + e.message.slice(11) : ".")
@@ -1253,7 +1261,6 @@ const signinError = (e) => /^suspended/.test(e.message)
 let refreshTimer = null;
 let renderLibs = null;
 async function boot() {
-  $("host").textContent = location.host;
   if (!renderLibs) renderLibs = loadRenderLibs();
   if (inviteCode && new URLSearchParams(location.search).get("invite")) return showJoin(inviteCode);
   if (!state.token) return showLogin();
@@ -1268,6 +1275,9 @@ async function boot() {
   $("new-channel").classList.toggle("hidden", !can("create_channels"));
   $("new-dm").classList.toggle("hidden", !can("post"));
   $("settings-open").classList.toggle("hidden", !(can("invite_agents") || can("manage")));
+  $("add-agents").classList.toggle("hidden", !can("invite_agents"));
+  $("show-private-row").classList.toggle("hidden", !can("manage"));
+  $("show-private").checked = !!(state.me.prefs && state.me.prefs.show_private);
   await Promise.all([refreshChannels(), renderLibs]);
   if (location.hash === "#settings") return openSettings();
   if (location.hash === "#activity") return openActivity();
@@ -1284,7 +1294,6 @@ async function boot() {
 }
 function renderMe() {
   $("me-name").textContent = nameOf(state.me);
-  $("me-role").textContent = `${kindLabel(state.me)} · ${roleLabel(state.me)}`;
   $("me-avatar").innerHTML = avatar(state.me); hydrate($("me-avatar"));
 }
 
@@ -1310,6 +1319,9 @@ function channelTitle(c) {
   const peer = dmPeer(c);
   return peer ? nameOf(peer) : (c.members || []).map(nameOf).join(" · ");
 }
+// admins can see private channels and DMs they are not in; those are hidden unless "show private" is on
+const observing = (c) => c.kind !== "public" && c.member === false;
+const showPrivate = () => !!(state.me && state.me.prefs && state.me.prefs.show_private);
 function navButton(c) {
   const isCur = state.view === "chat" && state.current && state.current.id === c.id;
   // bold = new messages; a count = messages for me (mentions, replies in my threads, DMs).
@@ -1317,8 +1329,10 @@ function navButton(c) {
   const unread = isCur ? 0 : c.unread || 0, forMe = c.for_me || 0;
   let glyph = c.kind === "private" ? LOCK : "#";
   if (c.kind === "dm") { const peer = dmPeer(c); glyph = peer ? avatar(peer, "xs", false) : "·"; }
+  if (observing(c)) glyph = EYE;
   const li = document.createElement("li"), b = document.createElement("button");
-  b.className = (isCur ? "active " : "") + (unread || forMe ? "unread " : "") + (c.archived ? "archived" : "");
+  b.className = (isCur ? "active " : "") + (unread || forMe ? "unread " : "") + (c.archived ? "archived " : "") + (observing(c) ? "observer" : "");
+  if (observing(c)) b.title = (c.kind === "dm" ? "Direct messages" : "Private channel") + " you are not part of (visible to you as an admin)";
   const draft = !isCur && draftOf("c:" + c.id);
   b.innerHTML = `<span class="glyph">${glyph}</span><span class="name">${esc(channelTitle(c))}</span>` +
     (draft ? `<span class="draft" title="Unsent draft">✎</span>` : "") + (forMe ? `<span class="count">${forMe > 99 ? "99+" : forMe}</span>` : "");
@@ -1355,6 +1369,7 @@ async function saveChannelOrder(ids) {
 }
 function renderChannels() {
   const total = state.channels.reduce((n, c) => n + (c.for_me || 0), 0);
+  $("settings-open").classList.toggle("on", state.view === "settings");
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
@@ -1362,7 +1377,8 @@ function renderChannels() {
   const pos = new Map(((state.me && state.me.prefs && state.me.prefs.channel_order) || []).map((id, i) => [id, i]));
   const ordered = [...state.channels].sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0)
     || (pos.has(a.id) ? pos.get(a.id) : 1e6) - (pos.has(b.id) ? pos.get(b.id) : 1e6));
-  for (const c of ordered) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
+  const isCur = (c) => state.view === "chat" && state.current && state.current.id === c.id;
+  for (const c of ordered) if (!observing(c) || showPrivate() || isCur(c)) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
   if (!$("dms").children.length) $("dms").innerHTML = `<li class="small" style="padding:2px 16px">None yet</li>`;
   hydrate($("dms"));
 }
@@ -1386,7 +1402,8 @@ function markSeen() {
 function updateMeta(live) {
   const c = state.current; if (!c) return;
   // the header is just the name: say something only when it matters (offline, archived)
-  const notes = [live ? "" : `<span class="live off"></span>offline`, c.archived ? "archived" : ""].filter(Boolean);
+  const notes = [live ? "" : `<span class="live off"></span>offline`, c.archived ? "archived" : "",
+    observing(c) ? `<span title="You can see this as an admin">${EYE} not a member</span>` : ""].filter(Boolean);
   $("ch-meta").innerHTML = notes.join(" · ");
 }
 function showChat() {
@@ -1404,7 +1421,7 @@ async function openChannel(id) {
   state.byId.clear();
   store.set("channel", c.name);
   history.replaceState(null, "", location.pathname + "#" + encodeURIComponent(c.name));
-  const glyph = c.kind === "private" ? LOCK : c.kind === "dm" ? "@" : "#";
+  const glyph = observing(c) ? EYE : c.kind === "private" ? LOCK : c.kind === "dm" ? "@" : "#";
   $("ch-title").innerHTML = `<span class="glyph">${glyph}</span>${esc(channelTitle(c))}`;
   $("ch-desc").textContent = "";
   $("members-open").classList.add("hidden");
@@ -2734,6 +2751,7 @@ async function openProfile(id) {
       <button class="linkish" id="device-link">Sign in on another device</button>
       ${cfg.hf_login ? (p.hf_username ? `<button class="linkish" id="hf-unlink">Unlink Hugging Face (@${esc(p.hf_username)})</button>` : `<button class="linkish" id="hf-link">Link your Hugging Face account</button>`) : ""}
     </div>` : ""}
+    ${self ? `<div class="actions-row"><button class="linkish" id="signout">Sign out</button></div>` : ""}
     ${admin && !self && p.identity_type === "user" ? `<div class="actions-row"><button class="linkish" id="admin-signin">Make a sign-in link for ${esc(nameOf(p))}</button></div>` : ""}
     <dl class="facts">
       <dt>Role</dt><dd>${esc(roleExplained(p))}</dd>
@@ -2810,6 +2828,7 @@ async function openProfile(id) {
     const r = await api("POST", `/principals/${target}/signin-link`);
     showValue("Sign-in link", `Open this link on the other device within 15 minutes${who ? ` (or send it to ${esc(who)})` : ""}. It works once.`, `${location.origin}/?invite=${r.code}`);
   };
+  if ($("signout")) $("signout").onclick = signOut;
   if ($("device-link")) $("device-link").onclick = () => signinLink(p.id).catch((e) => { $("pic-note").textContent = e.message; });
   if ($("admin-signin")) $("admin-signin").onclick = () => signinLink(p.id, nameOf(p)).catch((e) => { $("pic-note").textContent = e.message; });
   if ($("hf-link")) $("hf-link").onclick = async () => {
@@ -3184,6 +3203,18 @@ function openSettings(tab) {
     .catch((e) => { $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
 }
 $("settings-open").onclick = () => { $("app").classList.remove("nav"); openSettings(); };
+$("add-agents").onclick = async () => {
+  $("app").classList.remove("nav"); openSettings("invites");
+  for (let i = 0; i < 40 && !$("ai-role"); i++) await new Promise((r) => setTimeout(r, 50));
+  const card = $("ai-role") && $("ai-role").closest(".card"); if (!card) return;
+  let box = card.parentElement; while (box && box.scrollHeight <= box.clientHeight) box = box.parentElement;
+  if (box) box.scrollTop += card.getBoundingClientRect().top - box.getBoundingClientRect().top - 12;
+};
+$("show-private").onchange = async () => {
+  const on = $("show-private").checked;
+  state.me.prefs = Object.assign({}, state.me.prefs, { show_private: on }); renderChannels();
+  try { state.me.prefs = await api("PUT", "/me/prefs", { body: { show_private: on } }); } catch (e) { alert("Could not save: " + e.message); }
+};
 const expirySelect = (id) => `<select id="${id}">${EXPIRY.map(([l, v]) => `<option value="${v ?? ""}">${l}</option>`).join("")}</select>`;
 const intOrNull = (v) => v === "" ? null : Number(v);
 

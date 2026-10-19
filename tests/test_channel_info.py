@@ -76,3 +76,20 @@ def test_channel_order_preference(env):
     assert http.put("/me/prefs", json={"channel_order": "nope"}).status_code == 400
     assert http.put("/me/prefs", json={"theme": "dark"}).status_code == 400
     assert http.put("/me/prefs", json={"channel_order": []}).json() == {}
+
+
+def test_member_flag_and_show_private_preference(env):
+    _, _, ana = env.human("ana")
+    _, _, bob = env.human("bob")
+    pub = env.op.create_channel("open")
+    priv = ana.create_channel("secret", private=True)
+    dm = ana.open_dm(bob.me()["id"])
+    seen = {c["id"]: c["member"] for c in env.op.list_channels()}
+    assert seen[priv["id"]] is False                                          # admin sees it, but is not in it
+    assert {c["id"]: c["member"] for c in ana.list_channels()}[priv["id"]] is True
+    assert seen[dm["id"]] is False
+    http = env.http(env.op.token)
+    assert http.put("/me/prefs", json={"show_private": True}).json() == {"show_private": True}
+    assert http.put("/me/prefs", json={"show_private": "yes"}).status_code == 400
+    assert http.put("/me/prefs", json={"show_private": False}).json() == {}
+    assert pub["id"] in seen

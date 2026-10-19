@@ -310,10 +310,18 @@ def get_prefs(conn, pid: int) -> dict:
 
 
 def update_prefs(conn, p: Principal, changes, now: float) -> dict:
-    """Your own preferences. `channel_order`: channel ids in the order you want them in the sidebar."""
-    if not isinstance(changes, dict) or set(changes) - {"channel_order"}:
-        raise bad_request("supported preferences: channel_order (a list of channel ids)")
+    """Your own preferences. `channel_order`: channel ids in the order you want them in the sidebar;
+    `show_private`: admins list private channels and DMs they are not part of."""
+    if not isinstance(changes, dict) or set(changes) - {"channel_order", "show_private"}:
+        raise bad_request("supported preferences: channel_order (a list of channel ids), show_private (true/false)")
     prefs = get_prefs(conn, p.id)
+    if "show_private" in changes:
+        if not isinstance(changes["show_private"], bool):
+            raise bad_request("show_private must be true or false")
+        if changes["show_private"]:
+            prefs["show_private"] = True
+        else:
+            prefs.pop("show_private", None)
     if "channel_order" in changes:
         order = changes["channel_order"]
         if order is not None and (not isinstance(order, list) or len(order) > 1000
@@ -586,9 +594,10 @@ def list_channels(conn, p: Principal, name: str | None = None) -> list[dict]:
         args.append(name)
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
-    out = []
+    out, mine = [], {r[0] for r in conn.execute("SELECT channel_id FROM channel_members WHERE principal_id = ?", (p.id,))}
     for r in conn.execute(sql + " ORDER BY kind = 'dm', id", args).fetchall():
         item = _channel_json(conn, r)
+        item["member"] = r["id"] in mine
         item.update(unread_counts(conn, p, r))
         out.append(item)
     return out
