@@ -1309,8 +1309,9 @@ function channelTitle(c) {
 }
 function navButton(c) {
   const isCur = state.view === "chat" && state.current && state.current.id === c.id;
-  // bold = new messages; a count = messages for me (mentions, replies in my threads, DMs)
-  const unread = isCur ? 0 : c.unread || 0, forMe = isCur ? 0 : c.for_me || 0;
+  // bold = new messages; a count = messages for me (mentions, replies in my threads, DMs).
+  // The open channel keeps its count: unopened threads stay "for me" until you open them.
+  const unread = isCur ? 0 : c.unread || 0, forMe = c.for_me || 0;
   let glyph = c.kind === "private" ? LOCK : "#";
   if (c.kind === "dm") { const peer = dmPeer(c); glyph = peer ? avatar(peer, "xs", false) : "·"; }
   const li = document.createElement("li"), b = document.createElement("button");
@@ -1350,7 +1351,7 @@ async function saveChannelOrder(ids) {
   catch (e) { alert("Could not save the order: " + e.message); }
 }
 function renderChannels() {
-  const total = state.channels.reduce((n, c) => n + ((state.view === "chat" && state.current && state.current.id === c.id) ? 0 : c.for_me || 0), 0);
+  const total = state.channels.reduce((n, c) => n + (c.for_me || 0), 0);
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
