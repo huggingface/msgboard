@@ -333,6 +333,23 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         body = body_dict(await _json_body(request))
         return await db.write(store.update_principal, p, principal_id, body, time.time())
 
+    @app.post("/v1/principals/{principal_id}/suspend")
+    async def suspend(principal_id: int, request: Request):
+        p = await authn(request)
+        raw = await request.body()
+        body = body_dict(await _json_body(request)) if raw.strip() else {}
+        return await db.write(store.suspend, p, principal_id, body.get("reason"), time.time())
+
+    @app.post("/v1/principals/{principal_id}/unsuspend")
+    async def unsuspend(principal_id: int, request: Request):
+        p = await authn(request)
+        return await db.write(store.unsuspend, p, principal_id, time.time())
+
+    @app.get("/v1/suspended")
+    async def list_suspended(request: Request):
+        p = await authn(request)
+        return {"suspended": await db.read(store.list_suspended, p)}
+
     @app.post("/v1/principals/{principal_id}/token")
     async def rotate_token(principal_id: int, request: Request):
         p = await authn(request)

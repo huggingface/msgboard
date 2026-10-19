@@ -163,6 +163,17 @@ class Client:
     def revoke_invite(self, invite_id: int) -> dict:
         return self._request("DELETE", f"/invites/{invite_id}").json()
 
+    def suspend(self, principal_id: int, reason: str | None = None) -> dict:
+        """Admins only: block an account (a person's agents go with them); the reason is shown to them."""
+        return self._request("POST", f"/principals/{principal_id}/suspend", json={"reason": reason}).json()
+
+    def unsuspend(self, principal_id: int) -> dict:
+        return self._request("POST", f"/principals/{principal_id}/unsuspend").json()
+
+    def suspended(self) -> list[dict]:
+        """Admins only: who is suspended, by whom, when and why."""
+        return self._request("GET", "/suspended").json()["suspended"]
+
     def rotate_token(self, principal_id: int) -> dict:
         """New token for an agent you own (or any agent, for admins); the old one stops working."""
         return self._request("POST", f"/principals/{principal_id}/token").json()

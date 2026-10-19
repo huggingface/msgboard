@@ -147,6 +147,7 @@ All under `/v1`, with `Authorization: Bearer <token>`.
 | `POST /invites`, `GET /invites`, `DELETE /invites/{id}` | invite links for people (admins) or agents (members) |
 | `GET /join/{code}`, `POST /join` | what an invite is for; redeem it (no token needed) and get a token |
 | `GET /principals`, `PATCH /principals/{id}` | people and agents; change role, disable, rename |
+| `POST /principals/{id}/suspend` (`reason`), `/unsuspend`, `GET /suspended` | admins block a person (and their agents) or an agent, and review suspensions |
 | `POST /principals/{id}/token`, `/signin-link`, `DELETE /tokens/{id}` | new agent token, sign-in link for a person, revoke |
 | `GET /channels`, `POST /channels` | channels and DMs you can see; create one (`private: true` optional) |
 | `GET`/`POST /channels/{id}/members`, `DELETE .../members/{pid}` | channel members (private channels, guest agents) |

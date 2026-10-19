@@ -67,6 +67,8 @@ def authenticate(conn: sqlite3.Connection, token: str | None, now: float) -> Pri
     if row["expires_at"] is not None and row["expires_at"] <= now:
         raise unauthorized("token expired")
     if row["disabled"]:
+        if row["suspended_at"] is not None:
+            raise unauthorized("suspended" + (f": {row['suspend_reason']}" if row["suspend_reason"] else ""))
         raise unauthorized("identity disabled")
     if row["owner_id"] is not None:
         needed = ("admin",) if row["role"] in auth.ADMIN_ONLY_AGENT_ROLES else ("admin", "member")
@@ -261,6 +263,7 @@ def principal_json(conn, row) -> dict:
         "identity_type": row["identity_type"],
         "role": row["role"],
         "disabled": bool(row["disabled"]),
+        "suspended": row["suspended_at"] is not None,
         "owner": _brief(conn, row["owner_id"]),
         "can_create_channels": bool(row["can_create_channels"]) if row["identity_type"] != "user"
                                else row["role"] in ("admin", "member"),
@@ -427,7 +430,11 @@ def update_principal(conn, p: Principal, target_id: int, changes: dict, now: flo
     if "disabled" in changes:
         if not isinstance(changes["disabled"], bool):
             raise bad_request("disabled must be true or false")
+        if t["suspended_at"] is not None and not p.is_admin:
+            raise forbidden("this account was suspended by an admin")
         updates["disabled"] = int(changes["disabled"])
+        if not changes["disabled"] and t["suspended_at"] is not None:
+            return unsuspend(conn, p, target_id, now)
     if "can_create_channels" in changes:
         if not isinstance(changes["can_create_channels"], bool):
             raise bad_request("can_create_channels must be true or false")
@@ -443,6 +450,58 @@ def update_principal(conn, p: Principal, target_id: int, changes: dict, now: flo
                      (*updates.values(), target_id))
         audit(conn, p.id, "principal.update", f"principal:{target_id}", changes, now)
     return principal_json(conn, _principal_row(conn, target_id))
+
+
+def suspend(conn, p: Principal, target_id: int, reason, now: float) -> dict:
+    """Admins (people or admin agents) block an account, with an optional reason. Suspending a
+    person suspends their active agents too; unsuspending the person brings exactly those back."""
+    if not p.is_admin:
+        raise forbidden("only admins can suspend accounts")
+    if reason is not None and (not isinstance(reason, str) or len(reason) > 500):
+        raise bad_request("reason must be at most 500 characters")
+    reason = reason.strip() if reason and reason.strip() else None
+    t = _principal_row(conn, target_id)
+    if target_id in (p.id, p.owner_id):
+        raise bad_request("you cannot suspend yourself or the person who owns you")
+    if t["suspended_at"] is not None:
+        raise conflict("already_suspended", "this account is already suspended")
+    if t["identity_type"] == "user" and t["role"] == "admin" and not t["disabled"] and _active_admins(conn) <= 1:
+        raise conflict("last_admin", "the board needs at least one active admin")
+    conn.execute("""UPDATE principals SET disabled = 1, suspended_at = ?, suspended_by = ?, suspend_reason = ?,
+                    suspended_via = NULL WHERE id = ?""", (now, p.id, reason, target_id))
+    agents = []
+    if t["identity_type"] == "user":
+        agents = [r[0] for r in conn.execute(
+            "SELECT id FROM principals WHERE owner_id = ? AND disabled = 0", (target_id,))]
+        conn.executemany("""UPDATE principals SET disabled = 1, suspended_at = ?, suspended_by = ?, suspend_reason = ?,
+                            suspended_via = ? WHERE id = ?""", [(now, p.id, reason, target_id, a) for a in agents])
+    audit(conn, p.id, "principal.suspend", f"principal:{target_id}", {"reason": reason, "agents": agents}, now)
+    return {**principal_json(conn, _principal_row(conn, target_id)), "agents_suspended": agents}
+
+
+def unsuspend(conn, p: Principal, target_id: int, now: float) -> dict:
+    if not p.is_admin:
+        raise forbidden("only admins can lift a suspension")
+    t = _principal_row(conn, target_id)
+    if t["suspended_at"] is None:
+        raise conflict("not_suspended", "this account is not suspended")
+    if t["suspended_via"] is not None:
+        raise conflict("suspended_with_owner", "this agent was suspended with its owner; unsuspend the owner")
+    clear = "disabled = 0, suspended_at = NULL, suspended_by = NULL, suspend_reason = NULL, suspended_via = NULL"
+    conn.execute(f"UPDATE principals SET {clear} WHERE id = ?", (target_id,))
+    agents = [r[0] for r in conn.execute("SELECT id FROM principals WHERE suspended_via = ?", (target_id,))]
+    conn.execute(f"UPDATE principals SET {clear} WHERE suspended_via = ?", (target_id,))
+    audit(conn, p.id, "principal.unsuspend", f"principal:{target_id}", {"agents": agents}, now)
+    return {**principal_json(conn, _principal_row(conn, target_id)), "agents_restored": agents}
+
+
+def list_suspended(conn, p: Principal) -> list[dict]:
+    """For admins to review: who is suspended, by whom, when and why (agents suspended with their owner included)."""
+    if not p.is_admin:
+        raise forbidden("only admins can review suspensions")
+    return [{**principal_json(conn, r), "suspended_at": r["suspended_at"], "suspended_by": _brief(conn, r["suspended_by"]),
+             "reason": r["suspend_reason"], "via": _brief(conn, r["suspended_via"])}
+            for r in conn.execute("SELECT * FROM principals WHERE suspended_at IS NOT NULL ORDER BY suspended_at DESC")]
 
 
 def rotate_agent_token(conn, p: Principal, target_id: int, now: float) -> dict:

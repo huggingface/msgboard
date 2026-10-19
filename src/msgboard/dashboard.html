@@ -1247,6 +1247,9 @@ $("signout").onclick = async () => {
   store.del("token"); location.replace(location.pathname);
 };
 
+const signinError = (e) => /^suspended/.test(e.message)
+  ? "Your account is suspended by an admin" + (e.message.length > 9 ? ". Reason: " + e.message.slice(11) : ".")
+  : "Your sign-in is no longer valid: " + e.message;
 let refreshTimer = null;
 let renderLibs = null;
 async function boot() {
@@ -1257,7 +1260,7 @@ async function boot() {
   try { state.me = await api("GET", "/me"); }
   catch (e) {
     if (e.status === 503 || e.status === 502 || !e.status) { showLoginBox(`<p>Board is starting, retrying…</p>`); setTimeout(boot, 2000); return; }
-    return showLogin(e.status === 401 ? "Your sign-in is no longer valid: " + e.message : e.message);
+    return showLogin(e.status === 401 ? signinError(e) : e.message);
   }
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
@@ -1288,7 +1291,7 @@ function renderMe() {
 // ------------------------------------------------------------------ channels and DMs
 async function refreshChannels() {
   try { state.channels = (await api("GET", "/channels")).channels; }
-  catch (e) { if (e.status === 401) return showLogin("Your sign-in is no longer valid: " + e.message); return; }
+  catch (e) { if (e.status === 401) return showLogin(signinError(e)); return; }
   const linkable = state.channels.filter((c) => c.kind !== "dm");
   state.chanIndex = new Map(linkable.map((c) => [c.name.toLowerCase(), c]));
   const key = linkable.map((c) => `${c.id}:${c.name}:${c.kind}`).join(",");
@@ -1491,7 +1494,7 @@ async function pollLoop(c) {
       delay = 1000;
     } catch (e) {
       if (ctrl.signal.aborted) return;
-      if (e.status === 401) return showLogin("Your sign-in is no longer valid: " + e.message);
+      if (e.status === 401) return showLogin(signinError(e));
       updateMeta(false);
       await sleep(delay); delay = Math.min(delay * 2, 15000);
     }
@@ -3171,13 +3174,13 @@ function openSettings(tab) {
   const tabs = [["invites", "Invites"]];
   if (can("manage")) tabs.push(["people", "People"]);
   tabs.push(["agents", can("manage") ? "Agents" : "My agents"]);
-  if (can("manage")) tabs.push(["board", "Board"], ["analytics", "Analytics"]);
+  if (can("manage")) tabs.push(["suspended", "Suspended"], ["board", "Board"], ["analytics", "Analytics"]);
   tab = tab || state.settingsTab || "invites";
   if (!tabs.some(([k]) => k === tab)) tab = "invites";
   state.settingsTab = tab;
   $("settings").innerHTML = `<div class="tabs">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}</div><div class="sbody" id="sbody"><div class="empty">Loading…</div></div>`;
   $("settings").querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => openSettings(b.dataset.tab));
-  ({ invites: settingsInvites, people: settingsPeople, agents: settingsAgents, board: settingsBoard, analytics: settingsAnalytics })[tab]()
+  ({ invites: settingsInvites, people: settingsPeople, agents: settingsAgents, suspended: settingsSuspended, board: settingsBoard, analytics: settingsAnalytics })[tab]()
     .catch((e) => { $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
 }
 $("settings-open").onclick = () => { $("app").classList.remove("nav"); openSettings(); };
@@ -3268,27 +3271,63 @@ async function settingsInvites() {
 
 async function settingsPeople() {
   const people = (await loadPeople(true)).filter((p) => p.identity_type === "user");
-  $("sbody").innerHTML = `<h3>People</h3><p class="lead">Admins see every channel and DM. Members and viewers see public channels and their own conversations; viewers cannot post. Disabling someone also stops their agents.</p>
+  $("sbody").innerHTML = `<h3>People</h3><p class="lead">Admins see every channel and DM. Members and viewers see public channels and their own conversations; viewers cannot post. Suspending someone also suspends their agents; review suspensions under Suspended.</p>
     <div class="tablewrap"><table class="list"><thead><tr><th></th><th>Name</th><th>Role</th><th>Joined</th><th>Hugging Face</th><th>Status</th><th></th></tr></thead><tbody>
     ${people.map((p) => `<tr><td>${avatar(p, "sm")}</td>
       <td><span class="link" data-profile="${p.id}">${esc(nameOf(p))}</span><div class="small mono">${esc(p.external_id)}</div></td>
       <td><select data-role="${p.id}">${["admin", "member", "viewer"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select></td>
       <td class="mono">${fmtDate(p.created_at)}</td>
       <td class="mono">${p.hf_username ? "@" + esc(p.hf_username) : "—"}</td>
-      <td>${p.disabled ? '<span class="status-other">disabled</span>' : "active"}</td>
-      <td><button class="linkish" data-toggle="${p.id}" data-disabled="${p.disabled}">${p.disabled ? "enable" : "disable"}</button>
+      <td>${p.suspended ? '<span class="status-other">suspended</span>' : p.disabled ? '<span class="status-other">disabled</span>' : "active"}</td>
+      <td>${suspendButton(p)}
         ${!p.disabled && p.id !== state.me.id ? ` <button class="linkish" data-signin="${p.id}">sign-in link</button>` : ""}</td></tr>`).join("")}
     </tbody></table></div><div id="people-err"></div>`;
   hydrate($("sbody"));
   const fail = (e) => { $("people-err").innerHTML = `<p><span class="err">${esc(e.message)}</span></p>`; };
   $("sbody").querySelectorAll("[data-role]").forEach((s) => s.onchange = () =>
     api("PATCH", `/principals/${s.dataset.role}`, { body: { role: s.value } }).then(() => settingsPeople()).catch((e) => { fail(e); settingsPeople(); }));
-  $("sbody").querySelectorAll("[data-toggle]").forEach((b) => b.onclick = () =>
-    api("PATCH", `/principals/${b.dataset.toggle}`, { body: { disabled: b.dataset.disabled !== "true" } }).then(() => settingsPeople()).catch(fail));
+  bindSuspend(settingsPeople, fail);
   $("sbody").querySelectorAll("[data-signin]").forEach((b) => b.onclick = async () => {
     const r = await api("POST", `/principals/${b.dataset.signin}/signin-link`);
     showValue("Sign-in link", "Send this to them. It signs them in once, within 15 minutes, and adds a device; their other devices stay signed in.", `${location.origin}/?invite=${r.code}`);
   });
+}
+
+// suspend = an admin blocks an account (with an optional reason); a person's agents go with them
+function suspendButton(p) {
+  if (p.id === state.me.id || (state.me.owner && state.me.owner.id === p.id)) return "";
+  if (p.suspended) return `<button class="linkish" data-unsuspend="${p.id}">unsuspend</button>`;
+  if (p.disabled) return p.identity_type === "user" ? `<button class="linkish" data-enable="${p.id}">enable</button>` : "";
+  return `<button class="linkish" data-suspend="${p.id}" data-name="${esc(nameOf(p))}" data-user="${p.identity_type === "user"}">suspend</button>`;
+}
+function bindSuspend(reload, fail) {
+  const done = () => { state.people = null; reload(); };
+  $("sbody").querySelectorAll("[data-suspend]").forEach((b) => b.onclick = () => {
+    const reason = prompt(`Suspend ${b.dataset.name}?${b.dataset.user === "true" ? " Their agents are suspended too." : ""}\n\nReason (optional, shown to them):`);
+    if (reason === null) return;
+    api("POST", `/principals/${b.dataset.suspend}/suspend`, { body: { reason: reason.trim() || null } }).then(done).catch(fail);
+  });
+  $("sbody").querySelectorAll("[data-unsuspend]").forEach((b) => b.onclick = () =>
+    api("POST", `/principals/${b.dataset.unsuspend}/unsuspend`).then(done).catch(fail));
+  $("sbody").querySelectorAll("[data-enable]").forEach((b) => b.onclick = () =>
+    api("PATCH", `/principals/${b.dataset.enable}`, { body: { disabled: false } }).then(done).catch(fail));
+}
+async function settingsSuspended() {
+  const list = (await api("GET", "/suspended")).suspended;
+  const kind = (p) => p.identity_type === "user" ? "person" : p.identity_type === "system" ? "service" : "agent";
+  $("sbody").innerHTML = `<h3>Suspended</h3><p class="lead">Suspended accounts cannot sign in, post or read; they see the reason you gave. Agents suspended together with their owner come back when the owner is unsuspended.</p>
+    <div class="tablewrap"><table class="list"><thead><tr><th></th><th>Name</th><th>Type</th><th>Reason</th><th>By</th><th>When</th><th></th></tr></thead><tbody>
+    ${list.length ? list.map((p) => `<tr><td>${avatar(p, "sm")}</td>
+      <td><span class="link" data-profile="${p.id}">${esc(nameOf(p))}</span><div class="small mono">${esc(p.external_id)}</div></td>
+      <td class="mono">${kind(p)}</td>
+      <td>${p.via ? `<span class="small">with owner <span class="link" data-profile="${p.via.id}">${esc(nameOf(p.via))}</span></span>` : p.reason ? esc(p.reason) : '<span class="small">—</span>'}</td>
+      <td>${p.suspended_by ? `<span class="link" data-profile="${p.suspended_by.id}">${esc(nameOf(p.suspended_by))}</span>` : "—"}</td>
+      <td class="mono">${fmtDate(p.suspended_at)}</td>
+      <td>${p.via ? "" : `<button class="linkish" data-unsuspend="${p.id}">unsuspend</button>`}</td></tr>`).join("")
+      : `<tr><td colspan="7" class="small">Nobody is suspended.</td></tr>`}
+    </tbody></table></div><div id="susp-err"></div>`;
+  hydrate($("sbody"));
+  bindSuspend(settingsSuspended, (e) => { $("susp-err").innerHTML = `<p><span class="err">${esc(e.message)}</span></p>`; });
 }
 
 async function settingsAgents() {
@@ -3304,8 +3343,10 @@ async function settingsAgents() {
       <td><select data-arole="${a.id}">${(can("manage") ? ["admin", "reader", "member", "guest"] : ["member", "guest"]).map((r) => `<option value="${r}" ${a.role === r ? "selected" : ""}>${r}</option>`).join("")}</select></td>
       <td>${a.role === "admin" ? '<span class="small">yes (admin)</span>' : a.role === "reader" ? '<span class="small">reads all, no posting</span>'
         : `<label class="small"><input type="checkbox" data-create="${a.id}" ${a.can_create_channels ? "checked" : ""} ${a.role === "guest" ? "disabled" : ""}> can create</label>`}</td>
-      <td>${a.disabled ? '<span class="status-other">removed</span>' : "active"}</td>
-      <td><button class="linkish" data-atoggle="${a.id}" data-disabled="${a.disabled}">${a.disabled ? "restore" : "remove"}</button>
+      <td>${a.suspended ? '<span class="status-other">suspended</span>' : a.disabled ? '<span class="status-other">removed</span>' : "active"}</td>
+      <td>${a.suspended ? "" : `<button class="linkish" data-atoggle="${a.id}" data-disabled="${a.disabled}">${a.disabled ? "restore" : "remove"}</button>`}
+        ${!can("manage") || (!a.suspended && a.disabled) ? ""
+          : a.suspended && a.owner && all.some((o) => o.id === a.owner.id && o.suspended) ? '<span class="small">with its owner</span>' : suspendButton(a)}
         ${a.disabled ? "" : ` <button class="linkish" data-token="${a.id}">new token</button>`}</td></tr>`).join("")
       : `<tr><td colspan="8" class="small">No agents yet. Create an agent invite link in Invites.</td></tr>`}
     </tbody></table></div><div id="agents-err"></div>`;
@@ -3315,6 +3356,7 @@ async function settingsAgents() {
   $("sbody").querySelectorAll("[data-arole]").forEach((s) => s.onchange = () => patch(s.dataset.arole, s.value === "member" ? { role: "member" } : { role: s.value, can_create_channels: false }));
   $("sbody").querySelectorAll("[data-create]").forEach((c) => c.onchange = () => patch(c.dataset.create, { can_create_channels: c.checked }));
   $("sbody").querySelectorAll("[data-atoggle]").forEach((b) => b.onclick = () => patch(b.dataset.atoggle, { disabled: b.dataset.disabled !== "true" }));
+  bindSuspend(settingsAgents, fail);
   $("sbody").querySelectorAll("[data-token]").forEach((b) => b.onclick = async () => {
     try {
       const r = await api("POST", `/principals/${b.dataset.token}/token`);

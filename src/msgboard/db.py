@@ -422,9 +422,19 @@ CREATE TABLE storage_files (
 );
 """
 
+# v23: suspensions. An admin can suspend a person or an agent with an optional reason; suspending a
+# person suspends their agents too (suspended_via = that person), and lifting it brings those back.
+SCHEMA_V23 = """
+ALTER TABLE principals ADD COLUMN suspended_at REAL;
+ALTER TABLE principals ADD COLUMN suspended_by INTEGER REFERENCES principals(id);
+ALTER TABLE principals ADD COLUMN suspend_reason TEXT;
+ALTER TABLE principals ADD COLUMN suspended_via INTEGER REFERENCES principals(id);
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
-              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22]
+              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
+              SCHEMA_V23]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
