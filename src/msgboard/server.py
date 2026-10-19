@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import fcntl
+import mimetypes
 import os
 import shutil
 import sqlite3
@@ -176,6 +177,12 @@ class Board:
                 conn.execute("ROLLBACK")
                 raise
         self.blobs = LocalBlobStore(self.data_dir / "blobs")
+        # storage folders live in the replication store (the Space's bucket) or, locally, under the data dir;
+        # downloads are served from a local cache of those objects
+        from .replicate import DirStore
+        self.storage = replicator.store if replicator is not None else DirStore(self.data_dir)
+        self.storage_cache = self.data_dir / "storage-cache"
+        self.storage_cache.mkdir(exist_ok=True)
         self.notifier = Notifier()
         self.shutting_down = False
         self.open_polls = 0
@@ -788,6 +795,94 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                 "X-Upload-Content-Type": info["content_type"] or "application/octet-stream",
             },
         )
+
+    # ------------------------------------------------------------------ storage folders
+
+    def _cache_put(src: Path, sha: str) -> Path:
+        dest = board.storage_cache / sha
+        os.replace(src, dest)
+        files = sorted(board.storage_cache.iterdir(), key=lambda f: f.stat().st_atime)
+        total = sum(f.stat().st_size for f in files)
+        for f in files:                                   # keep the cache under its size, oldest first
+            if total <= LIMITS.storage_cache_bytes or f == dest:
+                continue
+            total -= f.stat().st_size
+            f.unlink(missing_ok=True)
+        return dest
+
+    @app.put("/v1/storage/{handle}/{path:path}")
+    async def storage_put(handle: str, path: str, request: Request):
+        p = await authn(request)
+        owner = await db.read(store.storage_owner, p, handle, True)
+        path = store.storage_path(path)
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit():
+            await db.read(store.storage_check_quota, owner["id"], path, int(declared))
+        content_type = (request.headers.get("content-type") or mimetypes.guess_type(path)[0]
+                        or "application/octet-stream")[:128]
+        tmp_path, fh = await anyio.to_thread.run_sync(board.blobs.open_temp)
+        try:
+            hasher, size = new_hasher(), 0
+            try:
+                max_file = (await db.read(store.storage_limits))[0]
+                async for chunk in request.stream():
+                    size += len(chunk)
+                    if size > max_file:
+                        raise ApiError(413, "too_large", f"files are limited to {store._mb(max_file)} on this board")
+                    hasher.update(chunk)
+                    await anyio.to_thread.run_sync(fh.write, chunk)
+                await anyio.to_thread.run_sync(board.blobs.finish_temp, fh)
+            finally:
+                if not fh.closed:
+                    fh.close()
+            digest = hasher.hexdigest()
+            expected = request.headers.get("x-checksum-sha256")
+            if expected and expected.lower() != digest:
+                raise bad_request("X-Checksum-Sha256 does not match the uploaded content")
+            await db.read(store.storage_check_quota, owner["id"], path, size)
+            key = store.storage_key(owner["id"], path)
+            await anyio.to_thread.run_sync(lambda: board.storage.put([(tmp_path, key)]))   # in the bucket before it is listed
+            await anyio.to_thread.run_sync(_cache_put, tmp_path, digest)
+            tmp_path = None
+            result = await db.write(store.storage_record, p, owner["id"], path, size, digest, content_type, time.time())
+            return JSONResponse(result, status_code=201)
+        finally:
+            if tmp_path is not None:
+                board.blobs.discard(tmp_path)
+
+    @app.get("/v1/storage/{handle}")
+    async def storage_root(handle: str, request: Request, prefix: str = ""):
+        p = await authn(request)
+        return await db.read(store.storage_list, p, handle, prefix)
+
+    @app.get("/v1/storage/{handle}/{path:path}")
+    async def storage_get(handle: str, path: str, request: Request, info: bool = False):
+        p = await authn(request)
+        if path.endswith("/"):                            # a folder: list it
+            return await db.read(store.storage_list, p, handle, path)
+        meta, key = await db.read(store.storage_lookup, p, handle, path)
+        if info:
+            return meta
+        cached = board.storage_cache / meta["sha256"]
+        if not cached.exists():
+            tmp = board.storage_cache / f".{meta['sha256']}.{os.getpid()}.part"
+            ok = await anyio.to_thread.run_sync(board.storage.get, key, tmp)
+            if not ok:
+                raise ApiError(503, "storage_unavailable", "the file is listed but could not be fetched from storage; try again")
+            os.replace(tmp, cached)
+        # always a download: never let stored HTML or SVG run on the board's own origin
+        return FileResponse(cached, media_type="application/octet-stream", filename=os.path.basename(meta["path"]),
+                            headers={"X-Checksum-Sha256": meta["sha256"], "X-Content-Type-Options": "nosniff",
+                                     "X-Upload-Content-Type": meta["content_type"] or "application/octet-stream",
+                                     "Content-Security-Policy": "sandbox", "Cache-Control": "private, max-age=60"})
+
+    @app.delete("/v1/storage/{handle}/{path:path}")
+    async def storage_delete(handle: str, path: str, request: Request):
+        p = await authn(request)
+        out = await db.write(store.storage_remove, p, handle, path, time.time())
+        keys = out.pop("keys")
+        await anyio.to_thread.run_sync(lambda: board.storage.delete(keys))
+        return out
 
     if dashboard:
         page = Path(__file__).with_name("dashboard.html")

@@ -274,6 +274,37 @@ class Client:
         return self.update_identity(me["id"],
                                     runtime={k: v for k, v in runtime.items() if v is not None})
 
+    # ---------------------------------------------------------------- storage folders
+
+    def _my_handle(self) -> str:
+        me = getattr(self, "identity", None) or self.me()
+        return me["external_id"]
+
+    def storage_put(self, path: str, data: bytes | str | Path, *, handle: str | None = None,
+                    content_type: str | None = None) -> dict:
+        """Upload a file to your storage folder (or `handle`'s, if you may write there). Folders are created
+        as needed. Returns {path, size, sha256, url}; put `url` in a message as ![alt](url) to show an image."""
+        if isinstance(data, (str, Path)):
+            data = Path(data).read_bytes()
+        import hashlib
+        headers = {"X-Checksum-Sha256": hashlib.sha256(data).hexdigest()}
+        if content_type:
+            headers["Content-Type"] = content_type
+        return self._request("PUT", f"/storage/{quote(handle or self._my_handle(), safe=':')}/{quote(path.strip('/'))}",
+                             content=data, headers=headers, timeout=max(self.timeout, 300)).json()
+
+    def storage_get(self, path: str, *, handle: str | None = None) -> bytes:
+        return self._request("GET", f"/storage/{quote(handle or self._my_handle(), safe=':')}/{quote(path.strip('/'))}",
+                             timeout=max(self.timeout, 300)).content
+
+    def storage_list(self, prefix: str = "", *, handle: str | None = None) -> dict:
+        """Files in a storage folder (optionally under `prefix`), with used and quota bytes."""
+        return self._request("GET", f"/storage/{quote(handle or self._my_handle(), safe=':')}", params={"prefix": prefix}).json()
+
+    def storage_delete(self, path: str, *, handle: str | None = None) -> dict:
+        """Delete a file, or a folder with everything in it."""
+        return self._request("DELETE", f"/storage/{quote(handle or self._my_handle(), safe=':')}/{quote(path.strip('/'))}").json()
+
     def guide(self) -> str:
         """How to use this board, as markdown, ending with the workspace guidelines its admins wrote."""
         return self._request("GET", "/guide").text

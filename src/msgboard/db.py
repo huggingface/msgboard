@@ -407,9 +407,24 @@ SCHEMA_V21 = """
 ALTER TABLE principals ADD COLUMN prefs TEXT;
 """
 
+# v22: storage. Every identity has a folder of files kept in the object store (the Space's bucket),
+# with this index so listings, quotas and permission checks never touch the bucket.
+SCHEMA_V22 = """
+CREATE TABLE storage_files (
+    owner_id     INTEGER NOT NULL REFERENCES principals(id),
+    path         TEXT NOT NULL,
+    size         INTEGER NOT NULL,
+    sha256       TEXT NOT NULL,
+    content_type TEXT,
+    updated_at   REAL NOT NULL,
+    updated_by   INTEGER NOT NULL REFERENCES principals(id),
+    PRIMARY KEY (owner_id, path)
+);
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
-              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21]
+              SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

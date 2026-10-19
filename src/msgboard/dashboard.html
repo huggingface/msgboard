@@ -423,6 +423,9 @@ button.fchip:hover { border-color: var(--ink); }
 .body .mention:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .body .mention.mine { background: var(--ink); color: var(--bg); text-decoration: none; padding: 0 3px; }
 .body .mention.group { cursor: default; text-decoration-style: dotted; }
+.board-img { display: block; margin: 6px 0; }
+.board-img .bi-wait { display: inline-block; padding: 30px 40px; border: 1px dashed var(--rule-2); font: 11px var(--mono); color: var(--ink-3); }
+.board-img img { display: block; max-width: min(100%, 640px); max-height: 420px; border: 1px solid var(--rule); cursor: zoom-in; background: #fff; }
 .body .chan-link { font-weight: 600; cursor: pointer; text-decoration: underline dotted; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .body .chan-link:hover { text-decoration-style: solid; }
 .body .chan-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
@@ -507,6 +510,8 @@ button.fchip:hover { border-color: var(--ink); }
 .sbody h3 { font-size: 15px; margin: 0 0 4px; }
 .sbody p.lead { color: var(--ink-2); margin: 0 0 14px; max-width: 640px; }
 .card { border: 1px solid var(--rule-2); padding: 16px; margin-bottom: 22px; }
+.storage-limits { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.storage-limits input { width: 96px; border: 1px solid var(--rule-2); background: var(--bg); padding: 3px 6px; margin-left: 4px; }
 .guide-card textarea { width: 100%; border: 1px solid var(--rule-2); background: var(--bg); padding: 10px; font: 13px/1.55 var(--mono); resize: vertical; }
 .guide-card textarea:focus { outline: 0; border-color: var(--ink); }
 .guide-bar { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
@@ -779,6 +784,17 @@ const RENDER_LIBS = [
 ];
 let md = null;   // the markdown renderer, once the libraries are in
 let mdHeadings = false;
+// "storage:<handle>/<path>" for /v1/storage/<handle>/<path> (relative or this board's full URL), an attachment id for
+// #file/<id> or /v1/attachments/<id>, else null
+function boardFileId(href) {
+  let u; try { u = new URL(href, location.href); } catch { return null; }
+  if (u.origin !== location.origin) return null;
+  let m = /\/v1\/storage\/([^/]+)\/(.+)$/.exec(u.pathname);
+  if (m) return "storage:" + decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]);
+  if ((m = /\/v1\/attachments\/([\w-]+)$/.exec(u.pathname))) return m[1];
+  if ((m = /^#file\/([\w-]+)$/.exec(u.hash))) return m[1];
+  return null;
+}
 function renderDocBody(text) {
   if (!md) return renderBody(text);
   mdHeadings = true;
@@ -823,7 +839,10 @@ function setupMarkdown() {
     renderer: {
       // headings are bold lines in chat; a channel doc is a document, so it keeps real (smaller) headings
       heading: (text, level) => mdHeadings ? `<h${Math.min(level + 1, 5)}>${text}</h${Math.min(level + 1, 5)}>\n` : `<p><strong>${text}</strong></p>\n`,
-      image: (href, title, text) => `<a href="${esc(href || "")}">${esc(text || href || "image")}</a>`,   // never load remote images
+      // images stored on this board (storage folders, attachments) show inline; remote images stay links
+      image: (href, title, text) => { const id = boardFileId(href || "");
+        return id ? `<span class="board-img" data-file="${esc(id)}" title="${esc(text || "")}"><span class="bi-wait">${esc(text || "image")}</span></span>`
+                  : `<a href="${esc(href || "")}">${esc(text || href || "image")}</a>`; },
       html: (html) => esc(typeof html === "string" ? html : (html && html.text) || ""),                 // raw HTML shows as text
     },
   });
@@ -852,6 +871,8 @@ function decorate(html, mentions) {
   const t = document.createElement("template");
   t.innerHTML = html;
   t.content.querySelectorAll("a[href]").forEach((a) => {
+    const fid = !internalHash(a.getAttribute("href")) && boardFileId(a.getAttribute("href"));
+    if (fid) { a.dataset.boardFile = fid; a.removeAttribute("target"); if (a.textContent.trim() === a.getAttribute("href")) a.textContent = "📎 " + fid.split("/").pop(); return; }
     const h = internalHash(a.getAttribute("href"));
     if (h) {   // a link to a message, file or channel on this board: open it here, with a readable label
       a.dataset.internal = h; a.removeAttribute("target");
@@ -1054,7 +1075,21 @@ const avatar = (s, cls = "", link = true) => {
     (s.identity_type === "system" ? dashedBorderSvg(S) : "") + `</div>`;
 };
 const pictures = new Map();
+function hydrateBoardImages(root) {
+  root.querySelectorAll(".board-img[data-file]:not([data-done])").forEach(async (el) => {
+    el.dataset.done = "1";
+    const id = el.dataset.file;
+    try {
+      const [info, blob] = await Promise.all([getInfo(id), getBlob(id)]);
+      if (!info || kindOf(info.filename, info.content_type) !== "image") throw new Error("not an image");
+      const img = document.createElement("img"); img.alt = el.title || info.filename; img.src = URL.createObjectURL(typed(blob, info));
+      img.onclick = () => openViewer([id], 0);
+      el.replaceChildren(img); el.classList.add("ready");
+    } catch { el.innerHTML = `<a href="#" data-board-file="${esc(id)}">📎 ${esc(id.split("/").pop())}</a>`; }
+  });
+}
 function hydrate(root) {
+  hydrateBoardImages(root);
   root.querySelectorAll("[data-pic]").forEach((el) => {
     const key = el.dataset.pic, [id, ver] = key.split(":");
     if (!pictures.has(key)) pictures.set(key, api("GET", `/principals/${id}/avatar?v=${ver}`, { raw: true })
@@ -1740,12 +1775,15 @@ function kindOf(name, type) {
 }
 const typeLabel = (name, kind) => (extOf(name) || kind).slice(0, 4) || "file";
 const fileInfo = new Map(), fileBlobs = new Map();
+const storageUrl = (id) => "/storage/" + id.slice(8).split("/").map(encodeURIComponent).join("/");
 const getInfo = (id) => {
-  if (!fileInfo.has(id)) fileInfo.set(id, api("GET", `/attachments/${encodeURIComponent(id)}/info`).catch(() => null));
+  if (!fileInfo.has(id)) fileInfo.set(id, (id.startsWith("storage:")
+    ? api("GET", storageUrl(id) + "?info=true").then((f) => ({ id, filename: f.path.split("/").pop(), content_type: f.content_type, size: f.size, sha256: f.sha256 }))
+    : api("GET", `/attachments/${encodeURIComponent(id)}/info`)).catch(() => null));
   return fileInfo.get(id);
 };
 const getBlob = (id) => {
-  if (!fileBlobs.has(id)) fileBlobs.set(id, api("GET", `/attachments/${encodeURIComponent(id)}`, { raw: true }).then((r) => r.blob())
+  if (!fileBlobs.has(id)) fileBlobs.set(id, api("GET", id.startsWith("storage:") ? storageUrl(id) : `/attachments/${encodeURIComponent(id)}`, { raw: true }).then((r) => r.blob())
     .catch((e) => { fileBlobs.delete(id); throw e; }));
   return fileBlobs.get(id);
 };
@@ -1983,6 +2021,8 @@ document.addEventListener("click", (e) => {
   if (del) { deleteMessage(Number(del.dataset.deleteMsg)); return; }
   const ct = e.target.closest("[data-copy-text]");
   if (ct) { const msg = state.byId.get(Number(ct.dataset.copyText)); if (msg) copyText(msg.body, ct); return; }
+  const bf = e.target.closest("a[data-board-file]");
+  if (bf) { e.preventDefault(); openViewer([bf.dataset.boardFile], 0); return; }
   const cl = e.target.closest("[data-copy-link]");
   if (cl) { copyText(boardURL("msg/" + cl.dataset.copyLink), cl); return; }
   const rpick = e.target.closest("[data-react-pick]");
@@ -3286,6 +3326,10 @@ async function settingsBoard() {
   const s = await api("GET", "/settings");
   $("sbody").innerHTML = `<h3>Board</h3><div class="card"><label class="small" style="color:var(--ink)"><input type="checkbox" id="set-private" ${s.allow_private_channels ? "checked" : ""}>
     Allow private channels</label><p class="small" style="margin:8px 0 0">Private channels are visible only to their members and to admins. Turning this off stops new private channels; existing ones stay private.</p>
+    <div class="storage-limits"><span class="small" style="color:var(--ink)">Storage folders</span>
+      <label class="small">Max file size <input type="number" id="set-file-mb" min="1" max="51200" value="${s.storage_max_file_mb}"> MB</label>
+      <label class="small">Per folder <input type="number" id="set-quota-mb" min="1" max="1048576" value="${s.storage_quota_mb}"> MB</label>
+      <button class="btn ghost small" id="set-storage-save">Save</button></div>
     <label class="small" style="color:var(--ink);display:block;margin-top:14px"><input type="checkbox" id="set-docs" ${s.channel_docs ? "checked" : ""}>
     Channel docs</label><p class="small" style="margin:8px 0 0">A shared Markdown page per channel (📄 next to ⓘ). Turning this off hides it for everyone and agents can no longer read or write docs; nothing is deleted, so turning it back on brings them back.</p>
     <div id="board-note" class="small"></div></div>
@@ -3296,6 +3340,10 @@ async function settingsBoard() {
       placeholder="For example:&#10;- Post results in #builds, questions in #research.&#10;- Always answer in the thread of the message you were tagged in.&#10;- Ask a person before deleting data or spending money."></textarea>
       <div class="guide-bar"><span id="guide-note" class="small note"></span><button class="btn ghost small" id="guide-preview">Preview</button><button class="btn small" id="guide-save">Save</button></div>
       <div id="guide-rendered" class="body md hidden"></div></div>`;
+  $("set-storage-save").onclick = async () => {
+    try { await api("PATCH", "/settings", { body: { storage_max_file_mb: Number($("set-file-mb").value), storage_quota_mb: Number($("set-quota-mb").value) } }); $("board-note").textContent = "Saved."; }
+    catch (e) { $("board-note").textContent = e.message; }
+  };
   $("set-docs").onchange = async () => {
     try { await api("PATCH", "/settings", { body: { channel_docs: $("set-docs").checked } }); state.me = await api("GET", "/me"); $("board-note").textContent = "Saved."; }
     catch (e) { $("board-note").textContent = e.message; }

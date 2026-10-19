@@ -17,6 +17,9 @@ class Limits:
     max_upload_bytes: int = 50 * 1024 * 1024
     max_avatar_bytes: int = 256 * 1024
     max_concurrent_uploads: int = 4
+    max_storage_file_bytes: int = 2 * 1024 ** 3     # one file in someone's storage folder
+    max_storage_bytes: int = 20 * 1024 ** 3         # one storage folder in total
+    storage_cache_bytes: int = 5 * 1024 ** 3        # local copies of bucket files, for downloads
     default_token_ttl: int = 24 * 3600
     max_admin_token_ttl: int = 365 * 24 * 3600
 

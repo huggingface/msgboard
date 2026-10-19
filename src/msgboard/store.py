@@ -110,7 +110,18 @@ def get_settings(conn) -> dict:
     values = dict(conn.execute("SELECT key, value FROM settings WHERE key NOT IN ('reads_since', 'mentions_v2', 'mentions_v3')").fetchall())
     return {"allow_private_channels": values.get("allow_private_channels", "true") == "true",
             "channel_docs": values.get("channel_docs", "true") == "true",
-            "guidelines": values.get("guidelines", "")}
+            "guidelines": values.get("guidelines", ""),
+            "storage_max_file_mb": int(values.get("storage_max_file_mb", LIMITS.max_storage_file_bytes // 1024 ** 2)),
+            "storage_quota_mb": int(values.get("storage_quota_mb", LIMITS.max_storage_bytes // 1024 ** 2))}
+
+
+STORAGE_SETTING_RANGE = {"storage_max_file_mb": (1, 50 * 1024), "storage_quota_mb": (1, 1024 * 1024)}   # up to 50 GB / 1 TB
+
+
+def storage_limits(conn) -> tuple[int, int]:
+    """(bytes per file, bytes per folder), as the board's admins set them."""
+    st = get_settings(conn)
+    return st["storage_max_file_mb"] * 1024 ** 2, st["storage_quota_mb"] * 1024 ** 2
 
 
 def update_settings(conn, p: Principal, changes: dict, now: float) -> dict:
@@ -123,8 +134,12 @@ def update_settings(conn, p: Principal, changes: dict, now: float) -> dict:
             value = "true" if value else "false"
         elif key == "guidelines" and isinstance(value, str) and len(value) <= MAX_GUIDELINES:
             pass
+        elif key in STORAGE_SETTING_RANGE and isinstance(value, int) and not isinstance(value, bool) \
+                and STORAGE_SETTING_RANGE[key][0] <= value <= STORAGE_SETTING_RANGE[key][1]:
+            value = str(value)
         else:
             raise bad_request("supported settings: allow_private_channels, channel_docs (true or false), "
+                              "storage_max_file_mb (1 to 51200), storage_quota_mb (1 to 1048576), "
                               f"guidelines (markdown, at most {MAX_GUIDELINES} characters)")
         conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
                      (key, value))
@@ -2216,3 +2231,111 @@ def delete_message(conn, p: Principal, channel_id: int, message_id: int, now: fl
     audit(conn, p.id, "message.delete", f"message:{message_id}",
           {"channel": channel_id, "sender": row["sender_id"], "with_replies": len(ids) - 1}, now)
     return {"deleted": ids, "storage_keys": keys}
+
+
+# ------------------------------------------------------------------ storage folders
+
+STORAGE_SEGMENT = re.compile(r"^[^/\\\x00-\x1f]{1,128}$")
+
+
+def storage_path(path) -> str:
+    """A safe relative path: segments of up to 128 characters, no `.` or `..`, no control characters."""
+    if not isinstance(path, str):
+        raise bad_request("path must be text")
+    path = path.strip("/")
+    parts = path.split("/")
+    if not path or len(path) > 512 or len(parts) > 24 or any(
+            p in (".", "..") or not STORAGE_SEGMENT.match(p) for p in parts):
+        raise bad_request("path must be like `runs/1/loss.png`: up to 24 folders, no `.`/`..`, at most 512 characters")
+    return path
+
+
+def storage_owner(conn, p: Principal, handle: str, write: bool) -> sqlite3.Row:
+    """Whose folder `handle` is, checked against what the caller may do. Owners, the person who owns an
+    agent, and admins can write; everyone except guests can read (guests read only their own folders)."""
+    row = conn.execute("SELECT * FROM principals WHERE external_id = ? OR (hf_username IS NOT NULL AND hf_username = ?)",
+                       (handle, handle)).fetchone()
+    if row is None or row["disabled"]:
+        raise not_found("no such storage folder")
+    mine = row["id"] == p.id or row["owner_id"] == p.id
+    if write:
+        if not (mine and p.may_post) and not p.is_admin:
+            raise forbidden("only the folder's owner (or an admin) can change it")
+    elif p.role == "guest" and not mine:
+        raise not_found("no such storage folder")
+    return row
+
+
+def storage_key(owner_id: int, path: str) -> str:
+    return f"storage/{owner_id}/{path}"
+
+
+def storage_usage(conn, owner_id: int) -> int:
+    return conn.execute("SELECT COALESCE(SUM(size), 0) FROM storage_files WHERE owner_id = ?", (owner_id,)).fetchone()[0]
+
+
+def storage_file_json(row, handle: str) -> dict:
+    return {"path": row["path"], "size": row["size"], "sha256": row["sha256"], "content_type": row["content_type"],
+            "updated_at": row["updated_at"], "url": f"/v1/storage/{handle}/{row['path']}"}
+
+
+def _mb(n: int) -> str:
+    return f"{n / 1024 ** 3:g} GB" if n >= 1024 ** 3 else f"{n / 1024 ** 2:g} MB"
+
+
+def storage_check_quota(conn, owner_id: int, path: str, size: int) -> None:
+    max_file, quota = storage_limits(conn)
+    if size > max_file:
+        raise ApiError(413, "too_large", f"files are limited to {_mb(max_file)} on this board")
+    old = conn.execute("SELECT size FROM storage_files WHERE owner_id = ? AND path = ?", (owner_id, path)).fetchone()
+    if storage_usage(conn, owner_id) - (old[0] if old else 0) + size > quota:
+        raise ApiError(413, "quota_exceeded", f"this folder is limited to {_mb(quota)} in total on this board")
+    folder = conn.execute("SELECT 1 FROM storage_files WHERE owner_id = ? AND path LIKE ? ESCAPE '\\' LIMIT 1",
+                          (owner_id, path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%")).fetchone()
+    if folder:
+        raise conflict("is_folder", f"`{path}` is a folder")
+
+
+def storage_record(conn, p: Principal, owner_id: int, path: str, size: int, sha: str, content_type, now: float) -> dict:
+    """Index a file that is already in the object store."""
+    conn.execute("""INSERT INTO storage_files (owner_id, path, size, sha256, content_type, updated_at, updated_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (owner_id, path) DO UPDATE SET size = excluded.size, sha256 = excluded.sha256,
+                    content_type = excluded.content_type, updated_at = excluded.updated_at, updated_by = excluded.updated_by""",
+                 (owner_id, path, size, sha, content_type, now, p.id))
+    row = conn.execute("SELECT * FROM storage_files WHERE owner_id = ? AND path = ?", (owner_id, path)).fetchone()
+    handle = conn.execute("SELECT external_id FROM principals WHERE id = ?", (owner_id,)).fetchone()[0]
+    return storage_file_json(row, handle)
+
+
+def storage_list(conn, p: Principal, handle: str, prefix: str = "") -> dict:
+    owner = storage_owner(conn, p, handle, write=False)
+    prefix = storage_path(prefix) + "/" if prefix.strip("/") else ""
+    rows = conn.execute("SELECT * FROM storage_files WHERE owner_id = ? AND substr(path, 1, ?) = ? ORDER BY path",
+                        (owner["id"], len(prefix), prefix)).fetchall()
+    return {"owner": _brief(conn, owner["id"]), "prefix": prefix, "files": [storage_file_json(r, owner["external_id"]) for r in rows],
+            "used_bytes": storage_usage(conn, owner["id"]), "quota_bytes": storage_limits(conn)[1],
+            "max_file_bytes": storage_limits(conn)[0]}
+
+
+def storage_lookup(conn, p: Principal, handle: str, path: str) -> tuple[dict, str]:
+    owner = storage_owner(conn, p, handle, write=False)
+    path = storage_path(path)
+    row = conn.execute("SELECT * FROM storage_files WHERE owner_id = ? AND path = ?", (owner["id"], path)).fetchone()
+    if row is None:
+        raise not_found(f"no file `{path}` in {handle}'s storage")
+    return storage_file_json(row, owner["external_id"]), storage_key(owner["id"], path)
+
+
+def storage_remove(conn, p: Principal, handle: str, path: str, now: float) -> dict:
+    """Delete one file, or a whole folder (everything under `path/`). Returns the object keys to delete."""
+    owner = storage_owner(conn, p, handle, write=True)
+    path = storage_path(path)
+    rows = conn.execute("SELECT path FROM storage_files WHERE owner_id = ? AND (path = ? OR substr(path, 1, ?) = ?)",
+                        (owner["id"], path, len(path) + 1, path + "/")).fetchall()
+    if not rows:
+        raise not_found(f"no file or folder `{path}` in {handle}'s storage")
+    paths = [r[0] for r in rows]
+    conn.execute(f"DELETE FROM storage_files WHERE owner_id = ? AND path IN ({','.join('?' * len(paths))})", (owner["id"], *paths))
+    audit(conn, p.id, "storage.delete", f"principal:{owner['id']}", {"path": path, "files": len(paths)}, now)
+    return {"deleted": paths, "keys": [storage_key(owner["id"], x) for x in paths]}
