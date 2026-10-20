@@ -51,3 +51,13 @@ def test_admin_agent_suspends_an_agent_and_owner_cannot_lift_it(env):
     assert _status(lambda: mod.suspend(mod.me()["id"])).status == 400
     env.op.update_identity(bot_id, disabled=False)                   # an admin re-enabling lifts it too
     assert bot.me()["id"] == bot_id and env.op.suspended() == []
+
+
+def test_profile_shows_suspension_to_admins_only(env):
+    _, _, ana = env.human("ana")
+    _, _, bob = env.human("bob")
+    ana_id = ana.me()["id"]
+    env.op.suspend(ana_id, "spam")
+    s = env.http(env.op.token).get(f"/principals/{ana_id}/profile").json()["suspension"]
+    assert s["reason"] == "spam" and s["via"] is None and s["by"]["external_id"] == "operator"
+    assert "suspension" not in env.http(bob.token).get(f"/principals/{ana_id}/profile").json()

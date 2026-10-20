@@ -105,6 +105,9 @@ aside { background: var(--panel); border-right: 1px solid var(--rule); display: 
 #doc-old .doc-body { border-left: 2px solid var(--rule-2); padding-left: 12px; }
 #ch-doc { margin-left: 0; }
 .topbar .meta + #ch-doc, .topbar #ch-doc:first-of-type { margin-left: auto; }
+#ch-join { align-self: center; margin-left: auto; }
+#ch-join.hidden + #ch-doc { margin-left: auto; }
+#ch-join:not(.hidden) + #ch-doc { margin-left: 0; }
 .info-btn.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 a[data-internal] { font-weight: 600; }
 .reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
@@ -175,6 +178,7 @@ mark { background: var(--ink); color: var(--bg); padding: 0 1px; }
 .show-private.hidden { display: none; }
 .navlist button.observer .name { font-style: italic; }
 .navlist button.observer:not(.active) .name { color: var(--ink-3); }
+.navlist button.not-joined:not(.active) .name, .navlist button.not-joined:not(.active) .glyph { color: var(--ink-3); opacity: .75; }
 .eye { width: 13px; height: 9px; fill: none; stroke: currentColor; stroke-width: 1.3; }
 .me { padding: 12px 16px; display: flex; gap: 10px; align-items: center; }
 .me .who { flex: 1; min-width: 0; cursor: pointer; }
@@ -655,6 +659,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       <span class="desc" id="ch-desc"></span>
       <button class="linkish hidden" id="members-open">members</button>
       <span class="label meta" id="ch-meta"></span>
+      <button class="btn small hidden" id="ch-join" title="Join to get this channel in your activity and notifications">Join channel</button>
       <button class="info-btn hidden" id="ch-doc" aria-label="Channel doc" title="Channel doc"></button>
       <button class="info-btn hidden" id="ch-info" aria-label="Channel info" aria-haspopup="dialog" aria-expanded="false" title="Channel info">
         <svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7.2"/><path d="M9 8v5"/><path d="M9 5.2h.01" stroke-width="2.2" stroke-linecap="round"/></svg></button>
@@ -844,6 +849,9 @@ function setupMarkdown() {
         },
         renderer: (t) => tex(t.text, t.display) },
     ],
+    // strikethrough only for ~~text~~: a single "~" ("~5 tps", "~10 to ~20") stays a literal tilde.
+    // Returning undefined skips <del>; false falls through to marked's own ~~ handling.
+    tokenizer: { del(src) { return /^~~(?=\S)[\s\S]*?\S~~(?!~)/.test(src) ? false : undefined; } },
     renderer: {
       // headings are bold lines in chat; a channel doc is a document, so it keeps real (smaller) headings
       heading: (text, level) => mdHeadings ? `<h${Math.min(level + 1, 5)}>${text}</h${Math.min(level + 1, 5)}>\n` : `<p><strong>${text}</strong></p>\n`,
@@ -1321,6 +1329,14 @@ function channelTitle(c) {
 }
 // admins can see private channels and DMs they are not in; those are hidden unless "show private" is on
 const observing = (c) => c.kind !== "public" && c.member === false;
+// a channel you can see but have not joined: greyed in the sidebar, with a Join button in its header
+const joinable = (c) => c.member === false && c.kind !== "dm" && !c.archived && can("post");
+async function joinChannel(c) {
+  try {
+    await api("POST", `/channels/${c.id}/members`, { body: { principal_id: state.me.id } });
+    c.member = true; renderChannels(); updateMeta(true);
+  } catch (e) { alert("Could not join: " + e.message); }
+}
 const showPrivate = () => !!(state.me && state.me.prefs && state.me.prefs.show_private);
 function navButton(c) {
   const isCur = state.view === "chat" && state.current && state.current.id === c.id;
@@ -1331,7 +1347,9 @@ function navButton(c) {
   if (c.kind === "dm") { const peer = dmPeer(c); glyph = peer ? avatar(peer, "xs", false) : "·"; }
   if (observing(c)) glyph = EYE;
   const li = document.createElement("li"), b = document.createElement("button");
-  b.className = (isCur ? "active " : "") + (unread || forMe ? "unread " : "") + (c.archived ? "archived " : "") + (observing(c) ? "observer" : "");
+  b.className = (isCur ? "active " : "") + (unread || forMe ? "unread " : "") + (c.archived ? "archived " : "")
+    + (observing(c) ? "observer" : c.member === false && c.kind === "public" ? "not-joined" : "");
+  if (!observing(c) && c.member === false && c.kind === "public") b.title = "You can read this channel but have not joined it";
   if (observing(c)) b.title = (c.kind === "dm" ? "Direct messages" : "Private channel") + " you are not part of (visible to you as an admin)";
   const draft = !isCur && draftOf("c:" + c.id);
   b.innerHTML = `<span class="glyph">${glyph}</span><span class="name">${esc(channelTitle(c))}</span>` +
@@ -1407,6 +1425,8 @@ function updateMeta(live) {
   const notes = [live ? "" : `<span class="live off"></span>offline`, c.archived ? "archived" : "",
     observing(c) ? `<span title="You can see this as an admin">${EYE} not a member</span>` : ""].filter(Boolean);
   $("ch-meta").innerHTML = notes.join(" · ");
+  $("ch-join").classList.toggle("hidden", !joinable(c));
+  $("ch-join").onclick = () => joinChannel(c);
 }
 function showChat() {
   state.view = "chat";
@@ -2708,6 +2728,15 @@ function roleExplained(p) {
   return human ? "Member: all public channels, posts, creates channels, invites agents"
     : `Member: all public channels${p.can_create_channels ? ", can create channels" : ""}`;
 }
+// admins suspend (or lift a suspension) right from someone's profile
+function profileSuspend(p) {
+  const s = p.suspension;
+  if (!s) return p.disabled ? "" : `<div class="actions-row"><button class="linkish" id="prof-suspend">Suspend ${esc(nameOf(p))}</button></div>`;
+  const why = s.via ? `with their owner <span class="link" data-profile="${s.via.id}">${esc(nameOf(s.via))}</span>`
+    : s.reason ? `“${esc(s.reason)}”` : "no reason given";
+  return `<div class="actions-row"><span class="small">Suspended ${fmtDate(s.at)}${s.by ? ` by ${esc(nameOf(s.by))}` : ""}: ${why}</span>
+    ${s.via ? "" : `<button class="linkish" id="prof-unsuspend">Unsuspend</button>`}</div>`;
+}
 async function openProfile(id) {
   state.panel = { type: "profile", id };
   openPanel("profile", "Profile", "");
@@ -2742,7 +2771,7 @@ async function openProfile(id) {
         <button class="btn small" type="submit">Save</button><button class="btn ghost small" type="button" id="name-cancel">Cancel</button></form>
       <div class="small" id="name-note"></div>
       <div class="ext">${esc(p.external_id)}${p.hf_username ? ` · <a href="https://huggingface.co/${encodeURIComponent(p.hf_username)}" target="_blank" rel="noopener" style="color:inherit">@${esc(p.hf_username)}</a> on HF` : ""}</div>
-      <div class="tags"><span class="tag">${esc(kindLabel(p))}</span><span class="tag">${esc(roleLabel(p))}</span>${p.identity_type !== "user" && p.can_create_channels ? '<span class="tag">creates channels</span>' : ""}${p.disabled ? '<span class="tag">disabled</span>' : ""}</div></div></div>
+      <div class="tags"><span class="tag">${esc(kindLabel(p))}</span><span class="tag">${esc(roleLabel(p))}</span>${p.identity_type !== "user" && p.can_create_channels ? '<span class="tag">creates channels</span>' : ""}${p.suspended ? '<span class="tag">suspended</span>' : p.disabled ? '<span class="tag">disabled</span>' : ""}</div></div></div>
     ${!self && can("post") && !p.disabled ? `<div class="actions-row"><button class="btn small" id="dm-start">Message</button></div>` : ""}
     <div class="suggest hidden" id="suggest"><div id="suggest-av"></div><div class="side">
       <span class="label">Suggestion</span>
@@ -2754,7 +2783,8 @@ async function openProfile(id) {
       ${cfg.hf_login ? (p.hf_username ? `<button class="linkish" id="hf-unlink">Unlink Hugging Face (@${esc(p.hf_username)})</button>` : `<button class="linkish" id="hf-link">Link your Hugging Face account</button>`) : ""}
     </div>` : ""}
     ${self ? `<div class="actions-row"><button class="linkish" id="signout">Sign out</button></div>` : ""}
-    ${admin && !self && p.identity_type === "user" ? `<div class="actions-row"><button class="linkish" id="admin-signin">Make a sign-in link for ${esc(nameOf(p))}</button></div>` : ""}
+    ${admin && !self && !(state.me.owner && state.me.owner.id === p.id) ? profileSuspend(p) : ""}
+    ${admin && !self && p.identity_type === "user" && !p.disabled ? `<div class="actions-row"><button class="linkish" id="admin-signin">Make a sign-in link for ${esc(nameOf(p))}</button></div>` : ""}
     <dl class="facts">
       <dt>Role</dt><dd>${esc(roleExplained(p))}</dd>
       <dt>Joined</dt><dd>${fmtDate(p.created_at)}</dd>
@@ -2832,6 +2862,14 @@ async function openProfile(id) {
   };
   if ($("signout")) $("signout").onclick = signOut;
   if ($("device-link")) $("device-link").onclick = () => signinLink(p.id).catch((e) => { $("pic-note").textContent = e.message; });
+  if ($("prof-suspend")) $("prof-suspend").onclick = () => {
+    const reason = prompt(`Suspend ${nameOf(p)}?${p.identity_type === "user" ? " Their agents are suspended too." : ""}\n\nReason (optional, shown to them):`);
+    if (reason === null) return;
+    api("POST", `/principals/${p.id}/suspend`, { body: { reason: reason.trim() || null } })
+      .then(() => { state.people = null; openProfile(p.id); }).catch((e) => { $("pic-note").textContent = e.message; });
+  };
+  if ($("prof-unsuspend")) $("prof-unsuspend").onclick = () => api("POST", `/principals/${p.id}/unsuspend`)
+    .then(() => { state.people = null; openProfile(p.id); }).catch((e) => { $("pic-note").textContent = e.message; });
   if ($("admin-signin")) $("admin-signin").onclick = () => signinLink(p.id, nameOf(p)).catch((e) => { $("pic-note").textContent = e.message; });
   if ($("hf-link")) $("hf-link").onclick = async () => {
     try {
@@ -2923,7 +2961,7 @@ async function openActivity() {
   history.replaceState(null, "", location.pathname + "#activity");
   $("chat-view").style.display = "none"; $("settings").classList.add("hidden"); $("search").classList.add("hidden"); $("activity").classList.remove("hidden");
   $("ch-title").innerHTML = "Activity"; $("ch-desc").textContent = "";
-  $("ch-meta").textContent = ""; $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); closeInfo();
+  $("ch-meta").textContent = ""; $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
   $("activity").innerHTML = `<div class="empty">Loading…</div>`;
   let res;
   try { res = await api("GET", "/activity?limit=100&reactions=true"); }
@@ -3097,7 +3135,7 @@ async function openSearch(q, opts = {}) {
   history.replaceState(null, "", location.pathname + "#search");
   $("chat-view").style.display = "none"; $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.remove("hidden");
   $("ch-title").innerHTML = "Search"; $("ch-desc").textContent = "";
-  $("ch-meta").textContent = ""; $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); closeInfo();
+  $("ch-meta").textContent = ""; $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
   const f = state.searchFilters = Object.assign({ channel: "", sender: "", when: "", has: "", by: "", sort: "newest" }, opts.keep ? state.searchFilters : {}, opts.filters || {});
   const people = await loadPeople().catch(() => []);
   const chans = state.channels.filter((c) => c.kind !== "dm");
@@ -3191,7 +3229,7 @@ function openSettings(tab) {
   history.replaceState(null, "", location.pathname + "#settings");
   $("chat-view").style.display = "none"; $("activity").classList.add("hidden"); $("search").classList.add("hidden"); $("settings").classList.remove("hidden");
   $("ch-title").innerHTML = "Settings"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
-  $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); closeInfo();
+  $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
   const tabs = [["invites", "Invites"]];
   if (can("manage")) tabs.push(["people", "People"]);
   tabs.push(["agents", can("manage") ? "Agents" : "My agents"]);

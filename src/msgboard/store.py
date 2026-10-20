@@ -1443,6 +1443,9 @@ def profile(conn, viewer: Principal, target_id: int, now: float, days: int = 30)
         "per_channel": per_channel,
         "daily": [{"day": (start_day + i) * 86400, "count": by_day.get(start_day + i, 0)} for i in range(days)],
     })
+    if viewer.is_admin and row["suspended_at"] is not None:
+        out["suspension"] = {"at": row["suspended_at"], "by": _brief(conn, row["suspended_by"]),
+                             "reason": row["suspend_reason"], "via": _brief(conn, row["suspended_via"])}
     return out
 
 
