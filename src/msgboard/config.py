@@ -20,6 +20,8 @@ class Limits:
     # a read that waited longer than read_queue_timeout is dropped (its client has given up or will retry).
     max_queued_reads: int = 1000
     read_queue_timeout: float = 15.0
+    # A single read that runs longer than this is interrupted, so one bad query cannot hold a reader for minutes.
+    max_read_seconds: float = 10.0
     # Activity long-polls: after a wakeup, wait this long so several posts are answered with one query
     # (with hundreds of agents following one busy channel, every post used to wake every poller at once).
     poll_coalesce_seconds: float = 1.5

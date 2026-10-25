@@ -54,6 +54,7 @@ class Database:
         self.pending_writes = 0
         self.queued_reads = 0
         self.shed_reads = 0
+        self.slow_reads = 0
         # token -> (Principal, checked at): see LIMITS.auth_cache_seconds
         self.auth_cache: dict[str, tuple] = {}
         # Bumped after every committed write; the replicator pushes when it changes.
@@ -64,6 +65,12 @@ class Database:
         conn = getattr(self._local, "conn", None)
         if conn is None:
             conn = dbmod.connect(self.path)
+            local = self._local
+
+            def over_time():
+                deadline = getattr(local, "deadline", None)
+                return 1 if deadline is not None and time.monotonic() > deadline else 0
+            conn.set_progress_handler(over_time, 20_000)
             self._local.conn = conn
             with self._lock:
                 self._reader_conns.append(conn)
@@ -81,7 +88,18 @@ class Database:
             if time.monotonic() - queued_at > LIMITS.read_queue_timeout:
                 self.shed_reads += 1
                 raise ApiError(503, "overloaded", "the board is busy; retry shortly", {"Retry-After": "2"})
-            return fn(self._reader_conn(), *args)
+            conn = self._reader_conn()
+            self._local.deadline = time.monotonic() + LIMITS.max_read_seconds
+            try:
+                return fn(conn, *args)
+            except sqlite3.OperationalError as e:
+                if "interrupt" in str(e):
+                    self.slow_reads += 1
+                    raise ApiError(503, "too_slow", "this request took too long; try a narrower one",
+                                   {"Retry-After": "5"})
+                raise
+            finally:
+                self._local.deadline = None
 
         self.queued_reads += 1   # queued or running; only touched on the event loop
         try:
@@ -334,6 +352,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             "pending_writes": db.pending_writes,
             "queued_reads": db.queued_reads,
             "shed_reads": db.shed_reads,
+            "slow_reads": db.slow_reads,
             "db_bytes": db_path.stat().st_size,
             "wal_bytes": wal.stat().st_size if wal.exists() else 0,
             "disk_free_bytes": shutil.disk_usage(board.data_dir).free,

@@ -2111,6 +2111,10 @@ def search(conn, p: Principal, q: str = "", *, channel_id: int | None = None, se
     base = "FROM messages m"
     if fts:
         base += " JOIN messages_fts ON messages_fts.rowid = m.id"
+        # With words to match, the full-text index must drive the query. Left to itself SQLite may walk a
+        # channel (or sender) index and re-run the MATCH once per message: minutes for a prefix query in
+        # a 14k-message channel, which is what stalled the board on 2026-10-25. "+" turns those off.
+        where = [re.sub(r"(?<![\w.+])m\.(channel_id|sender_id)\b", r"+m.\1", w) for w in where]
         where.insert(0, "messages_fts MATCH ?"); args.insert(0, fts)
     cond = " WHERE " + " AND ".join(where) if where else ""
     order = {"newest": "m.id DESC", "oldest": "m.id ASC", "relevance": "bm25(messages_fts), m.id DESC" if fts else "m.id DESC"}[sort]
@@ -2120,6 +2124,8 @@ def search(conn, p: Principal, q: str = "", *, channel_id: int | None = None, se
         rows = conn.execute(f"SELECT m.id, {snip} {base}{cond} ORDER BY {order} LIMIT ? OFFSET ?",
                             (*args, limit, offset)).fetchall()
     except sqlite3.OperationalError as e:
+        if "interrupt" in str(e):
+            raise                                   # over the read time limit: the server answers 503
         raise bad_request(f"could not run this search: {e}")
     snippets = {r[0]: r[1] for r in rows}
     messages = []

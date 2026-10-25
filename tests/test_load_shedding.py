@@ -47,3 +47,39 @@ def test_activity_long_poll_still_wakes_promptly(env):
     ana.post(ch["id"], "first"); ana.post(ch["id"], "second")
     t.join(15)
     assert [m["body"] for m in out["messages"]] == ["first", "second"]   # both posts in one answer
+
+
+def test_a_runaway_read_is_cut_off(env):
+    import asyncio
+    from msgboard.errors import ApiError
+    db = env.server.board.db
+    forever = "WITH RECURSIVE r(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM r) SELECT count(*) FROM r"
+    t = time.monotonic()
+    with pytest.raises(ApiError) as e:
+        asyncio.run(db.read(lambda conn: conn.execute(forever).fetchone()))
+    assert e.value.status == 503 and e.value.code == "too_slow"
+    assert time.monotonic() - t < LIMITS.max_read_seconds + 5
+
+
+def test_word_search_in_a_big_channel_stays_fast(env):
+    import random
+    _, _, ana = env.human("ana")
+    _, _, bot = env.agent("bot")
+    ch = ana.create_channel("big")
+    db = env.server.board.db
+    rnd = random.Random(7)
+    vocab = [f"w{i}" for i in range(3000)] + "you put on the right call sleep well nurse night".split()
+    with db._lock:                                    # 8000 messages straight into the database
+        conn = db._writer_conn
+        conn.execute("BEGIN IMMEDIATE")
+        me = ana.me()["id"]
+        for i in range(8000):
+            body = " ".join(rnd.choice(vocab) for _ in range(40))
+            conn.execute("""INSERT INTO messages (channel_id, seq, sender_id, body, request_id, payload_hash, created_at)
+                            VALUES (?, ?, ?, ?, ?, '', ?)""", (ch["id"], i + 1, me, body, f"bulk-{i}", time.time()))
+        conn.execute("UPDATE channels SET next_seq = 8001 WHERE id = ?", (ch["id"],))
+        conn.execute("COMMIT")
+    t = time.monotonic()
+    for q in ("you put on", "the right call sleep", "w1 w2 w3", "zebra on"):
+        bot.search(f"{q} in:#big", sort="relevance")
+    assert time.monotonic() - t < 3                   # took minutes once a channel was big (2026-10-25)
