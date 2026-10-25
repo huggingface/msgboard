@@ -6,6 +6,7 @@ import asyncio
 import fcntl
 import mimetypes
 import os
+import random
 import shutil
 import sqlite3
 import threading
@@ -51,6 +52,10 @@ class Database:
         self._reader_conns: list[sqlite3.Connection] = []
         self._lock = threading.Lock()
         self.pending_writes = 0
+        self.queued_reads = 0
+        self.shed_reads = 0
+        # token -> (Principal, checked at): see LIMITS.auth_cache_seconds
+        self.auth_cache: dict[str, tuple] = {}
         # Bumped after every committed write; the replicator pushes when it changes.
         self.generation = 0
         self.closing = False
@@ -64,9 +69,25 @@ class Database:
                 self._reader_conns.append(conn)
         return conn
 
-    async def read(self, fn, *args):
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(self._readers, lambda: fn(self._reader_conn(), *args))
+    async def read(self, fn, *args, shed: bool = True):
+        """Run a read on the reader pool. Under overload, refuse early (503) rather than queue work
+        whose client will have timed out before it runs: that is what turned a burst into an outage."""
+        if shed and self.queued_reads >= LIMITS.max_queued_reads:
+            self.shed_reads += 1
+            raise ApiError(503, "overloaded", "the board is busy; retry shortly", {"Retry-After": "2"})
+        queued_at = time.monotonic()
+
+        def run():
+            if time.monotonic() - queued_at > LIMITS.read_queue_timeout:
+                self.shed_reads += 1
+                raise ApiError(503, "overloaded", "the board is busy; retry shortly", {"Retry-After": "2"})
+            return fn(self._reader_conn(), *args)
+
+        self.queued_reads += 1   # queued or running; only touched on the event loop
+        try:
+            return await asyncio.get_running_loop().run_in_executor(self._readers, run)
+        finally:
+            self.queued_reads -= 1
 
     def _run_write(self, fn, args):
         conn = self._writer_conn
@@ -89,6 +110,8 @@ class Database:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(self._writer, self._run_write, fn, args)
             self.generation += 1
+            if fn not in AUTH_SAFE_WRITES:
+                self.auth_cache.clear()
             return result
         finally:
             self.pending_writes -= 1
@@ -105,6 +128,8 @@ class Database:
 
 
 ANY_CHANNEL = -1   # notifier key woken by a post in any channel (activity long-polls wait on it)
+# Writes that cannot change who a token belongs to or what it may do; every other write clears the auth cache.
+AUTH_SAFE_WRITES = frozenset({store.post_message, store.react, store.mark_read, store.mark_thread_read})
 
 
 class Notifier:
@@ -273,7 +298,16 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         return JSONResponse({"error": body}, status_code=exc.status, headers=exc.headers)
 
     async def authn(request: Request):
-        return await db.read(store.authenticate, _bearer(request), time.time())
+        token = _bearer(request)
+        now = time.monotonic()
+        hit = db.auth_cache.get(token) if token else None
+        if hit is not None and now - hit[1] < LIMITS.auth_cache_seconds:
+            return hit[0]
+        p = await db.read(store.authenticate, token, time.time())
+        if len(db.auth_cache) > 20_000:
+            db.auth_cache.clear()
+        db.auth_cache[token] = (p, now)
+        return p
 
     # ------------------------------------------------------------- health
 
@@ -298,6 +332,8 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             "open_polls": board.open_polls,
             "open_uploads": board.open_uploads,
             "pending_writes": db.pending_writes,
+            "queued_reads": db.queued_reads,
+            "shed_reads": db.shed_reads,
             "db_bytes": db_path.stat().st_size,
             "wal_bytes": wal.stat().st_size if wal.exists() else 0,
             "disk_free_bytes": shutil.disk_usage(board.data_dir).free,
@@ -525,11 +561,17 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                 left = deadline - time.monotonic()
                 if left <= 0:
                     break
-                await asyncio.wait({fut}, timeout=left)
+                done, _ = await asyncio.wait({fut}, timeout=left)
+                if done and not board.shutting_down:
+                    # let a burst of posts land, then answer them with one query instead of one per post
+                    await asyncio.sleep(min(LIMITS.poll_coalesce_seconds * (0.75 + random.random() / 2),
+                                            max(0.0, deadline - time.monotonic())))
+                if await request.is_disconnected():
+                    return result
                 board.notifier.unregister(ANY_CHANNEL, fut)
                 fut = board.notifier.register(ANY_CHANNEL)
                 p = await authn(request)
-                result = await db.read(store.activity, p, limit, after, follow)
+                result = await db.read(store.activity, p, limit, after, follow, shed=False)
                 if result["messages"] or board.shutting_down:
                     return result
             return result
