@@ -93,3 +93,22 @@ def test_member_flag_and_show_private_preference(env):
     assert http.put("/me/prefs", json={"show_private": "yes"}).status_code == 400
     assert http.put("/me/prefs", json={"show_private": False}).json() == {}
     assert pub["id"] in seen
+
+
+def test_mark_all_read_clears_channels_dms_and_threads(env):
+    _, _, ana = env.human("ana")
+    _, _, bob = env.human("bob")
+    ch = ana.create_channel("busy")
+    root = bob.post(ch["id"], "a question")
+    ana.post(ch["id"], "an answer", reply_to=root["id"])            # bob's thread now has a reply for him
+    ana.post(ch["id"], "@bob look")
+    dm = ana.open_dm(bob.me()["id"]); ana.post(dm["id"], "hi bob")
+    before = {c["id"]: c for c in bob.list_channels()}
+    assert before[ch["id"]]["for_me"] >= 2 and before[dm["id"]]["for_me"] == 1
+    assert bob.mark_all_read()["channels"] >= 2
+    after = {c["id"]: c for c in bob.list_channels()}
+    for cid in (ch["id"], dm["id"]):
+        assert (after[cid]["unread"], after[cid]["for_me"], after[cid]["threads_for_me"]) == (0, 0, 0)
+    assert not any(m["unread"] for m in bob.activity_page()["messages"])
+    ana.post(ch["id"], "@bob one more")                              # new messages count again
+    assert {c["id"]: c for c in bob.list_channels()}[ch["id"]]["for_me"] == 1

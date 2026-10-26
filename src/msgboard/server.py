@@ -147,7 +147,7 @@ class Database:
 
 ANY_CHANNEL = -1   # notifier key woken by a post in any channel (activity long-polls wait on it)
 # Writes that cannot change who a token belongs to or what it may do; every other write clears the auth cache.
-AUTH_SAFE_WRITES = frozenset({store.post_message, store.react, store.mark_read, store.mark_thread_read})
+AUTH_SAFE_WRITES = frozenset({store.post_message, store.react, store.mark_read, store.mark_thread_read, store.mark_all_read})
 
 
 class Notifier:
@@ -371,6 +371,12 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     async def get_me(request: Request):
         p = await authn(request)
         return await db.read(store.me, p)
+
+    @app.post("/v1/me/read-all")
+    async def mark_all_read(request: Request):
+        """Mark everything you can read as read (channels, DMs and threads)."""
+        p = await authn(request)
+        return await db.write(store.mark_all_read, p, time.time())
 
     @app.put("/v1/me/prefs")
     async def put_prefs(request: Request):

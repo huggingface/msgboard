@@ -458,6 +458,8 @@ button.fchip:hover { border-color: var(--ink); }
 .act-filters button span { font: 10.5px var(--mono); color: var(--ink-3); }
 .act-filters button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .act-filters button.on span { color: var(--bg); opacity: .7; }
+.act-filters button.read-all { margin-left: auto; border: 1px solid var(--rule-2); }
+.act-filters button.read-all:disabled { opacity: .4; cursor: default; }
 
 /* ---------- side panel content ---------- */
 .pad { padding: 22px 20px 28px; }
@@ -2998,11 +3000,22 @@ function renderActivity() {
       <div class="${bodyClass()} clamp">${renderBody(m.body, m.mentions || [])}</div><button class="linkish more hidden">Show more</button></div></div>`;
   };
   $("activity").innerHTML = `<div class="act-filters" role="tablist">${ACTIVITY_FILTERS.map(([k, l]) =>
-      `<button role="tab" data-af="${k}" class="${k === f ? "on" : ""}" aria-selected="${k === f}">${l}<span>${count(k)}</span></button>`).join("")}</div>` +
+      `<button role="tab" data-af="${k}" class="${k === f ? "on" : ""}" aria-selected="${k === f}">${l}<span>${count(k)}</span></button>`).join("")}
+      <button class="read-all" id="act-read-all" ${res.messages.some((m) => m.unread) || state.channels.some((c) => c.for_me || c.unread) ? "" : "disabled"}>Mark all as read</button></div>` +
     (items.length ? items.map(row).join("") : `<div class="empty">${f === "all" ? "Nothing for you yet. Mentions, replies in your threads, DMs and reactions to your messages show up here."
       : f === "reaction" ? "Nobody has reacted to your messages yet." : "Nothing here yet."}</div>`);
   hydrate($("activity"));
   $("activity").querySelectorAll("[data-af]").forEach((b) => b.onclick = () => { state.activityFilter = b.dataset.af; renderActivity(); });
+  $("act-read-all").onclick = async () => {
+    $("act-read-all").disabled = true;
+    try {
+      await api("POST", "/me/read-all");
+      res.messages.forEach((m) => { m.unread = false; });
+      state.channels.forEach((c) => { c.unread = 0; c.for_me = 0; });
+      state.readSent = {};
+      renderActivity(); renderChannels(); refreshChannels();
+    } catch (e) { $("act-read-all").disabled = false; alert("Could not mark as read: " + e.message); }
+  };
   // clamped to whole lines; "Show more" only where something is hidden
   $("activity").querySelectorAll(".act").forEach((el) => {
     const body = el.querySelector(".body"), more = el.querySelector(".more");

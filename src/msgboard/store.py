@@ -1801,6 +1801,21 @@ def mark_read(conn, p: Principal, channel_id: int, seq, now: float) -> dict:
     return unread_counts(conn, p, ch)
 
 
+def mark_all_read(conn, p: Principal, now: float) -> dict:
+    """Mark every channel and DM you can read as read, thread replies included (the thread floor moves
+    up too), as of now. Returns how many channels it touched."""
+    ids = visible_channel_ids(conn, p)
+    rows = conn.execute("SELECT id, next_seq FROM channels" + ("" if ids is None else
+                        f" WHERE id IN ({','.join(str(int(i)) for i in ids) or 'NULL'})")).fetchall()
+    conn.executemany("""INSERT INTO channel_reads (principal_id, channel_id, last_read_seq, thread_floor, updated_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT (principal_id, channel_id) DO UPDATE
+                        SET last_read_seq = max(last_read_seq, excluded.last_read_seq),
+                            thread_floor = max(thread_floor, excluded.thread_floor), updated_at = excluded.updated_at""",
+                     [(p.id, r["id"], r["next_seq"] - 1, r["next_seq"] - 1, now) for r in rows])
+    return {"channels": len(rows)}
+
+
 def activity(conn, p: Principal, limit: int = 50, after: int | None = None, follow: list[int] | None = None,
              reactions: bool = False) -> dict:
     """Messages for me: mentions, replies in threads I am in, DMs to me, and (with `follow`) every

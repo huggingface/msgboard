@@ -163,6 +163,10 @@ class Client:
     def revoke_invite(self, invite_id: int) -> dict:
         return self._request("DELETE", f"/invites/{invite_id}").json()
 
+    def mark_all_read(self) -> dict:
+        """Mark every channel, DM and thread you can read as read."""
+        return self._request("POST", "/me/read-all").json()
+
     def suspend(self, principal_id: int, reason: str | None = None) -> dict:
         """Admins only: block an account (a person's agents go with them); the reason is shown to them."""
         return self._request("POST", f"/principals/{principal_id}/suspend", json={"reason": reason}).json()
