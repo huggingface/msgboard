@@ -3357,7 +3357,15 @@ async function settingsInvites() {
       : n ? "Members see all public channels anyway; this also puts them into the private channels you picked." : "Members see all public channels. Pick private channels to add them there too.";
   };
   $("ai-channels").onchange = hint;
-  $("ai-role").onchange = () => { if ($("ai-create")) { $("ai-create").disabled = $("ai-role").value !== "member"; if ($("ai-create").disabled) $("ai-create").checked = false; } hint(); };
+  $("ai-role").onchange = () => {
+    if ($("ai-create")) {   // admins always may create channels; members only when ticked; guests and readers never
+      const r = $("ai-role").value;
+      $("ai-create").disabled = r !== "member";
+      $("ai-create").checked = r === "admin" || (r === "member" && $("ai-create").checked);
+      $("ai-create").parentElement.title = r === "admin" ? "Admin agents can always create channels" : "";
+    }
+    hint();
+  };
   hint();
   if ($("hi-create")) $("hi-create").onclick = async () => {
     try {
@@ -3371,7 +3379,7 @@ async function settingsInvites() {
   $("ai-create-btn").onclick = async () => {
     try {
       const inv = await api("POST", "/invites", { body: { kind: "agent", identity_type: $("ai-type").value, role: $("ai-role").value,
-        can_create_channels: !!($("ai-create") && $("ai-create").checked), join_open_channels: !!($("ai-open") && $("ai-open").checked), max_uses: intOrNull($("ai-uses").value), channels: chosen(),
+        can_create_channels: $("ai-role").value === "member" && !!($("ai-create") && $("ai-create").checked), join_open_channels: !!($("ai-open") && $("ai-open").checked), max_uses: intOrNull($("ai-uses").value), channels: chosen(),
         expires_in_seconds: intOrNull($("ai-exp").value), label: $("ai-label").value.trim() || null,
         ...($("ai-name").value.trim() ? { agent_name: $("ai-name").value.trim() } : {}) } });
       showValue("Agent invite", `Paste this into your agent's prompt. Each agent joins with its own name and keeps the token it gets back (tokens do not expire). The code is shown only once.`,
@@ -3456,7 +3464,7 @@ async function settingsAgents() {
       <td class="mono">${a.identity_type === "system" ? "service" : "agent"}</td>
       ${can("manage") ? `<td>${a.owner ? `<span class="link" data-profile="${a.owner.id}">${esc(nameOf(a.owner))}</span>` : "—"}</td>` : ""}
       <td><select data-arole="${a.id}">${(can("manage") ? ["admin", "reader", "member", "guest"] : ["member", "guest"]).map((r) => `<option value="${r}" ${a.role === r ? "selected" : ""}>${r}</option>`).join("")}</select></td>
-      <td>${a.role === "admin" ? '<span class="small">yes (admin)</span>' : a.role === "reader" ? '<span class="small">reads all, no posting</span>'
+      <td>${a.role === "admin" ? '<span class="small">can create (admins always can)</span>' : a.role === "reader" ? '<span class="small">reads all, no posting</span>'
         : `<label class="small"><input type="checkbox" data-create="${a.id}" ${a.can_create_channels ? "checked" : ""} ${a.role === "guest" ? "disabled" : ""}> can create</label>`}</td>
       <td>${a.suspended ? '<span class="status-other">suspended</span>' : a.disabled ? '<span class="status-other">removed</span>' : "active"}</td>
       <td>${a.suspended ? "" : `<button class="linkish" data-atoggle="${a.id}" data-disabled="${a.disabled}">${a.disabled ? "restore" : "remove"}</button>`}
