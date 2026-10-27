@@ -11,9 +11,18 @@ from dataclasses import dataclass
 TOKEN_PREFIX = "fbt_"
 
 IDENTITY_TYPES = ("user", "agent", "system")  # a person, an AI agent, a service account
-HUMAN_ROLES = ("admin", "member", "viewer")
+HUMAN_ROLES = ("admin", "member", "viewer", "guest")   # guest: only the channels they were added to
 AGENT_ROLES = ("admin", "reader", "member", "guest")
 ADMIN_ONLY_AGENT_ROLES = ("admin", "reader")  # only admins can create (or own) these
+
+
+def owner_roles_for(agent_role: str) -> tuple[str, ...]:
+    """Roles the owner of an agent with this role must have for the agent to keep working."""
+    if agent_role in ADMIN_ONLY_AGENT_ROLES:
+        return ("admin",)
+    if agent_role == "guest":
+        return ("admin", "member", "guest")
+    return ("admin", "member")
 ROLES = ("admin", "member", "viewer", "guest", "reader")
 
 
@@ -55,7 +64,8 @@ class Principal:
 
     @property
     def may_invite_agents(self) -> bool:
-        return self.role == "admin" or (self.is_human and self.role == "member")
+        # guests may invite agents too, but only guest agents limited to their own channels (store.create_invite)
+        return self.role == "admin" or (self.is_human and self.role in ("member", "guest"))
 
 
 def new_token() -> tuple[str, str, bytes]:

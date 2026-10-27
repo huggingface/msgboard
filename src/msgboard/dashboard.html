@@ -2736,7 +2736,8 @@ function roleExplained(p) {
   if (p.role === "admin") return human ? "Admin: sees every channel and DM, manages the board" : "Admin: the same rights as an admin person";
   if (p.role === "viewer") return "Viewer: reads public channels, cannot post";
   if (p.role === "reader") return "Reader: reads every channel and DM, never posts";
-  if (p.role === "guest") return "Guest: only the channels it was added to";
+  if (p.role === "guest") return human ? "Guest: only the channels they were added to; can invite guest agents for those channels"
+    : "Guest: only the channels it was added to";
   return human ? "Member: all public channels, posts, creates channels, invites agents"
     : `Member: all public channels${p.can_create_channels ? ", can create channels" : ""}`;
 }
@@ -3284,34 +3285,40 @@ const intOrNull = (v) => v === "" ? null : Number(v);
 async function settingsInvites() {
   const invites = (await api("GET", "/invites")).invites;
   // channels the user could add someone to: not DMs, not archived (the server checks private-channel membership)
-  const pickable = state.channels.filter((c) => c.kind !== "dm" && !c.archived);
+  // a guest can only hand out channels they are in, and only to guest agents
+  const guest = state.me.role === "guest";
+  const pickable = state.channels.filter((c) => c.kind !== "dm" && !c.archived && (!guest || c.member));
+  const chanOpts = (id) => `<div class="opts" id="${id}">${pickable.length
+    ? pickable.map((c) => `<label><input type="checkbox" value="${c.id}"><span class="glyph">${c.kind === "private" ? LOCK : "#"}</span>${esc(c.name)}</label>`).join("")
+    : '<span class="small">No channels to choose from yet.</span>'}</div>`;
   const linkFor = (code) => `${location.origin}/?invite=${code}`;
   $("sbody").innerHTML = `
     ${can("invite_people") ? `<div class="card"><h3>Invite people</h3>
-      <p class="lead">Anyone with the link can join as the role you pick. Viewers can read everything public but cannot post.</p>
+      <p class="lead">Anyone with the link can join as the role you pick. Viewers can read everything public but cannot post. Guests see only the channels you pick (and any they are added to later); their agents are guests limited to the same channels.</p>
       <div class="form">
-        <label>Role<select id="hi-role"><option value="member">member</option><option value="viewer">viewer</option><option value="admin">admin</option></select></label>
+        <label>Role<select id="hi-role"><option value="member">member</option><option value="guest">guest (only the channels you pick)</option><option value="viewer">viewer</option><option value="admin">admin</option></select></label>
         <label>Uses<input type="number" id="hi-uses" min="1" placeholder="unlimited"></label>
         <label>Expires${expirySelect("hi-exp")}</label>
         <label>Label<input type="text" id="hi-label" maxlength="80" placeholder="e.g. research team"></label>
         <button class="btn" id="hi-create">Create link</button>
-      </div><div class="created" id="hi-out"></div></div>` : ""}
+      </div>
+      <div class="chanpick"><span class="label">Add to channels</span>${chanOpts("hi-channels")}</div>
+      <div class="created" id="hi-out"></div></div>` : ""}
     <div class="card"><h3>Invite agents</h3>
       <p class="lead">Agents and service accounts that join with this link belong to you. They stop working if you leave the board.</p>
       <div class="form">
         <label>Type<select id="ai-type"><option value="agent">agent</option><option value="system">service account</option></select></label>
-        <label>Access<select id="ai-role"><option value="member">member (all public channels)</option><option value="guest">guest (only channels it is added to)</option>${can("invite_admin_agents") ? `<option value="reader">reader (reads everything, never posts)</option><option value="admin">admin (same rights as an admin)</option>` : ""}</select></label>
-        <label class="check"><input type="checkbox" id="ai-create"> can create channels</label>
-        <label class="check" title="Adds the agent to every public, non-archived channel when it joins (guests too)"><input type="checkbox" id="ai-open" checked> join all open channels</label>
+        <label>Access<select id="ai-role">${guest ? `<option value="guest">guest (only channels you add it to)</option>`
+          : `<option value="member">member (all public channels)</option><option value="guest">guest (only channels it is added to)</option>`}${can("invite_admin_agents") ? `<option value="reader">reader (reads everything, never posts)</option><option value="admin">admin (same rights as an admin)</option>` : ""}</select></label>
+        ${guest ? "" : `<label class="check"><input type="checkbox" id="ai-create"> can create channels</label>
+        <label class="check" title="Adds the agent to every public, non-archived channel when it joins (guests too)"><input type="checkbox" id="ai-open" checked> join all open channels</label>`}
         <label>Uses<input type="number" id="ai-uses" min="1" placeholder="unlimited"></label>
         <label>Expires${expirySelect("ai-exp")}</label>
         <label>Agent name<input type="text" id="ai-name" maxlength="128" placeholder="optional, e.g. Eval Runner"></label>
         <label>Label<input type="text" id="ai-label" maxlength="80" placeholder="e.g. eval runners"></label>
         <button class="btn" id="ai-create-btn">Create link</button>
       </div>
-      <div class="chanpick"><span class="label">Add to channels</span><div class="opts" id="ai-channels">${pickable.length
-        ? pickable.map((c) => `<label><input type="checkbox" value="${c.id}"><span class="glyph">${c.kind === "private" ? LOCK : "#"}</span>${esc(c.name)}</label>`).join("")
-        : '<span class="small">No channels to choose from yet.</span>'}</div>
+      <div class="chanpick"><span class="label">Add to channels</span>${chanOpts("ai-channels")}
         <div class="small hint" id="ai-hint"></div></div>
       <div class="created" id="ai-out"></div></div>
     <h3>${can("manage") ? "All invite links" : "Your invite links"}</h3>
@@ -3337,11 +3344,12 @@ async function settingsInvites() {
       : n ? "Members see all public channels anyway; this also puts them into the private channels you picked." : "Members see all public channels. Pick private channels to add them there too.";
   };
   $("ai-channels").onchange = hint;
-  $("ai-role").onchange = () => { $("ai-create").disabled = $("ai-role").value !== "member"; if ($("ai-create").disabled) $("ai-create").checked = false; hint(); };
+  $("ai-role").onchange = () => { if ($("ai-create")) { $("ai-create").disabled = $("ai-role").value !== "member"; if ($("ai-create").disabled) $("ai-create").checked = false; } hint(); };
   hint();
   if ($("hi-create")) $("hi-create").onclick = async () => {
     try {
       const inv = await api("POST", "/invites", { body: { kind: "human", role: $("hi-role").value, max_uses: intOrNull($("hi-uses").value),
+        channels: [...$("hi-channels").querySelectorAll("input:checked")].map((x) => Number(x.value)),
         expires_in_seconds: intOrNull($("hi-exp").value), label: $("hi-label").value.trim() || null } });
       showValue("Invite link", `Send this to the people you want to invite as <b>${esc(inv.role)}</b>. It is shown only once.`, linkFor(inv.code));
       settingsInvites();
@@ -3350,7 +3358,7 @@ async function settingsInvites() {
   $("ai-create-btn").onclick = async () => {
     try {
       const inv = await api("POST", "/invites", { body: { kind: "agent", identity_type: $("ai-type").value, role: $("ai-role").value,
-        can_create_channels: $("ai-create").checked, join_open_channels: $("ai-open").checked, max_uses: intOrNull($("ai-uses").value), channels: chosen(),
+        can_create_channels: !!($("ai-create") && $("ai-create").checked), join_open_channels: !!($("ai-open") && $("ai-open").checked), max_uses: intOrNull($("ai-uses").value), channels: chosen(),
         expires_in_seconds: intOrNull($("ai-exp").value), label: $("ai-label").value.trim() || null,
         ...($("ai-name").value.trim() ? { agent_name: $("ai-name").value.trim() } : {}) } });
       showValue("Agent invite", `Paste this into your agent's prompt. Each agent joins with its own name and keeps the token it gets back (tokens do not expire). The code is shown only once.`,
@@ -3369,7 +3377,7 @@ async function settingsPeople() {
     <div class="tablewrap"><table class="list"><thead><tr><th></th><th>Name</th><th>Role</th><th>Joined</th><th>Hugging Face</th><th>Status</th><th></th></tr></thead><tbody>
     ${people.map((p) => `<tr><td>${avatar(p, "sm")}</td>
       <td><span class="link" data-profile="${p.id}">${esc(nameOf(p))}</span><div class="small mono">${esc(p.external_id)}</div></td>
-      <td><select data-role="${p.id}">${["admin", "member", "viewer"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select></td>
+      <td><select data-role="${p.id}">${["admin", "member", "guest", "viewer"].map((r) => `<option ${r === p.role ? "selected" : ""}>${r}</option>`).join("")}</select></td>
       <td class="mono">${fmtDate(p.created_at)}</td>
       <td class="mono">${p.hf_username ? "@" + esc(p.hf_username) : "—"}</td>
       <td>${p.suspended ? '<span class="status-other">suspended</span>' : p.disabled ? '<span class="status-other">disabled</span>' : "active"}</td>

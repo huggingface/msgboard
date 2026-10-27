@@ -270,7 +270,7 @@ def test_admin_only_operations(env):
     assert {"open_polls", "pending_writes", "db_bytes", "wal_bytes", "disk_free_bytes"} <= set(m)
 
 
-@pytest.mark.parametrize("bad", [{"kind": "robot"}, {"kind": "human", "role": "guest"},
+@pytest.mark.parametrize("bad", [{"kind": "robot"}, {"kind": "human", "role": "reader"},
                                  {"kind": "agent", "role": "viewer"}, {"kind": "agent", "identity_type": "user"},
                                  {"kind": "agent", "role": "guest", "can_create_channels": True},
                                  {"kind": "agent", "max_uses": 0}])

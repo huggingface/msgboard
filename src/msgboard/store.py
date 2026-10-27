@@ -71,7 +71,7 @@ def authenticate(conn: sqlite3.Connection, token: str | None, now: float) -> Pri
             raise unauthorized("suspended" + (f": {row['suspend_reason']}" if row["suspend_reason"] else ""))
         raise unauthorized("identity disabled")
     if row["owner_id"] is not None:
-        needed = ("admin",) if row["role"] in auth.ADMIN_ONLY_AGENT_ROLES else ("admin", "member")
+        needed = auth.owner_roles_for(row["role"])
         if row["o_disabled"] or row["o_role"] not in needed:
             raise unauthorized("the person who owns this agent is no longer active, or no longer an admin")
     return Principal(
@@ -434,6 +434,8 @@ def update_principal(conn, p: Principal, target_id: int, changes: dict, now: flo
         roles = auth.HUMAN_ROLES if t["identity_type"] == "user" else auth.AGENT_ROLES
         if changes["role"] not in roles:
             raise bad_request(f"role must be one of {list(roles)}")
+        if is_owner and not p.is_admin and p.role == "guest" and changes["role"] != "guest":
+            raise forbidden("a guest's agents are guests too")
         updates["role"] = changes["role"]
     if "disabled" in changes:
         if not isinstance(changes["disabled"], bool):
@@ -456,6 +458,11 @@ def update_principal(conn, p: Principal, target_id: int, changes: dict, now: flo
     if updates:
         conn.execute(f"UPDATE principals SET {', '.join(k + ' = ?' for k in updates)} WHERE id = ?",
                      (*updates.values(), target_id))
+        if updates.get("role") == "guest" and t["identity_type"] == "user":
+            # a person who becomes a guest takes their agents down with them (admin and reader agents
+            # already stop working without an admin owner; member agents become guests)
+            conn.execute("UPDATE principals SET role = 'guest', can_create_channels = 0 WHERE owner_id = ? AND role = 'member'",
+                         (target_id,))
         audit(conn, p.id, "principal.update", f"principal:{target_id}", changes, now)
     return principal_json(conn, _principal_row(conn, target_id))
 
@@ -752,6 +759,8 @@ def add_member(conn, p: Principal, channel_id: int, target_id, now: float) -> li
     if t is None:
         raise not_found("identity not found")
     _check_visible(conn, p, target_id)
+    if p.role == "guest" and t["owner_id"] != p.id:
+        raise forbidden("guests can only add their own agents to a channel")
     if t["disabled"]:
         raise conflict("identity_disabled", "this identity is disabled")
     conn.execute("INSERT OR IGNORE INTO channel_members (channel_id, principal_id, added_by, added_at) "
@@ -771,6 +780,11 @@ def remove_member(conn, p: Principal, channel_id: int, target_id: int, now: floa
     if not (p.is_admin or p.id == target_id or row["added_by"] == p.id or row["owner_id"] == p.id):
         raise forbidden("you may not remove this member")
     conn.execute("DELETE FROM channel_members WHERE channel_id = ? AND principal_id = ?", (channel_id, target_id))
+    t = _principal_row(conn, target_id)
+    if t["identity_type"] == "user" and t["role"] == "guest":
+        # a guest's agents see at most what the guest sees: they leave with their owner
+        conn.execute("""DELETE FROM channel_members WHERE channel_id = ? AND principal_id IN
+                        (SELECT id FROM principals WHERE owner_id = ?)""", (channel_id, target_id))
     audit(conn, p.id, "channel.remove_member", f"channel:{channel_id}", {"principal_id": target_id}, now)
     if p.id == target_id and not can_see(conn, p, ch):
         return {"left": True}
@@ -851,6 +865,8 @@ def create_invite(conn, p: Principal, req: dict, now: float) -> dict:
             raise bad_request(f"agent role must be one of {list(auth.AGENT_ROLES)}")
         if role in auth.ADMIN_ONLY_AGENT_ROLES and not p.is_admin:
             raise forbidden("only admins can invite admin or reader agents")
+        if p.role == "guest" and (role != "guest" or req.get("join_open_channels")):
+            raise forbidden("guests can only invite guest agents, into channels they are in themselves")
         if identity_type not in ("agent", "system"):
             raise bad_request("identity_type must be agent or system")
         if not isinstance(create, bool) or (create and role != "member"):
@@ -1013,7 +1029,7 @@ def join(conn, code, name, display_name, now: float) -> dict:
         return {"token": token, "principal": principal_json(conn, _principal_row(conn, pid)), "created": True, "next": JOIN_NEXT}
 
     # Agent or service account, owned by the inviter.
-    needed = ("admin",) if row["role"] in auth.ADMIN_ONLY_AGENT_ROLES else ("admin", "member")
+    needed = auth.owner_roles_for(row["role"])
     if inviter["role"] not in needed:
         raise ApiError(410, "invite_inactive", "the person who made this invite can no longer give out this access")
     if row["agent_name"]:   # a named invite decides the name; the agent need not (and may not) pick another
