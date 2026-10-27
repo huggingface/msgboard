@@ -312,9 +312,16 @@ def get_prefs(conn, pid: int) -> dict:
 def update_prefs(conn, p: Principal, changes, now: float) -> dict:
     """Your own preferences. `channel_order`: channel ids in the order you want them in the sidebar;
     `show_private`: admins list private channels and DMs they are not part of."""
-    if not isinstance(changes, dict) or set(changes) - {"channel_order", "show_private"}:
-        raise bad_request("supported preferences: channel_order (a list of channel ids), show_private (true/false)")
+    if not isinstance(changes, dict) or set(changes) - {"channel_order", "show_private", "hide_archived"}:
+        raise bad_request("supported preferences: channel_order (a list of channel ids), show_private, hide_archived (true/false)")
     prefs = get_prefs(conn, p.id)
+    if "hide_archived" in changes:
+        if not isinstance(changes["hide_archived"], bool):
+            raise bad_request("hide_archived must be true or false")
+        if changes["hide_archived"]:
+            prefs["hide_archived"] = True
+        else:
+            prefs.pop("hide_archived", None)
     if "show_private" in changes:
         if not isinstance(changes["show_private"], bool):
             raise bad_request("show_private must be true or false")

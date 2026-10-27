@@ -112,3 +112,11 @@ def test_mark_all_read_clears_channels_dms_and_threads(env):
     assert not any(m["unread"] for m in bob.activity_page()["messages"])
     ana.post(ch["id"], "@bob one more")                              # new messages count again
     assert {c["id"]: c for c in bob.list_channels()}[ch["id"]]["for_me"] == 1
+
+
+def test_hide_archived_preference(env):
+    http = env.http(env.op.token)
+    assert http.put("/me/prefs", json={"hide_archived": True}).json() == {"hide_archived": True}
+    assert env.op.me()["prefs"]["hide_archived"] is True
+    assert http.put("/me/prefs", json={"hide_archived": 1}).status_code == 400
+    assert http.put("/me/prefs", json={"hide_archived": False}).json() == {}

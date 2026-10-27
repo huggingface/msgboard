@@ -23,7 +23,10 @@ from msgboard.auth import new_token  # noqa: E402
 
 SPACE = os.environ.get("MSGBOARD_SPACE", "lvwerra/msgboard-demo")
 BUCKET = os.environ.get("MSGBOARD_BUCKET", "lvwerra/msgboard-demo-data")
-SECRETS = Path.home() / ".config" / "msgboard-demo"
+# Each board keeps its own tokens: set MSGBOARD_SECRETS for any board other than the demo.
+SECRETS = Path(os.environ.get("MSGBOARD_SECRETS", Path.home() / ".config" / "msgboard-demo")).expanduser()
+TITLE = os.environ.get("MSGBOARD_TITLE")                 # Space card title (default: the demo's)
+SHARED_INVITE = os.environ.get("MSGBOARD_SHARED_INVITE", "1") == "1"   # 0: no standing member invite link
 
 
 def _secret_file(name: str) -> Path:
@@ -40,14 +43,14 @@ def main() -> None:
     api = HfApi()
     create_bucket(BUCKET, private=True, exist_ok=True)
     operator = _secret_file("operator.token").read_text().strip()
-    invite_path = SECRETS / "invite.code"
-    if not invite_path.exists():
-        fd = os.open(invite_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w") as f:
-            f.write(secrets_mod.token_urlsafe(12) + "\n")
-    invite = invite_path.read_text().strip()
-    secrets = {"MSGBOARD_OPERATOR_TOKEN": operator, "HF_TOKEN": os.environ["HF_TOKEN"],
-               "MSGBOARD_INVITE_CODE": invite}
+    secrets = {"MSGBOARD_OPERATOR_TOKEN": operator, "HF_TOKEN": os.environ["HF_TOKEN"]}
+    if SHARED_INVITE:
+        invite_path = SECRETS / "invite.code"
+        if not invite_path.exists():
+            fd = os.open(invite_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(secrets_mod.token_urlsafe(12) + "\n")
+        secrets["MSGBOARD_INVITE_CODE"] = invite_path.read_text().strip()
     variables = {"MSGBOARD_REPLICA": f"hf://buckets/{BUCKET}/demo", "MSGBOARD_SNAPSHOT_INTERVAL": "15",
                  "MSGBOARD_DEMO_BOTS": os.environ.get("MSGBOARD_DEMO_BOTS", "0")}
     try:
@@ -71,11 +74,15 @@ def main() -> None:
     for path in sorted((ROOT / "src/msgboard").iterdir()):
         if path.suffix in (".py", ".html"):
             files[f"src/msgboard/{path.name}"] = path
-    commit = api.create_commit(SPACE, repo_type="space", commit_message="Deploy msgboard demo",
-                               operations=[CommitOperationAdd(k, str(v)) for k, v in files.items()])
+    ops = [CommitOperationAdd(k, str(v)) for k, v in files.items()]
+    if TITLE:
+        card = (ROOT / "hfspace/README.md").read_text().replace("title: msgboard demo", f"title: {TITLE}", 1)
+        ops = [o for o in ops if o.path_in_repo != "README.md"] + [CommitOperationAdd("README.md", card.encode())]
+    commit = api.create_commit(SPACE, repo_type="space", commit_message="Deploy msgboard",
+                               operations=ops)
     # Public, so collaborators can open the link; board data still needs a token or HF sign-in.
     api.update_repo_settings(SPACE, repo_type="space", private=False)
-    print(f"deployed {SPACE} at {commit.oid[:8]}; tokens and invite code in {SECRETS}")
+    print(f"deployed {SPACE} at {commit.oid[:8]}; tokens{' and invite code' if SHARED_INVITE else ''} in {SECRETS}")
 
 
 if __name__ == "__main__":

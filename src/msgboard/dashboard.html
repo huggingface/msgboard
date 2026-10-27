@@ -176,6 +176,8 @@ mark { background: var(--ink); color: var(--bg); padding: 0 1px; }
 .side-foot { border-top: 1px solid var(--rule); }
 .show-private { display: flex; align-items: center; gap: 6px; padding: 10px 16px 0; font: 11px var(--mono); color: var(--ink-3); cursor: pointer; }
 .show-private.hidden { display: none; }
+.side-toggles { display: flex; flex-wrap: wrap; gap: 0 14px; }
+.side-toggles .show-private { padding-right: 0; }
 .navlist button.observer .name { font-style: italic; }
 .navlist button.observer:not(.active) .name { color: var(--ink-3); }
 .navlist button.not-joined:not(.active) .name, .navlist button.not-joined:not(.active) .glyph { color: var(--ink-3); opacity: .75; }
@@ -647,7 +649,10 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       <ul class="navlist" id="dms"></ul>
     </div>
     <div class="side-foot">
-      <label class="show-private hidden" id="show-private-row" title="Admins can see private channels and DMs they are not part of"><input type="checkbox" id="show-private"> show private</label>
+      <div class="side-toggles">
+        <label class="show-private hidden" id="show-archived-row" title="Archived channels are read-only; hide them from the sidebar"><input type="checkbox" id="show-archived"> show archived</label>
+        <label class="show-private hidden" id="show-private-row" title="Admins can see private channels and DMs they are not part of"><input type="checkbox" id="show-private"> show private</label>
+      </div>
       <div class="me">
         <div id="me-avatar"></div>
         <div class="who" id="me-who" title="Your profile"><div id="me-name"></div></div>
@@ -1350,6 +1355,7 @@ async function joinChannel(c) {
   } catch (e) { alert("Could not join: " + e.message); }
 }
 const showPrivate = () => !!(state.me && state.me.prefs && state.me.prefs.show_private);
+const hideArchived = () => !!(state.me && state.me.prefs && state.me.prefs.hide_archived);
 function navButton(c) {
   const isCur = state.view === "chat" && state.current && state.current.id === c.id;
   // bold = new messages; a count = messages for me (mentions, replies in my threads, DMs).
@@ -1410,7 +1416,9 @@ function renderChannels() {
     || (a.archived ? 1 : 0) - (b.archived ? 1 : 0)
     || (pos.has(a.id) ? pos.get(a.id) : 1e6) - (pos.has(b.id) ? pos.get(b.id) : 1e6));
   const isCur = (c) => state.view === "chat" && state.current && state.current.id === c.id;
-  for (const c of ordered) if (!observing(c) || showPrivate() || isCur(c)) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
+  $("show-archived-row").classList.toggle("hidden", !state.channels.some((c) => c.archived));
+  $("show-archived").checked = !hideArchived();
+  for (const c of ordered) if ((!observing(c) || showPrivate()) && (!c.archived || !hideArchived()) || isCur(c)) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
   if (!$("dms").children.length) $("dms").innerHTML = `<li class="small" style="padding:2px 16px">None yet</li>`;
   hydrate($("dms"));
 }
@@ -3273,6 +3281,11 @@ $("add-agents").onclick = async () => {
   const card = $("ai-role") && $("ai-role").closest(".card"); if (!card) return;
   let box = card.parentElement; while (box && box.scrollHeight <= box.clientHeight) box = box.parentElement;
   if (box) box.scrollTop += card.getBoundingClientRect().top - box.getBoundingClientRect().top - 12;
+};
+$("show-archived").onchange = async () => {
+  const hide = !$("show-archived").checked;
+  state.me.prefs = Object.assign({}, state.me.prefs, { hide_archived: hide }); renderChannels();
+  try { state.me.prefs = await api("PUT", "/me/prefs", { body: { hide_archived: hide } }); } catch (e) { alert("Could not save: " + e.message); }
 };
 $("show-private").onchange = async () => {
   const on = $("show-private").checked;
