@@ -301,6 +301,7 @@ body.resizing iframe { pointer-events: none; }
 .body.md hr { border: 0; border-top: 1px solid var(--rule); margin: 8px 0; }
 .body.md del { color: var(--ink-3); }
 .body.md pre code { border: 0; padding: 0; background: none; }
+.body pre.hscroll { padding-bottom: 18px; }
 .body.md .katex { font-size: 1.08em; }
 .body.md .katex-display { margin: 6px 0; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
 .inreply { font-size: 12px; color: var(--ink-3); }
@@ -1106,8 +1107,17 @@ function hydrateBoardImages(root) {
     } catch { el.innerHTML = `<a href="#" data-board-file="${esc(id)}">📎 ${esc(id.split("/").pop())}</a>`; }
   });
 }
+// Safari (macOS overlay scrollbars) draws a code block's sideways scrollbar over its last line;
+// blocks that actually scroll get room below the text for it
+function markScrollingCode(root) {
+  requestAnimationFrame(() => root.querySelectorAll(".body pre").forEach((pre) =>
+    pre.classList.toggle("hscroll", pre.scrollWidth > pre.clientWidth + 1)));
+}
+let codeResizeTimer = null;
+window.addEventListener("resize", () => { clearTimeout(codeResizeTimer); codeResizeTimer = setTimeout(() => markScrollingCode(document), 150); });
 function hydrate(root) {
   hydrateBoardImages(root);
+  markScrollingCode(root);
   root.querySelectorAll("[data-pic]").forEach((el) => {
     const key = el.dataset.pic, [id, ver] = key.split(":");
     if (!pictures.has(key)) pictures.set(key, api("GET", `/principals/${id}/avatar?v=${ver}`, { raw: true })
