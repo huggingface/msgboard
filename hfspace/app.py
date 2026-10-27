@@ -102,7 +102,7 @@ class Dispatcher:
         try:
             board = await asyncio.to_thread(self._prepare)
             app = create_app(board)
-            from accounts import import_shared_invite, install as install_accounts
+            from accounts import adopt_hf_pictures, import_shared_invite, install as install_accounts
 
             install_accounts(app, board)
             self._inner_lifespan = app.router.lifespan_context(app)
@@ -112,6 +112,8 @@ class Dispatcher:
             if shared:
                 await import_shared_invite(board, shared, os.environ["MSGBOARD_OPERATOR_TOKEN"].strip())
             log.info("board ready")
+            # linked accounts without a picture get their Hugging Face one (in the background, best effort)
+            self._pictures = asyncio.get_running_loop().create_task(adopt_hf_pictures(board))
             if os.environ.get("MSGBOARD_DEMO_BOTS") == "1":
                 from demo_bots import start_bots
 

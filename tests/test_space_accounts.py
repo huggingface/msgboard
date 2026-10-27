@@ -26,7 +26,19 @@ def fake_provider(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"access_token": "at-" + code}) if code in USERS else httpx.Response(400)
     if request.url.path == "/oauth/userinfo":
         return httpx.Response(200, json=USERS[request.headers["authorization"].split("at-")[1]])
+    if request.url.path == "/api/users/alice-hf/overview":
+        return httpx.Response(200, json={"avatarUrl": "/avatars/alice.png"})
+    if request.url.path == "/avatars/alice.png":
+        return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+    if request.url.path == "/api/users/bob-hf/overview":           # default avatars are SVG: not adopted
+        return httpx.Response(200, json={"avatarUrl": "/avatars/bob.svg"})
+    if request.url.path == "/avatars/bob.svg":
+        return httpx.Response(200, content=b"<svg xmlns='http://www.w3.org/2000/svg'/>")
     return httpx.Response(404)
+
+
+PNG = bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002"
+                    "0000050001e226059b0000000049454e44ae426082")
 
 
 @pytest.fixture
@@ -108,3 +120,24 @@ def test_shared_invite_code_is_imported(space, tmp_path):
     asyncio.run(accounts.import_shared_invite(board, "old-shared-code-123", space.operator))
     joined = space.post("/v1/join", json={"code": "old-shared-code-123", "name": "newcomer"})
     assert joined.status_code == 201 and joined.json()["principal"]["role"] == "member"
+
+
+def test_linking_hf_adopts_the_hf_picture_but_never_replaces_an_upload(space):
+    alice = join_person(space, "alice")
+    h = {"X-Msgboard-Token": alice["token"]}
+    assert space.get("/v1/me", headers=h).json()["avatar"] is None
+    oauth(space, space.post("/v1/me/hf-link", headers=h).json()["url"], "code-alice")
+    me = space.get("/v1/me", headers=h).json()
+    assert me["avatar"] is not None                                             # the HF picture
+    assert space.get(f"/v1/principals/{me['id']}/avatar", headers=h).content == PNG
+
+    bob = join_person(space, "bob")
+    hb = {"X-Msgboard-Token": bob["token"]}
+    oauth(space, space.post("/v1/me/hf-link", headers=hb).json()["url"], "code-bob")
+    assert space.get("/v1/me", headers=hb).json()["avatar"] is None             # SVG default: pattern kept
+
+    own = PNG + b"own"                                                          # an upload always wins
+    space.delete(f"/v1/principals/{me['id']}/avatar", headers=h)
+    assert space.put(f"/v1/principals/{me['id']}/avatar", headers=h, content=own).status_code == 200
+    oauth(space, space.get("/login").headers["location"], "code-alice")         # signing in again
+    assert space.get(f"/v1/principals/{me['id']}/avatar", headers=h).content == own

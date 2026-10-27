@@ -50,6 +50,46 @@ def import_shared_invite(board: Board, code: str, operator_token: str):
     return board.db.write(run)
 
 
+HF_API = os.environ.get("MSGBOARD_HF_API", "https://huggingface.co").rstrip("/")
+
+
+async def adopt_hf_picture(board: Board, principal_id: int, username: str) -> bool:
+    """Use the Hugging Face profile picture as this account's picture, unless it already has one
+    (an uploaded picture always wins). Best effort: any failure just keeps the generated pattern."""
+    has = await board.db.read(lambda conn: conn.execute(
+        "SELECT 1 FROM avatars WHERE principal_id = ?", (principal_id,)).fetchone() is not None)
+    if has:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=15, transport=_transport, follow_redirects=True) as http:
+            url = (await http.get(f"{HF_API}/api/users/{username}/overview")).json().get("avatarUrl")
+            if not url:
+                return False
+            if url.startswith("/"):
+                url = HF_API + url
+            data = (await http.get(url)).content
+        def run(conn):
+            if conn.execute("SELECT 1 FROM avatars WHERE principal_id = ?", (principal_id,)).fetchone():
+                return False                       # someone uploaded one meanwhile
+            me = store._principal_obj(store._principal_row(conn, principal_id))
+            store.set_avatar(conn, me, principal_id, data, time.time())
+            return True
+        return await board.db.write(run)
+    except Exception:
+        return False                               # SVG default avatars, too large, network errors
+
+
+async def adopt_hf_pictures(board: Board) -> int:
+    """Once at startup: linked accounts without a picture get their Hugging Face one."""
+    rows = await board.db.read(lambda conn: conn.execute(
+        """SELECT p.id, p.hf_username FROM principals p LEFT JOIN avatars a ON a.principal_id = p.id
+           WHERE p.hf_username IS NOT NULL AND p.disabled = 0 AND a.principal_id IS NULL""").fetchall())
+    n = 0
+    for pid, username in rows:
+        n += await adopt_hf_picture(board, pid, username)
+    return n
+
+
 def install(app: FastAPI, board: Board) -> None:
     provider = os.environ.get("OPENID_PROVIDER_URL", "https://huggingface.co").rstrip("/")
     client_id = os.environ.get("OAUTH_CLIENT_ID")
@@ -120,10 +160,13 @@ def install(app: FastAPI, board: Board) -> None:
         try:
             if mode == "link":
                 await board.db.write(store.set_hf_username, principal_id, username, time.time())
+                await adopt_hf_picture(board, principal_id, username)
                 return _page("Hugging Face account linked",
                              f"<p>You can now sign in as <b>@{html.escape(username)}</b> on any device.</p>"
                              '<p><a href="/">Back to the board</a></p>')
             result = await board.db.write(store.sign_in_with_hf, username, time.time())
+            if result.get("principal", {}).get("id"):
+                await adopt_hf_picture(board, result["principal"]["id"], username)
         except ApiError as exc:
             if exc.status == 404:
                 return _page("No account linked",
