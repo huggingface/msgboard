@@ -426,13 +426,13 @@ button.fchip:hover { border-color: var(--ink); }
 .readonly { font: 12px var(--mono); color: var(--ink-3); padding: 6px 0; }
 .composer { position: relative; }
 
-/* ---------- A2 look (on trial): white surfaces, a grey selection, denser type, one 52px header row and one
+/* ---------- A2 look (on trial): white surfaces, a black selection, denser type, one 52px header row and one
    60px footer row across all columns. Toggled per browser with the "A2" button by the board name. */
 :root[data-look="a2"] { --ink-2: #5f5f5b; --ink-3: #5f5f5b; --rule: #d6d6d2; --rule-2: #b9b9b4; --hover: #f4f4f2;
-  --select: #d4d4cf; --select-ink: #111; --panel: #f6f6f4; --bg: #fff; }
+  --select: #111; --select-ink: #fff; --panel: #f6f6f4; --bg: #fff; }
 @media (prefers-color-scheme: dark) {
   :root[data-look="a2"] { --bg: #111110; --panel: #1a1a19; --ink-2: #a3a39e; --ink-3: #a3a39e; --rule: #2a2a28; --rule-2: #46463f;
-    --hover: #1c1c1a; --select: #34342f; --select-ink: #ededea; }
+    --hover: #1c1c1a; --select: #ededea; --select-ink: #111110; }
 }
 [data-look="a2"] body { font-size: 13.5px; line-height: 1.42; }
 [data-look="a2"] aside { background: var(--bg); }
@@ -460,6 +460,8 @@ button.fchip:hover { border-color: var(--ink); }
 [data-look="a2"] .cbox textarea { flex: 1; width: auto; min-width: 0; padding: 5px 10px; line-height: 20px; }
 [data-look="a2"] .cbox .bar { flex: none; padding: 0 3px 3px 0; height: 30px; align-items: center; }
 [data-look="a2"] .cbox .bar .btn { padding: 3px 12px; font-size: 12.5px; }
+[data-look="a2"] .cbox.multi textarea { flex-basis: 100%; }
+[data-look="a2"] .cbox.multi .bar { flex: 1 0 100%; padding-left: 10px; }
 [data-look="a2"] .new-below { bottom: 76px; }
 .look-btn { font: 600 10px/1 var(--mono); letter-spacing: .04em; border: 1px solid var(--rule-2) !important; padding: 3px 4px !important; margin-left: auto; margin-right: 2px; }
 .look-btn.on { background: var(--ink) !important; color: var(--bg) !important; border-color: var(--ink) !important; }
@@ -2229,7 +2231,12 @@ function mountComposer(host, { placeholder, replyTo }) {
   input.value = draftOf(draftKey);
   input.addEventListener("input", () => setDraft(draftKey, input.value));
   let items = [], sending = false;
-  const autosize = () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 220) + "px"; };
+  const autosize = () => {
+    // A2: one line with the buttons beside it; once the text needs more, the buttons move to a row below
+    box.classList.remove("multi"); input.style.height = "auto";
+    if (document.documentElement.dataset.look === "a2" && (input.value.includes("\n") || input.scrollHeight > 32)) { box.classList.add("multi"); input.style.height = "auto"; }
+    input.style.height = Math.min(input.scrollHeight, 220) + "px";
+  };
   const UPLOADS_AT_ONCE = 3;   // the server accepts a few concurrent uploads; the rest wait their turn
   const uploading = () => items.some((it) => it.status === "uploading" || it.status === "queued");
   function renderChips() {
