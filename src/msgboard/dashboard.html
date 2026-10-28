@@ -1150,24 +1150,41 @@ const avatar = (s, cls = "", link = true) => {
     (s.identity_type === "system" ? dashedBorderSvg(S) : "") + `</div>`;
 };
 const pictures = new Map();
+// Inline images, once loaded, are remembered with their size: every re-render of a feed puts them back at full
+// size right away instead of a placeholder that grows later and pushes the messages around.
+const boardImgs = new Map();   // file id -> { url, w, h, alt }
+function boardImgEl(id, r) {
+  const img = document.createElement("img"); img.alt = r.alt; img.src = r.url;
+  img.style.cssText = `aspect-ratio: ${r.w} / ${r.h}; width: min(100%, 640px, ${r.w}px, ${Math.floor(420 * r.w / r.h)}px); height: auto;`;
+  img.onclick = () => openViewer([id], 0);
+  return img;
+}
 function hydrateBoardImages(root) {
   root.querySelectorAll(".board-img[data-file]:not([data-done])").forEach(async (el) => {
     el.dataset.done = "1";
     const id = el.dataset.file;
+    if (boardImgs.has(id)) { el.replaceChildren(boardImgEl(id, boardImgs.get(id))); el.classList.add("ready"); return; }
     try {
       const info = await getInfo(id), blob = await getBlob(id, info);
       if (!info || kindOf(info.filename, info.content_type) !== "image") throw new Error("not an image");
-      const img = document.createElement("img"); img.alt = el.title || info.filename; img.src = URL.createObjectURL(typed(blob, info));
-      img.onclick = () => openViewer([id], 0);
-      el.replaceChildren(img); el.classList.add("ready");
-    } catch { el.innerHTML = `<a href="#" data-board-file="${esc(id)}">📎 ${esc(id.split("/").pop())}</a>`; }
+      const url = URL.createObjectURL(typed(blob, info)), probe = new Image();
+      probe.src = url; await probe.decode();
+      const r = { url, w: probe.naturalWidth || 1, h: probe.naturalHeight || 1, alt: el.title || info.filename };
+      boardImgs.set(id, r);
+      if (!el.isConnected) return;
+      // first load: the placeholder grows into the image, so keep the reader's place (or the bottom) by hand;
+      // Safari has no built-in scroll anchoring
+      const sc = el.closest(".scroll"), atBottom = sc && nearBottom(sc), restore = sc && !atBottom ? keepAnchor(sc) : null;
+      el.replaceChildren(boardImgEl(id, r)); el.classList.add("ready");
+      if (atBottom) sc.scrollTop = sc.scrollHeight; else if (restore) restore();
+    } catch { if (el.isConnected) el.innerHTML = `<a href="#" data-board-file="${esc(id)}">📎 ${esc(id.split("/").pop())}</a>`; }
   });
 }
 // Safari (macOS overlay scrollbars) draws a code block's sideways scrollbar over its last line;
-// blocks that actually scroll get room below the text for it
+// blocks that actually scroll get room below the text for it. Done right away, not on the next frame, so a
+// re-render has its final height before the scroll position is restored.
 function markScrollingCode(root) {
-  requestAnimationFrame(() => root.querySelectorAll(".body pre").forEach((pre) =>
-    pre.classList.toggle("hscroll", pre.scrollWidth > pre.clientWidth + 1)));
+  root.querySelectorAll(".body pre").forEach((pre) => pre.classList.toggle("hscroll", pre.scrollWidth > pre.clientWidth + 1));
 }
 let codeResizeTimer = null;
 window.addEventListener("resize", () => { clearTimeout(codeResizeTimer); codeResizeTimer = setTimeout(() => markScrollingCode(document), 150); });
