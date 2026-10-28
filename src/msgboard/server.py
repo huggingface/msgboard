@@ -958,7 +958,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         return FileResponse(cached, media_type="application/octet-stream", filename=os.path.basename(meta["path"]),
                             headers={"X-Checksum-Sha256": meta["sha256"], "X-Content-Type-Options": "nosniff",
                                      "X-Upload-Content-Type": meta["content_type"] or "application/octet-stream",
-                                     "Content-Security-Policy": "sandbox", "Cache-Control": "private, max-age=60"})
+                                     "Content-Security-Policy": "sandbox", "Cache-Control": "private, no-cache"})
 
     @app.delete("/v1/storage/{handle}/{path:path}")
     async def storage_delete(handle: str, path: str, request: Request):

@@ -304,6 +304,16 @@ body.resizing iframe { pointer-events: none; }
 .body.md del { color: var(--ink-3); }
 .body.md pre code { border: 0; padding: 0; background: none; }
 .body pre.hscroll { padding-bottom: 18px; }
+.body pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 58px; }
+/* code blocks: copy and wrap buttons, top right, on hover */
+.codewrap { position: relative; white-space: normal; }
+.codebar { position: absolute; top: 5px; right: 5px; display: flex; gap: 2px; opacity: 0; transition: opacity .1s; }
+.codewrap:hover .codebar, .codebar:focus-within { opacity: 1; }
+@media (hover: none) { .codebar { opacity: 1; } }
+.codebar button { width: 22px; height: 22px; padding: 2px; border: 1px solid var(--rule); background: var(--bg); color: var(--ink-2); cursor: pointer; }
+.codebar button:hover { color: var(--ink); border-color: var(--rule-2); }
+.codebar button.on { color: var(--bg); background: var(--ink); border-color: var(--ink); }
+.codebar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; display: block; }
 .body.md .katex { font-size: 1.08em; }
 .body.md .katex-display { margin: 6px 0; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
 .inreply { font-size: 12px; color: var(--ink-3); }
@@ -1104,7 +1114,7 @@ function hydrateBoardImages(root) {
     el.dataset.done = "1";
     const id = el.dataset.file;
     try {
-      const [info, blob] = await Promise.all([getInfo(id), getBlob(id)]);
+      const info = await getInfo(id), blob = await getBlob(id, info);
       if (!info || kindOf(info.filename, info.content_type) !== "image") throw new Error("not an image");
       const img = document.createElement("img"); img.alt = el.title || info.filename; img.src = URL.createObjectURL(typed(blob, info));
       img.onclick = () => openViewer([id], 0);
@@ -1120,8 +1130,29 @@ function markScrollingCode(root) {
 }
 let codeResizeTimer = null;
 window.addEventListener("resize", () => { clearTimeout(codeResizeTimer); codeResizeTimer = setTimeout(() => markScrollingCode(document), 150); });
+// Copy and wrap buttons on every code block in rendered messages and docs
+function addCodeTools(root) {
+  root.querySelectorAll(".body pre:not([data-tools])").forEach((pre) => {
+    pre.dataset.tools = "1";
+    const box = document.createElement("div"); box.className = "codewrap";
+    pre.replaceWith(box); box.appendChild(pre);
+    const bar = document.createElement("div"); bar.className = "codebar";
+    bar.innerHTML = `<button type="button" class="c-copy" title="Copy code">${ICONS.copy}</button>` +
+      `<button type="button" class="c-wrap" title="Wrap lines" aria-pressed="false">${ICONS.wrap}</button>`;
+    bar.querySelector(".c-copy").onclick = (e) => { e.stopPropagation(); copyText(pre.textContent.replace(/\n$/, ""), e.currentTarget); };
+    bar.querySelector(".c-wrap").onclick = (e) => {
+      e.stopPropagation();
+      const on = pre.classList.toggle("wrap");
+      e.currentTarget.classList.toggle("on", on); e.currentTarget.setAttribute("aria-pressed", on);
+      e.currentTarget.title = on ? "Don't wrap lines" : "Wrap lines";
+      markScrollingCode(box);
+    };
+    box.appendChild(bar);
+  });
+}
 function hydrate(root) {
   hydrateBoardImages(root);
+  addCodeTools(root);
   markScrollingCode(root);
   root.querySelectorAll("[data-pic]").forEach((el) => {
     const key = el.dataset.pic, [id, ver] = key.split(":");
@@ -1570,6 +1601,7 @@ const ICONS = {
   edit: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M11.8 3.6l2.6 2.6-7.9 7.9-3.3.7.7-3.3z"/><path d="M10.4 5l2.6 2.6"/></svg>`,
   trash: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 5h11M7 5V3.5h4V5M5 5l.7 9.5h6.6L13 5"/><path d="M7.6 7.5v5M10.4 7.5v5"/></svg>`,
   check: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.8 9.4l3.2 3.2 7.2-7.4"/></svg>`,
+  wrap: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 4.5h12M3 8.5h9.2a2.6 2.6 0 0 1 0 5.2H8.5"/><path d="M10.2 12 8.5 13.7l1.7 1.7"/><path d="M3 13.7h3"/></svg>`,
 };
 const QUICK_REACTIONS = ["👍", "👎", "✅", "👀", "🎉", "❤️", "😂", "🙏"];
 function reactionsHTML(m) {
@@ -1839,16 +1871,19 @@ function kindOf(name, type) {
 const typeLabel = (name, kind) => (extOf(name) || kind).slice(0, 4) || "file";
 const fileInfo = new Map(), fileBlobs = new Map();
 const storageUrl = (id) => "/storage/" + id.slice(8).split("/").map(encodeURIComponent).join("/");
-const getInfo = (id) => {
+// Storage files can be overwritten in place: `fresh` re-reads their info, and their bytes are cached by checksum.
+const getInfo = (id, fresh = false) => {
+  if (fresh && id.startsWith("storage:")) fileInfo.delete(id);
   if (!fileInfo.has(id)) fileInfo.set(id, (id.startsWith("storage:")
     ? api("GET", storageUrl(id) + "?info=true").then((f) => ({ id, filename: f.path.split("/").pop(), content_type: f.content_type, size: f.size, sha256: f.sha256 }))
     : api("GET", `/attachments/${encodeURIComponent(id)}/info`)).catch(() => null));
   return fileInfo.get(id);
 };
-const getBlob = (id) => {
-  if (!fileBlobs.has(id)) fileBlobs.set(id, api("GET", id.startsWith("storage:") ? storageUrl(id) : `/attachments/${encodeURIComponent(id)}`, { raw: true }).then((r) => r.blob())
-    .catch((e) => { fileBlobs.delete(id); throw e; }));
-  return fileBlobs.get(id);
+const getBlob = (id, info) => {
+  const key = id.startsWith("storage:") && info && info.sha256 ? id + "@" + info.sha256 : id;
+  if (!fileBlobs.has(key)) fileBlobs.set(key, api("GET", id.startsWith("storage:") ? storageUrl(id) : `/attachments/${encodeURIComponent(id)}`, { raw: true }).then((r) => r.blob())
+    .catch((e) => { fileBlobs.delete(key); throw e; }));
+  return fileBlobs.get(key);
 };
 async function fillFile(btn) {
   const id = btn.dataset.att, info = await getInfo(id);
@@ -1862,7 +1897,7 @@ async function fillFile(btn) {
   prev.textContent = typeLabel(info.filename, kind);
   if (kind === "image" && info.size <= 8 * 1024 * 1024) {
     try {
-      const url = URL.createObjectURL(await typed(await getBlob(id), info));
+      const url = URL.createObjectURL(await typed(await getBlob(id, info), info));
       if (btn.isConnected) prev.innerHTML = `<img alt="" src="${url}">`;
     } catch {}
   }
@@ -1874,7 +1909,7 @@ function typed(blob, info) {
   return blob.slice(0, blob.size, type);
 }
 async function download(id) {
-  const [info, blob] = await Promise.all([getInfo(id), getBlob(id)]);
+  const info = await getInfo(id, true), blob = await getBlob(id, info);
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
   a.download = (info && info.filename) || id; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -1900,7 +1935,7 @@ async function showInViewer(view = "render") {
   const body = $("v-body"); body.className = "v-body"; body.innerHTML = `<div class="v-empty">Loading…</div>`; zoomControls(false);
   $("v-download").onclick = () => download(id).catch(() => {});
   $("v-link").onclick = () => copyText(boardURL("file/" + id), $("v-link"));
-  const info = await getInfo(id);
+  const info = await getInfo(id, true);
   if (viewer.list[viewer.index] !== id) return;
   if (!info) { body.innerHTML = `<div class="v-empty">This file is not available.</div>`; return; }
   const kind = kindOf(info.filename, info.content_type);
@@ -1912,7 +1947,7 @@ async function showInViewer(view = "render") {
   const limit = kind === "text" || kind === "html" ? 2 * 1024 * 1024 : 60 * 1024 * 1024;
   if (info.size > limit) return noPreview(`Too large to preview (${fmtSize(info.size)}).`);
   let blob;
-  try { blob = typed(await getBlob(id), info); } catch (e) { return noPreview(esc(e.message)); }
+  try { blob = typed(await getBlob(id, info), info); } catch (e) { return noPreview(esc(e.message)); }
   if (viewer.list[viewer.index] !== id) return;
   const url = URL.createObjectURL(blob); viewer.urls.push(url);
   if (kind === "image") {

@@ -41,6 +41,7 @@ def test_storage_folders(env):
     assert [f["path"] for f in bot.storage_list()["files"]] == ["from-owner.txt", "notes.md"]
     raw = env.http(bob.token).get("/storage/trainer/notes.md")
     assert raw.headers["content-type"] == "application/octet-stream" and "sandbox" in raw.headers["content-security-policy"]
+    assert "no-cache" in raw.headers["cache-control"]                     # files can be overwritten in place
 
 
 def test_storage_limits_are_admin_settings(env):
