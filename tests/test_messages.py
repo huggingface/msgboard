@@ -263,6 +263,7 @@ def test_admins_delete_messages_with_their_threads(env):
     reply = ana.post(gen["id"], "placeholder reply", reply_to=root["id"])
     keep = ana.post(gen["id"], "a real message")
     ana.react(gen["id"], root["id"], "👍")
+    ana.mark_thread_read(gen["id"], root["id"], reply["seq"])                   # a thread read points at the root
     with pytest.raises(BoardError) as e:
         ana.delete_message(gen["id"], keep["id"])
     assert e.value.status == 403

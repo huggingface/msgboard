@@ -43,7 +43,8 @@ def test_creators_archive_and_admins_delete(env, tmp_path):
     assert e.value.status == 403
     ana.update_channel(ch["id"], archived=False)
     root = ana.post(ch["id"], "findable needle")
-    bob.post(ch["id"], "reply", reply_to=root["id"])
+    rep = bob.post(ch["id"], "reply", reply_to=root["id"])
+    ana.mark_thread_read(ch["id"], root["id"], rep["seq"])                       # a thread read points at the root
     bob.react(ch["id"], root["id"], "👍")
     ana.save_doc(ch["id"], "doc", base_version=0)
     att = ana.upload(ch["id"], b"hello", filename="a.txt", content_type="text/plain")
