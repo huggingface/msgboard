@@ -1914,17 +1914,23 @@ def _reactions_to_me(conn, p: Principal, scope: str, limit: int) -> list[dict]:
                             WHERE m.sender_id = :me AND r.principal_id != :me{scope}
                             ORDER BY r.created_at DESC LIMIT 500""", {"me": p.id}).fetchall()
     groups: dict[int, dict] = {}
+    people: dict[int, dict] = {}                     # the same few people react a lot: look each up once
     for mid, emoji, at, pid in rows:
         g = groups.setdefault(mid, {"message_id": mid, "last_at": at, "reactions": []})
-        g["reactions"].append({"emoji": emoji, "by": _brief(conn, pid), "at": at})
+        if pid not in people:
+            people[pid] = _brief(conn, pid)
+        g["reactions"].append({"emoji": emoji, "by": people[pid], "at": at})
     items = sorted(groups.values(), key=lambda g: -g["last_at"])[:limit]
     if items:
         full = {r["id"]: r for r in conn.execute(MESSAGE_SELECT + f" WHERE m.id IN ({','.join(str(g['message_id']) for g in items)})")}
         msgs = {i: _message_json(r) for i, r in full.items()}
         _attach_mentions(conn, list(msgs.values()))
+        chans: dict[int, dict] = {}
         for g in items:
             m = msgs[g["message_id"]]
-            c = _channel_json(conn, conn.execute("SELECT * FROM channels WHERE id = ?", (m["channel_id"],)).fetchone())
+            if m["channel_id"] not in chans:
+                chans[m["channel_id"]] = _channel_json(conn, conn.execute("SELECT * FROM channels WHERE id = ?", (m["channel_id"],)).fetchone())
+            c = chans[m["channel_id"]]
             m["channel"] = {k: c[k] for k in ("id", "name", "kind")} | ({"members": c["members"]} if c["kind"] == "dm" else {})
             g["message"] = m
     return items
