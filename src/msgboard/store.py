@@ -2312,6 +2312,7 @@ def delete_channel(conn, p: Principal, channel_id: int, confirm, now: float) -> 
     counts["files"] = len(keys)
     for table in ("message_reactions", "message_mentions", "message_revisions"):
         conn.execute(f"DELETE FROM {table} WHERE message_id IN ({in_channel})", (channel_id,))
+    conn.execute(f"DELETE FROM thread_reads WHERE thread_id IN ({in_channel})", (channel_id,))
     conn.execute("UPDATE messages SET reply_to = NULL, thread_id = NULL WHERE channel_id = ?", (channel_id,))
     conn.execute("DELETE FROM messages WHERE channel_id = ?", (channel_id,))
     for table in ("attachments", "channel_doc_versions", "channel_members", "channel_reads"):
@@ -2345,6 +2346,7 @@ def delete_message(conn, p: Principal, channel_id: int, message_id: int, now: fl
         conn.execute(f"DELETE FROM attachments WHERE id IN ({amarks})", att_ids)
     for table in ("message_reactions", "message_mentions", "message_revisions"):
         conn.execute(f"DELETE FROM {table} WHERE message_id IN ({marks})", ids)
+    conn.execute(f"DELETE FROM thread_reads WHERE thread_id IN ({marks})", ids)
     conn.execute(f"UPDATE messages SET reply_to = NULL, thread_id = NULL WHERE id IN ({marks})", ids)
     conn.execute(f"DELETE FROM messages WHERE id IN ({marks})", ids)
     audit(conn, p.id, "message.delete", f"message:{message_id}",
