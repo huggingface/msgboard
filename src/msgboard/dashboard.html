@@ -1220,8 +1220,9 @@ function hydrate(root) {
   markScrollingCode(root);
   root.querySelectorAll("[data-pic]").forEach((el) => {
     const key = el.dataset.pic, [id, ver] = key.split(":");
+    // a failed load (say, while the board restarts) is forgotten, so the next render asks again
     if (!pictures.has(key)) pictures.set(key, api("GET", `/principals/${id}/avatar?v=${ver}`, { raw: true })
-      .then((r) => r.blob()).then((b) => URL.createObjectURL(b)).catch(() => null));
+      .then((r) => r.blob()).then((b) => URL.createObjectURL(b)).catch(() => { pictures.delete(key); return null; }));
     pictures.get(key).then((url) => {
       const pat = el.querySelector(".pat");
       if (url && el.isConnected && pat) { pat.outerHTML = `<img alt="" src="${url}">`; el.classList.remove("tinted"); }
@@ -3105,10 +3106,11 @@ async function openActivity() {
   $("chat-view").style.display = "none"; $("settings").classList.add("hidden"); $("search").classList.add("hidden"); $("activity").classList.remove("hidden");
   $("ch-title").innerHTML = "Activity"; $("ch-desc").textContent = "";
   $("ch-meta").textContent = ""; $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
-  $("activity").innerHTML = `<div class="empty">Loading…</div>`;
+  // show the last list right away and swap in the fresh one when it arrives
+  if (state.activityData) renderActivity(); else $("activity").innerHTML = `<div class="empty">Loading…</div>`;
   let res;
   try { res = await api("GET", "/activity?limit=100&reactions=true"); }
-  catch (e) { $("activity").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  catch (e) { if (state.view === "activity" && !state.activityData) $("activity").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   if (state.view !== "activity") return;
   state.activityData = res;
   renderActivity();
