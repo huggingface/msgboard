@@ -680,7 +680,13 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
   .tabs { padding: 0 8px; overflow-x: auto; }
   .sbody { padding: 18px 16px 32px; }
   .form input[type=text] { width: 100%; }
+  /* the keyboard only shrinks the visible area; size to it so the headers stay on screen */
+  #app { height: var(--vvh, 100%); }
+  aside, #panel { bottom: auto; height: var(--vvh, 100%); }
+  .topbar .close { font-size: 24px; padding: 10px 14px; margin: -10px -14px -10px auto; color: var(--ink); }
 }
+/* iOS zooms into any focused field under 16px */
+@media (pointer: coarse) { input, textarea, select { font-size: 16px !important; } }
 </style>
 <style id="avatar-styles"></style>
 </head>
@@ -1892,7 +1898,24 @@ function keepAnchor(sc) {
     if (again) sc.scrollTop += again.getBoundingClientRect().top - sc.getBoundingClientRect().top - off;
   };
 }
+// iOS stops a touch scroll (and its momentum) when the nodes under the finger are replaced,
+// so a feed being scrolled keeps its DOM and re-renders once the scroll settles.
+let touching = 0, lastScroll = 0, settleTimer = 0;
+const held = new Map();
+const scrollBusy = () => touching > 0 || performance.now() - lastScroll < 250;
+function flushHeld() {
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(() => { if (scrollBusy()) return flushHeld(); const fns = [...held.values()]; held.clear(); fns.forEach((f) => f()); }, 260);
+}
+function holdWhileScrolling(key, fn) {
+  if (!scrollBusy()) return false;
+  held.set(key, fn); flushHeld(); return true;
+}
+for (const t of ["touchstart", "touchend", "touchcancel"])
+  document.addEventListener(t, (e) => { touching = e.touches.length; if (!touching) flushHeld(); }, { passive: true, capture: true });
+document.addEventListener("scroll", (e) => { if (e.target.classList && e.target.classList.contains("scroll")) lastScroll = performance.now(); }, { passive: true, capture: true });
 function renderFeed(stickToBottom) {
+  if (holdWhileScrolling("feed", () => renderFeed(stickToBottom))) return;
   const sc = $("scroll"), restore = stickToBottom ? null : keepAnchor(sc);
   const box = $("messages"); box.innerHTML = "";
   if (state.hasOlder) {
@@ -2521,6 +2544,7 @@ async function openThread(rootId) {
   markThreadSeen();
 }
 function renderThread(stickToBottom) {
+  if (holdWhileScrolling("thread", () => state.panel && state.panel.type === "thread" && renderThread(stickToBottom))) return;
   const root = state.panel.root, box = $("panel-scroll"), restore = stickToBottom ? null : keepAnchor(box);
   box.innerHTML = "";
   renderList(box, [root], { inThread: true, noDays: true, rootId: root.id });
@@ -3741,7 +3765,19 @@ window.addEventListener("resize", () => { if (state.view === "settings" && state
 // ------------------------------------------------------------------ misc
 $("me-who").onclick = () => state.me && openProfile(state.me.id);
 $("menu").onclick = () => $("app").classList.toggle("nav");
-$("app").addEventListener("click", (e) => { if (e.target.id === "app") $("app").classList.remove("nav"); });
+$("app").addEventListener("click", (e) => {
+  if (!$("app").classList.contains("nav") || e.target.closest("aside, #menu")) return;
+  e.preventDefault(); e.stopPropagation(); $("app").classList.remove("nav");
+}, true);
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const fit = () => {
+    if (vv.scale > 1.01) return;  // pinch zoom: leave the layout alone
+    document.documentElement.style.setProperty("--vvh", vv.height + "px");
+    if (window.scrollY) window.scrollTo(0, 0);
+  };
+  vv.addEventListener("resize", fit); vv.addEventListener("scroll", fit); fit();
+}
 $("new-channel").onclick = () => {
   $("channel-error").classList.add("hidden");
   $("private-row").classList.toggle("hidden", !state.me.settings.allow_private_channels);
