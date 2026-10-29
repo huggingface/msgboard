@@ -303,6 +303,9 @@ body.resizing iframe { pointer-events: none; }
 .body.md blockquote { margin: 4px 0; padding: 0 0 0 10px; border-left: 2px solid var(--rule-2); color: var(--ink-2); }
 .body.md table { border-collapse: collapse; margin: 6px 0; font-size: 13px; display: block; overflow-x: auto; max-width: 100%; }
 .body.md th, .body.md td { border: 1px solid var(--rule-2); padding: 3px 9px; text-align: left; }
+/* .body may break words anywhere; in a table that lets the browser squeeze a column to one letter */
+.body.md th, .body.md td { overflow-wrap: break-word; word-break: normal; }
+.body.md td .long-token { overflow-wrap: anywhere; }   /* a bare URL alone would widen its column past the screen */
 .body.md th { background: var(--panel); font-weight: 600; }
 .body.md hr { border: 0; border-top: 1px solid var(--rule); margin: 8px 0; }
 .body.md del { color: var(--ink-3); }
@@ -1226,6 +1229,7 @@ function addCodeTools(root) {
 }
 function hydrate(root) {
   hydrateBoardImages(root);
+  root.querySelectorAll(".body.md td a, .body.md td code").forEach((el) => { if (/\S{24,}/.test(el.textContent)) el.classList.add("long-token"); });
   addCodeTools(root);
   markScrollingCode(root);
   root.querySelectorAll("[data-pic]").forEach((el) => {
