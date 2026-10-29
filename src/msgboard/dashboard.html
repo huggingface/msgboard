@@ -525,6 +525,11 @@ button.fchip:hover { border-color: var(--ink); }
 .picker .list { max-height: 260px; overflow-y: auto; border-top: 1px solid var(--rule); }
 .picker .person { cursor: pointer; padding: 6px 4px; border-bottom: 1px solid var(--rule); }
 .picker .person:hover { background: var(--hover); }
+#channel-people-list { max-height: 180px; }
+#channel-people-list .person { display: flex; align-items: center; gap: 8px; }
+#channel-people-list .person input { width: auto; flex: none; margin: 0; }
+#channel-people-list .pname { min-width: 0; }
+#channel-form label[for="channel-people-filter"] { display: block; margin-top: 12px; }
 
 /* ---------- settings ---------- */
 #settings { flex: 1; overflow-y: auto; }
@@ -729,8 +734,10 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <label class="label" for="channel-desc">Description</label>
     <input type="text" id="channel-desc" maxlength="1024" placeholder="optional">
     <label class="small hidden" id="private-row"><input type="checkbox" id="channel-private"> Private: only people you add can see it (and admins)</label>
+    <label class="label" for="channel-people-filter">Members <span id="channel-people-n"></span></label>
+    <div class="picker"><input type="text" id="channel-people-filter" placeholder="Filter by name" autocomplete="off"><div class="list" id="channel-people-list"></div></div>
     <div class="row"><span class="err hidden" id="channel-error"></span><span></span>
-      <span><button class="btn ghost" value="cancel" formnovalidate>Cancel</button> <button class="btn" value="ok">Create</button></span></div>
+      <span><button class="btn ghost" type="button" id="channel-cancel">Cancel</button> <button class="btn" value="ok">Create</button></span></div>
   </form>
 </dialog>
 
@@ -3724,21 +3731,50 @@ if (window.visualViewport) {
   };
   vv.addEventListener("resize", fit); vv.addEventListener("scroll", fit); fit();
 }
-$("new-channel").onclick = () => {
+// members to add right after the channel is made; ticked ones survive filtering
+const newChannel = { people: [], picked: new Set() };
+function renderChannelPeople() {
+  const q = $("channel-people-filter").value.toLowerCase();
+  const list = newChannel.people.filter((p) => !q || nameOf(p).toLowerCase().includes(q) || p.external_id.toLowerCase().includes(q));
+  $("channel-people-list").innerHTML = list.length ? list.map((p) => `<label class="person"><input type="checkbox" value="${p.id}"${newChannel.picked.has(p.id) ? " checked" : ""}>` +
+    `${avatar(p, "sm", false)}<span class="pname">${esc(nameOf(p))}<small>${esc(kindLabel(p))}${p.owner ? " of " + esc(nameOf(p.owner)) : ""}</small></span></label>`).join("")
+    : `<div class="small" style="padding:10px 4px">Nobody to show.</div>`;
+  $("channel-people-n").textContent = newChannel.picked.size ? `(${newChannel.picked.size})` : "";
+  hydrate($("channel-people-list"));
+}
+$("channel-people-list").onchange = (e) => {
+  const id = Number(e.target.value);
+  if (e.target.checked) newChannel.picked.add(id); else newChannel.picked.delete(id);
+  $("channel-people-n").textContent = newChannel.picked.size ? `(${newChannel.picked.size})` : "";
+};
+$("channel-people-filter").oninput = renderChannelPeople;
+$("channel-people-filter").onkeydown = (e) => { if (e.key === "Enter") e.preventDefault(); };   // filtering, not creating
+$("channel-cancel").onclick = () => $("channel-dialog").close();
+$("new-channel").onclick = async () => {
   $("channel-error").classList.add("hidden");
   $("private-row").classList.toggle("hidden", !state.me.settings.allow_private_channels);
   $("channel-private").checked = false;
+  newChannel.picked.clear(); newChannel.people = []; $("channel-people-filter").value = ""; renderChannelPeople();
   $("channel-dialog").showModal(); $("channel-name").focus();
+  try { newChannel.people = (await loadPeople(true)).filter((p) => !p.disabled && p.id !== state.me.id); }
+  catch { newChannel.people = []; }
+  renderChannelPeople();
 };
 $("channel-form").addEventListener("submit", async (e) => {
-  if (e.submitter && e.submitter.value === "cancel") return;
   e.preventDefault();
+  let c;
   try {
-    const c = await api("POST", "/channels", { body: { name: $("channel-name").value.trim(), description: $("channel-desc").value.trim() || null,
+    c = await api("POST", "/channels", { body: { name: $("channel-name").value.trim(), description: $("channel-desc").value.trim() || null,
       private: $("channel-private").checked } });
-    $("channel-dialog").close(); $("channel-name").value = ""; $("channel-desc").value = "";
-    await refreshChannels(); openChannel(c.id);
-  } catch (err) { $("channel-error").textContent = err.message; $("channel-error").classList.remove("hidden"); }
+  } catch (err) { $("channel-error").textContent = err.message; $("channel-error").classList.remove("hidden"); return; }
+  const failed = [];
+  for (const id of newChannel.picked) {
+    try { await api("POST", `/channels/${c.id}/members`, { body: { principal_id: id } }); }
+    catch { failed.push(nameOf(newChannel.people.find((p) => p.id === id))); }
+  }
+  $("channel-dialog").close(); $("channel-name").value = ""; $("channel-desc").value = "";
+  await refreshChannels(); openChannel(c.id);
+  if (failed.length) alert("The channel was created, but these could not be added: " + failed.join(", "));
 });
 window.addEventListener("hashchange", () => {
   if (location.hash === "#settings") { if (state.view !== "settings") openSettings(); return; }
