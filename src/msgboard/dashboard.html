@@ -3777,7 +3777,7 @@ async function openAnalytics() {
   $("analytics").innerHTML = `<div class="empty">Loading…</div>`;
   await renderAnalytics();
 }
-const fmtDur = (s) => s == null ? "—" : s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${(s / 60).toFixed(s < 600 ? 1 : 0)} min` : s < 86400 ? `${(s / 3600).toFixed(s < 36000 ? 1 : 0)} h` : `${(s / 86400).toFixed(1)} days`;
+const fmtDur = (s) => s == null ? "—" : s < 1 ? "under 1 s" : s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${(s / 60).toFixed(s < 600 ? 1 : 0)} min` : s < 86400 ? `${(s / 3600).toFixed(s < 36000 ? 1 : 0)} h` : `${(s / 86400).toFixed(1)} days`;
 const fmtBytes = (n) => n == null ? "—" : n < 1024 ** 3 ? fmtSize(n) : (n / 1024 ** 3).toFixed(1) + " GB";
 const anDate = (t) => new Date(t * 1000).toISOString().slice(0, 10);
 async function renderAnalytics() {
@@ -3878,7 +3878,9 @@ async function renderAnalytics() {
   };
 }
 // health: whatever the server reports, formatted by the unit in its name
+const HEALTH_KEYS = ["db_bytes", "wal_bytes", "disk_free_bytes", "free_disk_bytes", "uptime_seconds", "open_polls", "pending_writes", "write_queue", "queued_reads", "errors_5xx", "replication"];
 function healthCells(hl) {
+  hl = Object.fromEntries(HEALTH_KEYS.filter((k) => k in hl).map((k) => [k, hl[k]]));
   const label = (k) => k.replace(/_(bytes|seconds|at)$/, "").replace(/_/g, " ").replace(/\bwal\b/, "WAL").replace(/\bdb\b/, "database").replace(/^./, (c) => c.toUpperCase());
   const val = (k, v) => v == null ? "—" : typeof v === "boolean" ? (v ? "yes" : "no")
     : /bytes$/.test(k) ? fmtBytes(v) : /_at$/.test(k) ? ago(v) : /seconds$/.test(k) ? fmtDur(v) : typeof v === "number" ? fmtN(v) : String(v);
@@ -3898,7 +3900,11 @@ function anTip(host, mark, html) {
   tip.style.left = (right + tip.offsetWidth <= box.width ? right : Math.max(0, left)) + "px";
   tip.style.top = Math.max(0, Math.min(rb.top - box.top, box.height - tip.offsetHeight)) + "px";
 }
-const niceTop = (max) => { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1, max) / 4))); const step = p * ([1, 2, 5, 10].find((m) => p * m >= max / 4) || 10); return [Math.ceil(Math.max(1, max) / step) * step, step]; };
+const niceTop = (max) => {
+  max = Math.max(1, max);
+  const p = Math.pow(10, Math.floor(Math.log10(max / 4))), step = Math.max(1, p * ([1, 2, 5, 10].find((m) => p * m >= max / 4) || 10));
+  return [Math.ceil(max / step) * step, step];
+};
 // one line over time; null values break the line (no data, not zero)
 function drawSeries(host, pts, { label, fmt, time } = {}) {
   if (!pts.length || pts.every((p) => p.v == null)) { host.innerHTML = `<div class="empty small">No data in these days.</div>`; return; }
@@ -3909,7 +3915,7 @@ function drawSeries(host, pts, { label, fmt, time } = {}) {
   pts.forEach((p, i) => { if (p.v == null) { pen = false; return; } d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`; pen = true; });
   const every = Math.ceil(pts.length / Math.max(2, Math.floor((W - L - R) / 70)));
   let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(label || "")} over time">`;
-  for (let v = 0; v <= top; v += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end">${fmtN(v)}</text>`;
+  for (let i = 0; i * step <= top; i++) { const v = i * step; svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end">${fmtN(v)}</text>`; }
   if (time) {
     const starts = pts.map((p, i) => [p, i]).filter(([p], i) => i === 0 || Math.floor(p.t / DAY_S) !== Math.floor(pts[i - 1].t / DAY_S)), gap = Math.ceil(starts.length / Math.max(2, Math.floor((W - L - R) / 70)));
     starts.forEach(([p, i], j) => { if (j % gap === 0) svg += `<text class="tick" x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(dayLabel(p.t))}</text>`; });
@@ -3941,7 +3947,7 @@ function drawHist(host, rt) {
     : unit(b.from_seconds) === unit(b.to_seconds) ? `${num(b.from_seconds)}–${short(b.to_seconds)}` : `${short(b.from_seconds)}–${short(b.to_seconds)}`;
   const full = (b, i) => i === 0 ? `under ${fmtDur(b.to_seconds)}` : b.to_seconds == null ? `over ${fmtDur(b.from_seconds)}` : `${fmtDur(b.from_seconds)} to ${fmtDur(b.to_seconds)}`;
   let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Time to response, distribution">`;
-  for (let v = 0; v <= top; v += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end">${fmtN(v)}</text>`;
+  for (let i = 0; i * step <= top; i++) { const v = i * step; svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end">${fmtN(v)}</text>`; }
   rows.forEach((b, i) => {
     const x = L + i * slot + (slot - bw) / 2;
     if (b.count) svg += `<path class="bar agents" d="${barPath(x, y(b.count), bw, y(0) - y(b.count), true)}"/>`;
@@ -3951,8 +3957,14 @@ function drawHist(host, rt) {
   // markers sit inside their bucket, placed linearly between its edges
   const at = (s) => { const i = rows.findIndex((b) => s >= b.from_seconds && (b.to_seconds == null || s < b.to_seconds)); if (i < 0) return null;
     const b = rows[i], f = b.to_seconds == null ? 0.5 : (s - b.from_seconds) / (b.to_seconds - b.from_seconds); return L + (i + f) * slot; };
-  [[rt.median_seconds, "median"], [rt.p90_seconds, "90%"]].forEach(([s, l]) => { const mx = s == null ? null : at(s);
-    if (mx != null) svg += `<line class="mark" x1="${mx}" x2="${mx}" y1="${T - 6}" y2="${y(0)}"/><text class="tick strong" x="${mx + 4}" y="${T - 2}">${l} ${esc(fmtDur(s))}</text>`; });
+  const m1 = rt.median_seconds == null ? null : at(rt.median_seconds), m2 = rt.p90_seconds == null ? null : at(rt.p90_seconds);
+  if (m1 != null) svg += `<line class="mark" x1="${m1}" x2="${m1}" y1="${T - 6}" y2="${y(0)}"/>`;
+  if (m2 != null && (m1 == null || Math.abs(m2 - m1) > 1)) svg += `<line class="mark" x1="${m2}" x2="${m2}" y1="${T - 6}" y2="${y(0)}"/>`;
+  if (m1 != null && m2 != null && m2 - m1 < 110) svg += `<text class="tick strong" x="${m1 + 4}" y="${T - 2}">median ${esc(fmtDur(rt.median_seconds))} · 90% ${esc(fmtDur(rt.p90_seconds))}</text>`;
+  else {
+    if (m1 != null) svg += `<text class="tick strong" x="${m1 + 4}" y="${T - 2}">median ${esc(fmtDur(rt.median_seconds))}</text>`;
+    if (m2 != null) svg += `<text class="tick strong" x="${m2 + 4}" y="${T - 2}">90% ${esc(fmtDur(rt.p90_seconds))}</text>`;
+  }
   host.innerHTML = svg + `<line class="axis" x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}"/></svg><div class="an-tip hidden"></div>`;
   host.querySelectorAll(".hit").forEach((r) => r.addEventListener("mouseenter", () => {
     const i = Number(r.dataset.i), b = rows[i];
