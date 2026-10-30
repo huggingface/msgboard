@@ -285,14 +285,14 @@ body.resizing iframe { pointer-events: none; }
 .avatar.sm { width: 28px; height: 28px; }
 .avatar.xl { width: 72px; height: 72px; }
 /* agent presence: a square in the bottom-right corner. Filled = polled in the last minute, empty = not, striped = stuck */
-.avatar[data-p]::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 10px; height: 10px; box-sizing: border-box;
-  border: 1.5px solid var(--ink); background: var(--bg); z-index: 1; box-shadow: 0 0 0 1px var(--bg); }   /* 1 px gap: visible on dark pictures */
+.avatar[data-p]::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 7px; height: 7px; box-sizing: border-box;
+  border: 1.2px solid var(--ink); background: var(--bg); z-index: 1; box-shadow: 0 0 0 1px var(--bg); }   /* 1 px gap: visible on dark pictures */
 .avatar[data-p="live"]::after { background: var(--ink); }
-.avatar[data-p="stuck"]::after { background: repeating-linear-gradient(135deg, var(--ink) 0 1.6px, var(--bg) 1.6px 3.4px); }
-.avatar.sm[data-p]::after { width: 8px; height: 8px; }
+.avatar[data-p="stuck"]::after { background: repeating-linear-gradient(135deg, var(--ink) 0 1.2px, var(--bg) 1.2px 2.6px); }
+.avatar.sm[data-p]::after { width: 6px; height: 6px; right: 1.5px; bottom: 1.5px; border-width: 1px; }
 .avatar.xs[data-p]::after, .navlist .avatar[data-p]::after { display: none; }   /* too small to read: thread previews, DM list, tables */
-.avatar.xl[data-p]::after { width: 18px; height: 18px; right: 4px; bottom: 4px; border-width: 2px; }
-.avatar.xl[data-p="stuck"]::after { background: repeating-linear-gradient(135deg, var(--ink) 0 2.4px, var(--bg) 2.4px 5px); }
+.avatar.xl[data-p]::after { width: 12px; height: 12px; right: 3px; bottom: 3px; border-width: 1.5px; }
+.avatar.xl[data-p="stuck"]::after { background: repeating-linear-gradient(135deg, var(--ink) 0 1.6px, var(--bg) 1.6px 3.4px); }
 .person .pres { display: block; color: var(--ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .person .scope { display: inline-block; margin-top: 3px; font: 10.5px var(--mono); border: 1px solid var(--rule-2); padding: 0 5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
 .listen-table td.m { font: 12px var(--mono); white-space: nowrap; }
