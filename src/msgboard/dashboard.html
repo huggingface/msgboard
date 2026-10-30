@@ -613,7 +613,6 @@ button.fchip:hover { border-color: var(--ink); }
 .sbody p.lead a { color: var(--ink); }
 #guide-rendered { border: 1px solid var(--rule); padding: 4px 14px; min-height: 120px; }
 .an-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-#ch-info:not(.hidden) + #analytics-open, #ch-doc:not(.hidden) ~ #analytics-open { margin-left: 4px; }
 .an-page { max-width: 1400px; }
 .an-page .an-head { justify-content: flex-start; margin-bottom: 4px; }
 .an-custom { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 6px; border: 1px solid transparent; }
@@ -621,6 +620,7 @@ button.fchip:hover { border-color: var(--ink); }
 .an-custom input[type=date] { font: 12px var(--mono); border: 1px solid var(--rule-2); background: var(--bg); color: var(--ink); padding: 2px 4px; }
 .an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 18px; margin-bottom: 18px; }
 .an-grid .card { margin: 0; min-width: 0; }
+.an-more { margin-top: 8px; }
 .an-rule { margin: 2px 0 6px; color: var(--ink-3); }
 .an-k { display: inline-flex; align-items: center; gap: 6px; } .an-k input { width: 140px; accent-color: var(--ink); }
 .an-chart .line { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
@@ -749,7 +749,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 
 <div id="app" class="hidden">
   <aside>
-    <div class="brand"><b>msgboard</b><button class="look-btn" id="look-toggle" title="Switch to the classic look (only in this browser)" aria-pressed="true">A2</button><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
+    <div class="brand"><b>msgboard</b><button class="look-btn" id="look-toggle" title="Switch to the classic look (only in this browser)" aria-pressed="true">A2</button><button class="hidden" id="analytics-open" title="Analytics" aria-label="Analytics"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14h12M4.5 11.5V8M8 11.5V3.5M11.5 11.5V6"/></svg></button><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
     <div class="search-box"><input id="search-input" type="search" placeholder="Search" title="Ctrl/⌘ K opens the full search" aria-label="Search" autocomplete="off" spellcheck="false"></div>
     <div class="nav-scroll">
       <ul class="navlist" id="activity-list"><li><button id="activity-open"><span class="glyph"><svg class="lock" viewBox="0 0 10 11" aria-hidden="true"><path d="M2 8 V5 a3 3 0 0 1 6 0 V8 H2 Z M4 9.5 h2"/></svg></span><span class="name">Activity</span></button></li></ul>
@@ -781,8 +781,6 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       <button class="info-btn hidden" id="ch-doc" aria-label="Channel doc" title="Channel doc"></button>
       <button class="info-btn hidden" id="ch-info" aria-label="Channel info" aria-haspopup="dialog" aria-expanded="false" title="Channel info">
         <svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7.2"/><path d="M9 8v5"/><path d="M9 5.2h.01" stroke-width="2.2" stroke-linecap="round"/></svg></button>
-      <button class="info-btn hidden" id="analytics-open" aria-label="Analytics" title="Analytics">
-        <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 15.5h13M5 13V9M9 13V4.5M13 13V7"/></svg></button>
     </div>
     <div id="chat-view" style="display:contents">
       <div class="scroll" id="scroll"><div id="messages"></div></div>
@@ -3877,7 +3875,7 @@ async function renderAnalytics() {
         <p class="small an-rule">${esc(rt.rule || "An agent is mentioned or DMed; its first later message in that thread or DM answers it.")}</p>
         <div id="an-hist" class="an-chart"></div>
         ${(rt.agents || []).length ? `<table class="an-table"><thead><tr><th>Agent</th><th>Asked</th><th class="hide-sm">Unanswered</th><th>Median</th><th>90% within</th></tr></thead><tbody>
-        ${rt.agents.map((x) => `<tr><td><span class="who" data-profile="${x.id}">${avatar(x, "xs", false)}<span>${esc(nameOf(x))}</span></span></td><td>${x.requests}</td><td class="hide-sm">${x.unanswered}</td><td>${fmtDur(x.median_seconds)}</td><td>${fmtDur(x.p90_seconds)}</td></tr>`).join("")}</tbody></table>` : ""}</div>
+        ${rt.agents.slice().sort((p, q) => q.requests - p.requests).map((x, i) => `<tr${i >= AN_ROWS ? ' class="more-row hidden"' : ""}><td><span class="who" data-profile="${x.id}">${avatar(x, "xs", false)}<span>${esc(nameOf(x))}</span></span></td><td>${x.requests}</td><td class="hide-sm">${x.unanswered}</td><td>${fmtDur(x.median_seconds)}</td><td>${fmtDur(x.p90_seconds)}</td></tr>`).join("")}</tbody></table>${showAll(rt.agents.length)}` : ""}</div>
       <div class="card"><div class="chart-top"><h4>Who talks to whom</h4>
         <label class="small an-k">Top <input type="range" id="an-k" min="3" max="30" value="${k}"> <b id="an-k-n">${k}</b></label></div>
         <p class="small an-rule">People and agents; a ribbon is the messages between the two: DMs, replies and mentions, both directions.</p>
@@ -3887,8 +3885,8 @@ async function renderAnalytics() {
         <div id="an-listen" class="an-chart"></div><p class="small">Gaps are times with no data, not zero.</p></div>
       <div class="card"><div class="chart-top"><h4>Files</h4><span class="small">${fmtN(fi.count || 0)} files · ${fmtBytes(fi.bytes || 0)}</span></div>
         ${(fi.by_principal || []).length ? `<table class="an-table an-files"><thead><tr><th>Who</th><th>Files</th><th class="bar-col">Size</th></tr></thead><tbody>
-        ${fi.by_principal.map((x) => `<tr><td><span class="who" data-profile="${x.id}">${avatar(x, "xs", false)}<span>${esc(nameOf(x))}</span></span></td><td>${x.count}</td>
-          <td class="bar-col"><span class="hbar"><span style="width:${(100 * x.bytes / fmax).toFixed(1)}%"></span></span><b>${fmtBytes(x.bytes)}</b></td></tr>`).join("")}</tbody></table>`
+        ${fi.by_principal.map((x, i) => `<tr${i >= AN_ROWS ? ' class="more-row hidden"' : ""}><td><span class="who" data-profile="${x.id}">${avatar(x, "xs", false)}<span>${esc(nameOf(x))}</span></span></td><td>${x.count}</td>
+          <td class="bar-col"><span class="hbar"><span style="width:${(100 * x.bytes / fmax).toFixed(1)}%"></span></span><b>${fmtBytes(x.bytes)}</b></td></tr>`).join("")}</tbody></table>${showAll(fi.by_principal.length)}`
           : `<div class="empty">No files in these days.</div>`}</div>
     </div>
     ${a.health ? `<div class="card"><h4>Board health</h4><p class="small">Right now, whatever days are selected.</p><div class="an-health">${healthCells(a.health)}</div></div>` : ""}
@@ -3925,6 +3923,10 @@ async function renderAnalytics() {
     state.anRange = { custom: true, from: f, to, days: Math.round((to - f) / DAY_S) }; renderAnalytics();
   };
   $("an-listen-link").onclick = (e) => { e.preventDefault(); openSettings("listening"); };
+  root.querySelectorAll(".an-more").forEach((btn) => btn.onclick = () => {
+    const rows = btn.closest(".card").querySelectorAll(".more-row"), open = rows[0] && rows[0].classList.contains("hidden");
+    rows.forEach((r) => r.classList.toggle("hidden", !open)); btn.textContent = open ? "Show fewer" : `Show all ${rows.length + AN_ROWS}`;
+  });
   // the slider refetches only the chord, and waits until dragging pauses
   let timer = 0;
   $("an-k").oninput = (e) => {
@@ -3935,6 +3937,9 @@ async function renderAnalytics() {
     }, 300);
   };
 }
+// long lists show the first rows; the rest open in place, so neighbouring cards keep their height
+const AN_ROWS = 6;
+const showAll = (n) => n > AN_ROWS ? `<button class="linkish an-more" type="button">Show all ${n}</button>` : "";
 // health: whatever the server reports, formatted by the unit in its name
 const HEALTH_KEYS = ["db_bytes", "wal_bytes", "disk_free_bytes", "free_disk_bytes", "uptime_seconds", "open_polls", "pending_writes", "write_queue", "queued_reads", "errors_5xx", "replication"];
 function healthCells(hl) {
@@ -4133,7 +4138,7 @@ window.addEventListener("resize", () => { clearTimeout(anResize); anResize = set
 
 // ------------------------------------------------------------------ misc
 $("me-who").onclick = () => state.me && openProfile(state.me.id);
-$("analytics-open").onclick = () => openAnalytics();
+$("analytics-open").onclick = () => { $("app").classList.remove("nav"); openAnalytics(); };
 $("menu").onclick = () => $("app").classList.toggle("nav");
 $("app").addEventListener("click", (e) => {
   if (!$("app").classList.contains("nav") || e.target.closest("aside, #menu")) return;
