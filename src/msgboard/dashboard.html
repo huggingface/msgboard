@@ -4005,7 +4005,7 @@ function drawChord(host, inter) {
   host.querySelectorAll(".arc").forEach((p) => p.addEventListener("mouseenter", () => {
     const id = p.dataset.n, n = byId.get(id);
     focus((q) => q.dataset.a === id || q.dataset.b === id);
-    const inner = n.id === "other" && inter.other_internal ? `<span>${inter.other_internal.total ?? inter.other_internal} among themselves</span>` : "";
+    const inner = n.id === "other" && inter.other_internal && inter.other_internal.total ? `<span>${inter.other_internal.total} among themselves</span>` : "";
     anTip(host, p, `<b>${esc(nm(n))}</b><span>${fmtN(vol.get(id))} messages with ${n.identity_type === "user" ? "agents" : "people"}</span>${inner}`);
   }));
   svgEl.addEventListener("mouseleave", () => { focus(() => true); host.querySelector(".an-tip").classList.add("hidden"); });
