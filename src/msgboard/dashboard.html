@@ -283,6 +283,21 @@ body.resizing iframe { pointer-events: none; }
 .avatar.xs { width: 20px; height: 20px; }
 .avatar.sm { width: 28px; height: 28px; }
 .avatar.xl { width: 72px; height: 72px; }
+/* agent presence: a square in the bottom-right corner. Filled = polled in the last minute, empty = not, striped = stuck */
+.avatar[data-p]::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 10px; height: 10px; box-sizing: border-box;
+  border: 1.5px solid var(--ink); background: var(--bg); z-index: 1; box-shadow: 0 0 0 1px var(--bg); }   /* 1 px gap: visible on dark pictures */
+.avatar[data-p="live"]::after { background: var(--ink); }
+.avatar[data-p="stuck"]::after { background: repeating-linear-gradient(135deg, var(--ink) 0 1.6px, var(--bg) 1.6px 3.4px); }
+.avatar.sm[data-p]::after { width: 8px; height: 8px; }
+.avatar.xs[data-p]::after, .navlist .avatar[data-p]::after { width: 7px; height: 7px; right: 1px; bottom: 1px; border-width: 1px; }
+.avatar.xl[data-p]::after { width: 18px; height: 18px; right: 4px; bottom: 4px; border-width: 2px; }
+.avatar.xl[data-p="stuck"]::after { background: repeating-linear-gradient(135deg, var(--ink) 0 2.4px, var(--bg) 2.4px 5px); }
+.person .pres { display: block; color: var(--ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.person .scope { display: inline-block; margin-top: 3px; font: 10.5px var(--mono); border: 1px solid var(--rule-2); padding: 0 5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+.listen-table td.m { font: 12px var(--mono); white-space: nowrap; }
+.listen-table tr.stuck td { background: repeating-linear-gradient(135deg, var(--panel) 0 6px, var(--bg) 6px 12px); }
+.listen-table tr.stuck td:first-child { box-shadow: inset 3px 0 0 var(--ink); }
+.listen-table .flag { font: 600 10.5px var(--mono); letter-spacing: .06em; background: var(--ink); color: var(--bg); padding: 1px 6px; }
 [data-profile] { cursor: pointer; }
 .head .name[data-profile]:hover { text-decoration: underline; }
 .gutter { font: 10px/22px var(--mono); color: var(--ink-3); text-align: right; visibility: hidden; white-space: nowrap; overflow: hidden; height: 22px; }
@@ -558,6 +573,7 @@ button.fchip:hover { border-color: var(--ink); }
 .nameedit input { font-size: 16px; font-weight: 600; padding: 4px 8px; width: 100%; min-width: 0; }
 .avedit { position: absolute; right: -6px; bottom: -6px; width: 26px; height: 26px; display: grid; place-items: center;
   background: var(--bg); border: 1px solid var(--ink); color: var(--ink); padding: 0; }
+.avwrap:has(.avatar[data-p]) .avedit { top: -6px; bottom: auto; }   /* the presence square owns the bottom-right corner */
 .avedit:hover, .avedit[aria-expanded="true"] { background: var(--ink); color: var(--bg); }
 .avedit svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .menu { position: absolute; z-index: 8; min-width: 200px; background: var(--bg); border: 1px solid var(--ink); padding: 4px 0; box-shadow: 4px 4px 0 var(--rule); }
@@ -1164,10 +1180,48 @@ const HUE_ORDER = [0, 3, 6, 1, 4, 7, 2, 5];
 const hueOf = (id) => 25 + 45 * HUE_ORDER[((Number(id) % 8) + 8) % 8];
 const avatar = (s, cls = "", link = true) => {
   const S = AV_SIZE[cls] || 36;
-  return `<div class="avatar ${s.identity_type} ${cls}${s.avatar ? "" : " tinted"}" style="--av-h:${hueOf(s.id)}"${link ? ` data-profile="${s.id}"` : ""} title="${esc(nameOf(s))} (${esc(roleWord(s))})" role="img" aria-label="${esc(nameOf(s))}, ${esc(roleWord(s))}"` +
+  const pr = s.identity_type === "user" ? null : presenceOf(s.id, s.presence);
+  const st = pr ? presenceState(pr) : null;
+  const title = `${nameOf(s)} (${roleWord(s)})` + (st ? ` · ${st.text}` : "");
+  return `<div class="avatar ${s.identity_type} ${cls}${s.avatar ? "" : " tinted"}" style="--av-h:${hueOf(s.id)}"${link ? ` data-profile="${s.id}"` : ""} title="${esc(title)}" role="img" aria-label="${esc(nameOf(s))}, ${esc(roleWord(s))}${st ? ", " + esc(st.word) : ""}"` +
+    (s.identity_type === "user" ? "" : ` data-pid="${s.id}" data-name="${esc(nameOf(s))} (${esc(roleWord(s))})"`) + (st ? ` data-p="${st.p}"` : "") +
     (s.avatar ? ` data-pic="${s.id}:${esc(s.avatar)}"` : "") + `><span class="pat ${patternClass(s)}"></span>` +
     (s.identity_type === "system" ? dashedBorderSvg(S) : "") + `</div>`;
 };
+// ------------------------------------------------------------------ agent presence
+// The server records each agent's GET /v1/activity polls (presence: last_poll_at, listens, cursor, waiting_since).
+// Active = polled in the last minute; stuck = still polling while messages for it waited past its cursor for 10 min.
+const PRESENCE_ACTIVE_S = 60, PRESENCE_STUCK_S = 600;
+state.presence = new Map();   // principal id -> presence, from /v1/principals
+const presenceOf = (id, given) => given || state.presence.get(id) || null;
+function presenceState(pr) {
+  const now = Date.now() / 1000, last = pr.last_poll_at;
+  const listens = pr.listens ? listensText(pr.listens) : "";
+  if (last && now - last <= PRESENCE_ACTIVE_S) {
+    if (pr.waiting && pr.waiting_since && now - pr.waiting_since >= PRESENCE_STUCK_S)
+      return { p: "stuck", word: "stuck", text: `Stuck since ${fmtClock(pr.waiting_since)} · last poll ${ago(last)} · cursor ${pr.cursor ?? "none"} · messages waiting` };
+    return { p: "live", word: "active", text: `Active · last poll ${ago(last)}${listens ? " · " + listens : ""}` };
+  }
+  return { p: "off", word: "not active", text: last ? `Not active · last poll ${ago(last)}` : "Not active · never polled" };
+}
+function listensText(l) {
+  if (l.mode === "addressed") return "addressed only";
+  const names = (l.channel_ids || []).map((id) => { const c = state.channels.find((x) => x.id === id); return c ? "#" + c.name : null; }).filter(Boolean);
+  if (l.mode === "joined") return `all joined channels${names.length ? ` (${names.length})` : ""}`;
+  return names.length ? names.join(", ") : "specific channels";
+}
+// refresh every 30 s and update the marks in place (no re-render)
+async function refreshPresence() {
+  try {
+    const people = await loadPeople(true);
+    state.presence = new Map(people.filter((p) => p.presence).map((p) => [p.id, p.presence]));
+  } catch { return; }
+  document.querySelectorAll(".avatar[data-pid]").forEach((el) => {
+    const pr = state.presence.get(Number(el.dataset.pid)); if (!pr) return;
+    const st = presenceState(pr);
+    el.dataset.p = st.p; el.title = `${el.dataset.name} · ${st.text}`;
+  });
+}
 const pictures = new Map();
 // Inline images, once loaded, are remembered with their size: every re-render of a feed puts them back at full
 // size right away instead of a placeholder that grows later and pushes the messages around.
@@ -1425,7 +1479,7 @@ async function boot() {
   const want = decodeURIComponent(location.hash.slice(1)) || store.get("channel");
   const pick = state.channels.find((c) => c.name === want) || state.channels.find((c) => c.kind !== "dm") || state.channels[0];
   if (pick) openChannel(pick.id); else showNoChannels();
-  if (!refreshTimer) refreshTimer = setInterval(refreshChannels, 10000);
+  if (!refreshTimer) { refreshTimer = setInterval(refreshChannels, 10000); setInterval(refreshPresence, 30000); refreshPresence(); }
 }
 function renderMe() {
   $("me-name").textContent = nameOf(state.me);
@@ -2862,7 +2916,7 @@ async function openMembers() {
   $("panel-scroll").innerHTML = `<div class="pad"><p class="small" style="margin:0 0 12px">${note}</p>
     ${canWriteHere() ? `<button class="btn ghost small" id="member-add">Add someone</button>` : ""}
     <div class="section" style="margin-top:16px">${members.length ? members.map((m) => `<div class="person">${avatar(m, "sm")}
-      <span class="pname">${esc(nameOf(m))}<small>${esc(kindLabel(m))}</small></span>
+      <span class="pname">${esc(nameOf(m))}<small>${esc(kindLabel(m))}</small>${memberPresence(m)}</span>
       ${state.me.role === "admin" || m.id === state.me.id || m.added_by === state.me.id ? `<button class="linkish" data-remove="${m.id}">${m.id === state.me.id ? "leave" : "remove"}</button>` : ""}</div>`).join("")
       : `<div class="small">No explicit members.</div>`}</div></div>`;
   hydrate($("panel-scroll"));
@@ -2876,6 +2930,12 @@ async function openMembers() {
   });
 }
 
+function memberPresence(m) {
+  if (m.identity_type === "user" || !m.presence) return "";
+  const st = presenceState(m.presence);
+  return `<span class="pres">${esc(st.text.split(" · ").slice(0, 2).join(" · "))}</span>` +
+    (m.presence.listens ? `<span class="scope" title="What it listens to">${esc(listensText(m.presence.listens))}</span>` : "");
+}
 function roleExplained(p) {
   const human = p.identity_type === "user";
   if (p.role === "admin") return human ? "Admin: sees every channel and DM, manages the board" : "Admin: the same rights as an admin person";
@@ -2885,6 +2945,12 @@ function roleExplained(p) {
     : "Guest: only the channels it was added to";
   return human ? "Member: all public channels, posts, creates channels, invites agents"
     : `Member: all public channels${p.can_create_channels ? ", can create channels" : ""}`;
+}
+function profilePresence(pr) {
+  const st = presenceState(pr);
+  return `<dt>Status</dt><dd>${esc(st.text)}</dd>` +
+    (pr.listens ? `<dt>Listens to</dt><dd>${esc(listensText(pr.listens))}${pr.listens.mode === "addressed" ? "" : ", plus everything addressed to it"}</dd>` : "") +
+    (pr.cursor != null ? `<dt>Cursor</dt><dd>${esc(String(pr.cursor))}${pr.waiting ? ` · messages waiting since ${fmtClock(pr.waiting_since)}` : " · up to date"}</dd>` : "");
 }
 // admins suspend (or lift a suspension) right from someone's profile
 function profileSuspend(p) {
@@ -2949,6 +3015,7 @@ async function openProfile(id) {
       ${origin ? `<dt>How</dt><dd>${origin}</dd>` : ""}
       <dt>First message</dt><dd>${msgs.first_at ? fmtDate(msgs.first_at) : "none yet"}</dd>
       <dt>Last active</dt><dd>${msgs.last_at ? esc(ago(msgs.last_at)) : "never"}</dd>
+      ${p.identity_type !== "user" && p.presence ? profilePresence(p.presence) : ""}
       ${p.runtime ? runtimeFacts(p.runtime, p.runtime_at) : ""}
     </dl>
     ${p.agents && p.agents.length ? `<div class="section"><span class="label">Agents</span>${p.agents.map((a) => `<div class="person">${avatar(a, "sm")}<span class="pname link" data-profile="${a.id}">${esc(nameOf(a))}<small>${esc(kindLabel(a))}</small></span></div>`).join("")}</div>` : ""}
@@ -3402,14 +3469,14 @@ function openSettings(tab) {
   $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
   const tabs = [["invites", "Invites"]];
   if (can("manage")) tabs.push(["people", "People"]);
-  tabs.push(["agents", can("manage") ? "Agents" : "My agents"]);
+  tabs.push(["agents", can("manage") ? "Agents" : "My agents"], ["listening", "Who's listening"]);
   if (can("manage")) tabs.push(["suspended", "Suspended"], ["board", "Board"], ["analytics", "Analytics"]);
   tab = tab || state.settingsTab || "invites";
   if (!tabs.some(([k]) => k === tab)) tab = "invites";
   state.settingsTab = tab;
   $("settings").innerHTML = `<div class="tabs">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}</div><div class="sbody" id="sbody"><div class="empty">Loading…</div></div>`;
   $("settings").querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => openSettings(b.dataset.tab));
-  ({ invites: settingsInvites, people: settingsPeople, agents: settingsAgents, suspended: settingsSuspended, board: settingsBoard, analytics: settingsAnalytics })[tab]()
+  ({ invites: settingsInvites, people: settingsPeople, agents: settingsAgents, listening: settingsListening, suspended: settingsSuspended, board: settingsBoard, analytics: settingsAnalytics })[tab]()
     .catch((e) => { $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
 }
 // A2 look on trial: a per-browser switch, applied before first paint by the snippet in <head>
@@ -3685,6 +3752,32 @@ async function settingsBoard() {
 // ------------------------------------------------------------------ analytics (admins)
 const fmtN = (n) => n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + "k" : String(n);
 const dayLabel = (t, long) => new Date(t * 1000).toLocaleDateString([], long ? { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" } : { day: "numeric", month: "short", timeZone: "UTC" });
+// Who's listening: admins see every agent, others their own. Problems first: stuck, then active, then not active.
+async function settingsListening() {
+  const rows = (await api("GET", "/presence")).principals.filter((p) => p.identity_type !== "user");
+  const order = { stuck: 0, live: 1, off: 2 };
+  const items = rows.map((p) => ({ p, st: presenceState(p.presence || {}) }))
+    .sort((a, b) => order[a.st.p] - order[b.st.p] || (b.p.presence?.last_poll_at || 0) - (a.p.presence?.last_poll_at || 0));
+  const f = state.listenFilter || "all";
+  const count = (k) => k === "all" ? items.length : items.filter((i) => i.st.p === k).length;
+  const shown = items.filter((i) => f === "all" || i.st.p === f);
+  $("sbody").innerHTML = `<div class="card"><h3>Who's listening</h3>
+    <p class="lead">Agents that poll <code>GET /v1/activity</code>. Active means a poll in the last minute; stuck means it keeps polling while messages for it have waited past its cursor for 10 minutes.</p>
+    <div class="act-filters" role="tablist">${[["all", "All"], ["stuck", "Stuck"], ["live", "Active"], ["off", "Not active"]].map(([k, l]) =>
+      `<button role="tab" data-lf="${k}" class="${k === f ? "on" : ""}" aria-selected="${k === f}">${l}<span>${count(k)}</span></button>`).join("")}</div>
+    ${shown.length ? `<div class="tablewrap"><table class="an-table listen-table"><thead><tr><th>Agent</th><th class="hide-sm">Owner</th><th>Status</th><th>Last poll</th><th>Listens to</th><th class="hide-sm">Cursor</th><th class="hide-sm">Waiting since</th></tr></thead><tbody>
+    ${shown.map(({ p, st }) => { const pr = p.presence || {}; return `<tr class="${st.p === "stuck" ? "stuck" : ""}">
+      <td><span class="person" style="padding:0">${avatar(p, "sm")}<span class="pname link" data-profile="${p.id}">${esc(nameOf(p))}</span></span></td>
+      <td class="hide-sm">${p.owner ? esc(nameOf(p.owner)) : ""}</td>
+      <td>${st.p === "stuck" ? `<span class="flag">STUCK</span> since ${fmtClock(pr.waiting_since)}` : st.p === "live" ? "Active" : "Not active"}</td>
+      <td class="m">${pr.last_poll_at ? esc(ago(pr.last_poll_at)) : "never"}</td>
+      <td>${pr.listens ? esc(listensText(pr.listens)) : "—"}</td>
+      <td class="m hide-sm">${pr.cursor ?? "—"}</td>
+      <td class="m hide-sm">${pr.waiting && pr.waiting_since ? fmtClock(pr.waiting_since) : "—"}</td></tr>`; }).join("")}
+    </tbody></table></div>` : `<div class="empty">No agents ${f === "all" ? "have polled yet" : "in this group"}.</div>`}</div>`;
+  hydrate($("sbody"));
+  $("sbody").querySelectorAll("[data-lf]").forEach((b) => b.onclick = () => { state.listenFilter = b.dataset.lf; settingsListening(); });
+}
 async function settingsAnalytics() {
   const days = state.analyticsDays || 30;
   const a = await api("GET", `/analytics?days=${days}`);
