@@ -571,6 +571,31 @@ button.fchip:hover { border-color: var(--ink); }
 .sbody p.lead a { color: var(--ink); }
 #guide-rendered { border: 1px solid var(--rule); padding: 4px 14px; min-height: 120px; }
 .an-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#ch-info:not(.hidden) + #analytics-open, #ch-doc:not(.hidden) ~ #analytics-open { margin-left: 4px; }
+.an-page { max-width: 1400px; }
+.an-page .an-head { justify-content: flex-start; margin-bottom: 4px; }
+.an-custom { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 6px; border: 1px solid transparent; }
+.an-custom.on { border-color: var(--ink); }
+.an-custom input[type=date] { font: 12px var(--mono); border: 1px solid var(--rule-2); background: var(--bg); color: var(--ink); padding: 2px 4px; }
+.an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 18px; margin-bottom: 18px; }
+.an-grid .card { margin: 0; min-width: 0; }
+.an-rule { margin: 2px 0 6px; color: var(--ink-3); }
+.an-k { display: inline-flex; align-items: center; gap: 6px; } .an-k input { width: 140px; accent-color: var(--ink); }
+.an-chart .line { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.an-chart .dotm { fill: var(--ink); stroke: var(--bg); stroke-width: 2; }
+.an-chart .mark { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; }
+.an-chart .tick.strong { fill: var(--ink); font-weight: 600; }
+.an-chord svg { max-width: 560px; margin: 0 auto; }
+.an-chord .ribbon { fill: var(--ink); fill-opacity: .16; stroke: var(--bg); stroke-width: 1; transition: fill-opacity .1s; }
+.an-chord .ribbon.dim { fill-opacity: .05; } .an-chord .ribbon:not(.dim):hover { fill-opacity: .6; }
+.an-chord .arc { stroke: var(--ink); stroke-width: 1; cursor: default; }
+.an-chord .arc.agents { fill: var(--ink); } .an-chord .arc.people { fill: var(--ink-3); } .an-chord .arc.other { fill: var(--bg); stroke-dasharray: 2 2; }
+.an-chord .node { fill: var(--ink); font: 11.5px var(--sans); }
+.sw.other { background: var(--bg); border: 1px dashed var(--ink); }
+.an-files .hbar { width: calc(100% - 76px); } .an-files .bar-col b { white-space: nowrap; }
+.an-health { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); border: 1px solid var(--rule-2); }
+.an-health div { padding: 10px 12px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin: 0 -1px -1px 0; }
+.an-health b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; } .an-health span { font-size: 12px; color: var(--ink-3); }
 .seg { display: inline-flex; border: 1px solid var(--rule-2); }
 .seg button { background: none; border: 0; padding: 4px 11px; font: 11.5px var(--mono); color: var(--ink-2); }
 .seg button + button { border-left: 1px solid var(--rule-2); }
@@ -714,6 +739,8 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       <button class="info-btn hidden" id="ch-doc" aria-label="Channel doc" title="Channel doc"></button>
       <button class="info-btn hidden" id="ch-info" aria-label="Channel info" aria-haspopup="dialog" aria-expanded="false" title="Channel info">
         <svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7.2"/><path d="M9 8v5"/><path d="M9 5.2h.01" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      <button class="info-btn hidden" id="analytics-open" aria-label="Analytics" title="Analytics">
+        <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 15.5h13M5 13V9M9 13V4.5M13 13V7"/></svg></button>
     </div>
     <div id="chat-view" style="display:contents">
       <div class="scroll" id="scroll"><div id="messages"></div></div>
@@ -723,6 +750,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div id="settings" class="hidden"></div>
     <div id="activity" class="scroll hidden" style="padding:0"></div>
     <div id="search" class="scroll hidden"></div>
+    <div id="analytics" class="scroll hidden"></div>
   </main>
   <section id="panel" class="hidden">
     <div class="resizer" id="panel-resize" role="separator" aria-orientation="vertical" aria-label="Resize side panel" tabindex="0" title="Drag to resize · double-click to reset"></div>
@@ -946,7 +974,7 @@ function decorate(html, mentions) {
     if (h) {   // a link to a message, file or channel on this board: open it here, with a readable label
       a.dataset.internal = h; a.removeAttribute("target");
       if (a.textContent.trim() === a.getAttribute("href") || a.textContent.trim() === a.href) {
-        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search)$/.test(h) ? h : "#" + h;
+        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics)$/.test(h) ? h : "#" + h;
       }
     } else { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   });
@@ -1424,11 +1452,13 @@ async function boot() {
   $("new-dm").classList.toggle("hidden", !can("post"));
   $("settings-open").classList.toggle("hidden", !(can("invite_agents") || can("manage")));
   $("add-agents").classList.toggle("hidden", !can("invite_agents"));
+  $("analytics-open").classList.toggle("hidden", !canAnalytics());
   $("show-private-row").classList.toggle("hidden", !can("manage"));
   $("show-private").checked = !!(state.me.prefs && state.me.prefs.show_private);
   await Promise.all([refreshChannels(), renderLibs]);
   if (location.hash === "#settings") return openSettings();
   if (location.hash === "#activity") return openActivity();
+  if (location.hash === "#analytics" && canAnalytics()) return openAnalytics();
   if (/^#(msg|file)\//.test(location.hash)) {   // a shared link: open a channel first, then the message or file
     const first = state.channels.find((c) => c.name === store.get("channel")) || state.channels.find((c) => c.kind !== "dm") || state.channels[0];
     const target = location.hash;
@@ -1573,7 +1603,7 @@ function updateMeta(live) {
 }
 function showChat() {
   state.view = "chat";
-  $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden"); $("chat-view").style.display = "contents";
+  $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("chat-view").style.display = "contents";
 }
 async function openChannel(id) {
   const c = state.channels.find((x) => x.id === id);
@@ -2586,7 +2616,7 @@ function internalHash(href) {
   let u; try { u = new URL(href, location.href); } catch { return null; }
   if (u.origin !== location.origin || u.pathname !== location.pathname || !u.hash) return null;
   const h = decodeURIComponent(u.hash.slice(1));
-  return /^(msg|file)\/[\w-]+$/.test(h) || /^(settings|activity|search)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
+  return /^(msg|file)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
 }
 async function routeHash(h) {
   h = decodeURIComponent((h || "").replace(/^#/, ""));
@@ -2599,6 +2629,7 @@ async function routeHash(h) {
   if ((m = /^file\/([\w-]+)$/.exec(h))) { openViewer([m[1]], 0); return true; }
   if (h === "settings") { openSettings(); return true; }
   if (h === "activity") { openActivity(); return true; }
+  if (h === "analytics") { openAnalytics(); return true; }
   if (h === "search") { openSearch(""); return true; }
   const c = state.chanIndex.get(h.toLowerCase()) || state.channels.find((x) => x.name === h);
   if (c) { closePanel(); openChannel(c.id); return true; }
@@ -3138,7 +3169,7 @@ async function openActivity() {
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
   history.replaceState(null, "", location.pathname + "#activity");
-  $("chat-view").style.display = "none"; $("settings").classList.add("hidden"); $("search").classList.add("hidden"); $("activity").classList.remove("hidden");
+  $("chat-view").style.display = "none"; $("settings").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("activity").classList.remove("hidden");
   $("ch-title").innerHTML = "Activity"; $("ch-desc").textContent = "";
   $("ch-meta").textContent = ""; $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
   // show the last list right away and swap in the fresh one when it arrives
@@ -3324,7 +3355,7 @@ async function openSearch(q, opts = {}) {
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
   history.replaceState(null, "", location.pathname + "#search");
-  $("chat-view").style.display = "none"; $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.remove("hidden");
+  $("chat-view").style.display = "none"; $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); leaveAnalytics(); $("search").classList.remove("hidden");
   $("ch-title").innerHTML = "Search"; $("ch-desc").textContent = "";
   $("ch-meta").textContent = ""; $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
   const f = state.searchFilters = Object.assign({ channel: "", sender: "", when: "", has: "", by: "", sort: "newest" }, opts.keep ? state.searchFilters : {}, opts.filters || {});
@@ -3418,19 +3449,19 @@ function openSettings(tab) {
   if (state.poll) state.poll.abort();
   state.current = null; renderChannels(); closePanel();
   history.replaceState(null, "", location.pathname + "#settings");
-  $("chat-view").style.display = "none"; $("activity").classList.add("hidden"); $("search").classList.add("hidden"); $("settings").classList.remove("hidden");
+  $("chat-view").style.display = "none"; $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("settings").classList.remove("hidden");
   $("ch-title").innerHTML = "Settings"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
   $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
   const tabs = [["invites", "Invites"]];
   if (can("manage")) tabs.push(["people", "People"]);
   tabs.push(["agents", can("manage") ? "Agents" : "My agents"], ["listening", "Who's listening"]);
-  if (can("manage")) tabs.push(["suspended", "Suspended"], ["board", "Board"], ["analytics", "Analytics"]);
+  if (can("manage")) tabs.push(["suspended", "Suspended"], ["board", "Board"]);
   tab = tab || state.settingsTab || "invites";
   if (!tabs.some(([k]) => k === tab)) tab = "invites";
   state.settingsTab = tab;
   $("settings").innerHTML = `<div class="tabs">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}</div><div class="sbody" id="sbody"><div class="empty">Loading…</div></div>`;
   $("settings").querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => openSettings(b.dataset.tab));
-  ({ invites: settingsInvites, people: settingsPeople, agents: settingsAgents, listening: settingsListening, suspended: settingsSuspended, board: settingsBoard, analytics: settingsAnalytics })[tab]()
+  ({ invites: settingsInvites, people: settingsPeople, agents: settingsAgents, listening: settingsListening, suspended: settingsSuspended, board: settingsBoard })[tab]()
     .catch((e) => { $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
 }
 $("settings-open").onclick = () => { $("app").classList.remove("nav"); openSettings(); };
@@ -3722,48 +3753,262 @@ async function settingsListening() {
   hydrate($("sbody"));
   $("sbody").querySelectorAll("[data-lf]").forEach((b) => b.onclick = () => { state.listenFilter = b.dataset.lf; settingsListening(); });
 }
-async function settingsAnalytics() {
-  const days = state.analyticsDays || 30;
-  const a = await api("GET", `/analytics?days=${days}`);
-  if (state.settingsTab !== "analytics") return;
-  const t = a.totals, filter = state.analyticsWho || "all";
-  const tile = (label, value, sub) => `<div class="tile"><div class="label">${label}</div><div class="num">${fmtN(value)}</div><div class="small">${sub}</div></div>`;
-  const posters = a.posters.filter((x) => filter === "all" || (filter === "agents") === (x.identity_type !== "user"));
-  const maxP = Math.max(1, ...a.posters.map((x) => x.messages)), maxC = Math.max(1, ...a.channels.map((c) => c.messages));
-  $("sbody").innerHTML = `
-    <div class="an-head"><h3>Analytics</h3><div class="seg" role="group" aria-label="Time range">${[7, 30, 90].map((d) =>
-      `<button data-days="${d}" class="${d === days ? "on" : ""}">${d} days</button>`).join("")}</div></div>
-    <p class="lead">Messages posted on this board, by day (UTC). Everything is counted, including private channels and DMs; DMs are only counted together.</p>
+// ------------------------------------------------------------------ analytics (its own page; admins and readers)
+// GET /v1/analytics?from=&to=&top_k= : message stats, response times, who talks to whom, files, listening, health.
+const DAY_S = 86400;
+const canAnalytics = () => !!(state.me && (state.me.role === "admin" || state.me.role === "reader"));
+function analyticsRange() {
+  const r = state.anRange || { days: 7 };
+  if (r.custom) return r;
+  const to = (Math.floor(Date.now() / 1000 / DAY_S) + 1) * DAY_S;   // the end of today (UTC), exclusive
+  return { days: r.days, from: to - r.days * DAY_S, to };
+}
+function leaveAnalytics() { $("analytics").classList.add("hidden"); $("analytics-open").classList.remove("on"); }
+async function openAnalytics() {
+  if (!canAnalytics()) return;
+  state.view = "analytics";
+  if (state.poll) state.poll.abort();
+  state.current = null; closePanel(); renderChannels();
+  history.replaceState(null, "", location.pathname + "#analytics");
+  $("chat-view").style.display = "none"; $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden");
+  $("analytics").classList.remove("hidden"); $("analytics-open").classList.add("on");
+  $("ch-title").innerHTML = "Analytics"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
+  $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
+  $("analytics").innerHTML = `<div class="empty">Loading…</div>`;
+  await renderAnalytics();
+}
+const fmtDur = (s) => s == null ? "—" : s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${(s / 60).toFixed(s < 600 ? 1 : 0)} min` : s < 86400 ? `${(s / 3600).toFixed(s < 36000 ? 1 : 0)} h` : `${(s / 86400).toFixed(1)} days`;
+const fmtBytes = (n) => n == null ? "—" : n < 1024 ** 3 ? fmtSize(n) : (n / 1024 ** 3).toFixed(1) + " GB";
+const anDate = (t) => new Date(t * 1000).toISOString().slice(0, 10);
+async function renderAnalytics() {
+  const r = analyticsRange(), k = state.anTopK || 8, days = Math.round((r.to - r.from) / DAY_S);
+  let a;
+  try { a = await api("GET", `/analytics?from=${r.from}&to=${r.to}&top_k=${k}`); }
+  catch (e) { if (state.view === "analytics") $("analytics").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  if (state.view !== "analytics") return;
+  const ms = a.message_stats || {}, rt = a.response_times || {}, fi = a.files || {}, li = a.listening || {}, t = a.totals || {};
+  const filter = state.analyticsWho || "all";
+  const tile = (label, value, sub) => `<div class="tile"><div class="label">${label}</div><div class="num">${value}</div><div class="small">${sub}</div></div>`;
+  const posters = (a.posters || []).filter((x) => filter === "all" || (filter === "agents") === (x.identity_type !== "user"));
+  const maxP = Math.max(1, ...(a.posters || []).map((x) => x.messages)), maxC = Math.max(1, ...(a.channels || []).map((c) => c.messages));
+  const fmax = Math.max(1, ...(fi.by_principal || []).map((x) => x.bytes));
+  const span = r.custom ? `${anDate(r.from)} → ${anDate(r.to - DAY_S)}` : `last ${days} days`;
+  $("analytics").innerHTML = `<div class="sbody an-page">
+    <div class="an-head"><div class="seg" role="group" aria-label="Time range">${[7, 30, 90].map((d) =>
+      `<button data-days="${d}" class="${!r.custom && d === r.days ? "on" : ""}">${d} days</button>`).join("")}</div>
+      <form class="an-custom${r.custom ? " on" : ""}" id="an-custom"><span class="label">Custom</span>
+        <input type="date" id="an-from" value="${anDate(r.from)}" max="${anDate(Date.now() / 1000)}" aria-label="From">
+        <span>→</span><input type="date" id="an-to" value="${anDate(r.to - DAY_S)}" max="${anDate(Date.now() / 1000)}" aria-label="To">
+        <button class="btn ghost small">Apply</button></form></div>
+    <p class="lead">Everything on the board in the chosen days (UTC), private channels and DMs included; DMs are only counted together.</p>
     <div class="tiles">
-      ${tile("Messages", t.messages_window, `${fmtN(t.messages)} all time`)}
-      ${tile("Active agents", t.active_agents_7d, `of ${t.agents} · last 7 days`)}
-      ${tile("Active people", t.active_people_7d, `of ${t.people} · last 7 days`)}
-      ${tile("Threads", t.threads_window, `with replies, last ${days} days`)}
-      ${tile("Files", t.attachments_window, `shared, last ${days} days`)}
-      ${tile("Channels", t.channels, "open")}
+      ${tile("Messages", fmtN(ms.messages ?? t.messages_window ?? 0), span)}
+      ${tile("Words", fmtN(ms.words ?? 0), days ? `about ${fmtN(Math.round((ms.words || 0) / days))} a day` : "")}
+      ${tile("Avg length", ms.average_length == null ? "—" : `${Math.round(ms.average_length)}`, "characters per message")}
+      ${tile("Median response", fmtDur(rt.median_seconds), rt.p90_seconds == null ? "no answered requests" : `90% within ${fmtDur(rt.p90_seconds)}`)}
+      ${tile("Files", fmtN(fi.count ?? 0), `${fmtBytes(fi.bytes || 0)} attached`)}
+      ${tile("Listening now", li.now ?? "—", `<a class="linkish" href="#settings" id="an-listen-link">who's listening</a>`)}
     </div>
-    <div class="card chart-card"><div class="chart-top"><h4>Messages per day</h4>
-      <div class="legend"><span><i class="sw agents"></i>agents</span><span><i class="sw people"></i>people</span></div></div>
-      <div id="an-chart" class="an-chart"></div>
-      <details class="small"><summary>Show as table</summary><table class="an-table"><thead><tr><th>Day</th><th>Agents</th><th>People</th><th>Total</th></tr></thead><tbody>
-        ${a.daily.slice().reverse().map((d) => `<tr><td>${esc(dayLabel(d.day, true))}</td><td>${d.agents}</td><td>${d.people}</td><td>${d.agents + d.people}</td></tr>`).join("")}</tbody></table></details></div>
+    <div class="an-grid">
+      <div class="card"><div class="chart-top"><h4>Messages per day</h4>
+        <div class="legend"><span><i class="sw agents"></i>agents</span><span><i class="sw people"></i>people</span></div></div>
+        <div id="an-chart" class="an-chart"></div></div>
+      <div class="card"><div class="chart-top"><h4>Words per day</h4></div><div id="an-words" class="an-chart"></div>
+        <div class="chart-top"><h4>Average length, characters</h4></div><div id="an-len" class="an-chart"></div></div>
+      <div class="card"><div class="chart-top"><h4>Time to response</h4><span class="small">${fmtN(rt.requests || 0)} requests · ${fmtN(rt.unanswered || 0)} unanswered</span></div>
+        <p class="small an-rule">${esc(rt.rule || "An agent is mentioned or DMed; its first later message in that thread or DM answers it.")}</p>
+        <div id="an-hist" class="an-chart"></div>
+        ${(rt.agents || []).length ? `<table class="an-table"><thead><tr><th>Agent</th><th>Asked</th><th class="hide-sm">Unanswered</th><th>Median</th><th>90% within</th></tr></thead><tbody>
+        ${rt.agents.map((x) => `<tr><td><span class="who" data-profile="${x.id}">${avatar(x, "xs", false)}<span>${esc(nameOf(x))}</span></span></td><td>${x.requests}</td><td class="hide-sm">${x.unanswered}</td><td>${fmtDur(x.median_seconds)}</td><td>${fmtDur(x.p90_seconds)}</td></tr>`).join("")}</tbody></table>` : ""}</div>
+      <div class="card"><div class="chart-top"><h4>Who talks to whom</h4>
+        <label class="small an-k">Top <input type="range" id="an-k" min="3" max="30" value="${k}"> <b id="an-k-n">${k}</b></label></div>
+        <p class="small an-rule">People and agents; a ribbon is the messages between the two: DMs, replies and mentions, both directions.</p>
+        <div id="an-chord" class="an-chart an-chord"></div>
+        <div class="legend"><span><i class="sw agents"></i>agent</span><span><i class="sw people"></i>person</span><span><i class="sw other"></i>other</span></div></div>
+      <div class="card"><div class="chart-top"><h4>Agents listening</h4><span class="small">${li.started_at ? `collected since ${esc(fmtDate(li.started_at))}` : "not collected yet"}</span></div>
+        <div id="an-listen" class="an-chart"></div><p class="small">Gaps are times with no data, not zero.</p></div>
+      <div class="card"><div class="chart-top"><h4>Files</h4><span class="small">${fmtN(fi.count || 0)} files · ${fmtBytes(fi.bytes || 0)}</span></div>
+        ${(fi.by_principal || []).length ? `<table class="an-table an-files"><thead><tr><th>Who</th><th>Files</th><th class="bar-col">Size</th></tr></thead><tbody>
+        ${fi.by_principal.map((x) => `<tr><td><span class="who" data-profile="${x.id}">${avatar(x, "xs", false)}<span>${esc(nameOf(x))}</span></span></td><td>${x.count}</td>
+          <td class="bar-col"><span class="hbar"><span style="width:${(100 * x.bytes / fmax).toFixed(1)}%"></span></span><b>${fmtBytes(x.bytes)}</b></td></tr>`).join("")}</tbody></table>`
+          : `<div class="empty">No files in these days.</div>`}</div>
+    </div>
+    ${a.health ? `<div class="card"><h4>Board health</h4><p class="small">Right now, whatever days are selected.</p><div class="an-health">${healthCells(a.health)}</div></div>` : ""}
     <div class="card"><h4>Channels</h4>
-      <table class="an-table wide"><thead><tr><th>Channel</th><th class="bar-col">Messages, last ${days} days</th><th>Posters</th><th class="hide-sm">All time</th><th class="hide-sm">Last message</th></tr></thead><tbody>
-      ${a.channels.map((c) => `<tr class="${c.archived ? "muted" : ""}"><td>${c.id ? `<span class="chan-link" data-channel="${c.id}" role="link" tabindex="0">${c.kind === "private" ? LOCK : "#"}${esc(c.name)}</span>` : `<i>${esc(c.name)}</i>`}${c.archived ? ' <span class="label">archived</span>' : ""}</td>
+      <table class="an-table wide"><thead><tr><th>Channel</th><th class="bar-col">Messages</th><th>Posters</th><th class="hide-sm">All time</th><th class="hide-sm">Last message</th></tr></thead><tbody>
+      ${(a.channels || []).map((c) => `<tr class="${c.archived ? "muted" : ""}"><td>${c.id ? `<span class="chan-link" data-channel="${c.id}" role="link" tabindex="0">${c.kind === "private" ? LOCK : "#"}${esc(c.name)}</span>` : `<i>${esc(c.name)}</i>`}${c.archived ? ' <span class="label">archived</span>' : ""}</td>
         <td class="bar-col"><span class="hbar"><span style="width:${(100 * c.messages / maxC).toFixed(1)}%"></span></span><b>${c.messages}</b></td>
         <td>${c.posters}</td><td class="hide-sm">${c.total}</td><td class="small hide-sm">${c.last_at ? esc(ago(c.last_at)) : "never"}</td></tr>`).join("")}</tbody></table></div>
-    <div class="card"><div class="chart-top"><h4>Who posts</h4><div class="seg small-seg" role="group" aria-label="Show">${[["all", "Everyone"], ["agents", "Agents"], ["people", "People"]].map(([k, l]) =>
-      `<button data-who="${k}" class="${k === filter ? "on" : ""}">${l}</button>`).join("")}</div></div>
+    <div class="card"><div class="chart-top"><h4>Who posts</h4><div class="seg small-seg" role="group" aria-label="Show">${[["all", "Everyone"], ["agents", "Agents"], ["people", "People"]].map(([key, l]) =>
+      `<button data-who="${key}" class="${key === filter ? "on" : ""}">${l}</button>`).join("")}</div></div>
       ${posters.length ? `<table class="an-table wide"><thead><tr><th>Name</th><th class="hide-sm">Owner</th><th class="bar-col">Messages</th><th class="hide-sm">Daily</th><th class="hide-sm">Channels</th><th>Last post</th></tr></thead><tbody>
       ${posters.map((x) => `<tr><td><span class="who" data-profile="${x.id}">${avatar(x, "xs", false)}<span>${esc(nameOf(x))}</span><span class="label">${esc(kindLabel(x))}</span></span></td>
         <td class="small hide-sm">${x.owner ? esc(nameOf(x.owner)) : ""}</td>
         <td class="bar-col"><span class="hbar"><span style="width:${(100 * x.messages / maxP).toFixed(1)}%"></span></span><b>${x.messages}</b></td>
         <td class="hide-sm">${spark(x.daily, a.daily)}</td><td class="hide-sm">${x.channels}</td><td class="small">${esc(ago(x.last_at))}</td></tr>`).join("")}</tbody></table>`
-      : `<div class="empty">Nobody in this group posted in the last ${days} days.</div>`}</div>`;
-  hydrate($("sbody"));
-  $("sbody").querySelectorAll("[data-days]").forEach((b) => b.onclick = () => { state.analyticsDays = Number(b.dataset.days); settingsAnalytics(); });
-  $("sbody").querySelectorAll("[data-who]").forEach((b) => b.onclick = () => { state.analyticsWho = b.dataset.who; settingsAnalytics(); });
-  drawDaily($("an-chart"), a.daily);
+      : `<div class="empty">Nobody in this group posted in these days.</div>`}</div>
+  </div>`;
+  hydrate($("analytics"));
+  const daily = ms.daily && ms.daily.length ? ms.daily : (a.daily || []);
+  drawDaily($("an-chart"), daily);
+  drawSeries($("an-words"), daily.map((d) => ({ t: d.day, v: d.words ?? null })), { label: "words", fmt: fmtN });
+  drawSeries($("an-len"), daily.map((d) => ({ t: d.day, v: d.average_length ?? null })), { label: "characters", fmt: (v) => String(Math.round(v)) });
+  drawHist($("an-hist"), rt);
+  drawChord($("an-chord"), a.interactions);
+  drawSeries($("an-listen"), ((li.series) || []).map((p) => ({ t: p.at, v: p.count, note: p.samples != null && p.expected_samples ? `${p.samples} of ${p.expected_samples} samples` : "" })),
+    { label: "agents", fmt: (v) => (Math.round(v * 10) / 10).toString(), time: (li.bucket_seconds || DAY_S) < DAY_S });
+  const root = $("analytics");
+  root.querySelectorAll("[data-days]").forEach((b) => b.onclick = () => { state.anRange = { days: Number(b.dataset.days) }; renderAnalytics(); });
+  root.querySelectorAll("[data-who]").forEach((b) => b.onclick = () => { state.analyticsWho = b.dataset.who; renderAnalytics(); });
+  $("an-custom").onsubmit = (e) => {
+    e.preventDefault();
+    const f = Date.parse($("an-from").value + "T00:00:00Z") / 1000, to = Date.parse($("an-to").value + "T00:00:00Z") / 1000 + DAY_S;
+    if (!(f < to)) return;
+    state.anRange = { custom: true, from: f, to, days: Math.round((to - f) / DAY_S) }; renderAnalytics();
+  };
+  $("an-listen-link").onclick = (e) => { e.preventDefault(); openSettings("listening"); };
+  // the slider refetches only the chord, and waits until dragging pauses
+  let timer = 0;
+  $("an-k").oninput = (e) => {
+    $("an-k-n").textContent = e.target.value; clearTimeout(timer);
+    timer = setTimeout(async () => {
+      state.anTopK = Number(e.target.value);
+      try { const b = await api("GET", `/analytics?from=${r.from}&to=${r.to}&top_k=${state.anTopK}`); if (state.view === "analytics" && $("an-chord")) drawChord($("an-chord"), b.interactions); } catch {}
+    }, 300);
+  };
+}
+// health: whatever the server reports, formatted by the unit in its name
+function healthCells(hl) {
+  const label = (k) => k.replace(/_(bytes|seconds|at)$/, "").replace(/_/g, " ").replace(/\bwal\b/, "WAL").replace(/\bdb\b/, "database").replace(/^./, (c) => c.toUpperCase());
+  const val = (k, v) => v == null ? "—" : typeof v === "boolean" ? (v ? "yes" : "no")
+    : /bytes$/.test(k) ? fmtBytes(v) : /_at$/.test(k) ? ago(v) : /seconds$/.test(k) ? fmtDur(v) : typeof v === "number" ? fmtN(v) : String(v);
+  const cells = [];
+  for (const [k, v] of Object.entries(hl)) {
+    if (v && typeof v === "object") for (const [k2, v2] of Object.entries(v)) { if (typeof v2 !== "object") cells.push([`${k}_${k2}`, val(k2, v2)]); }
+    else cells.push([k, val(k, v)]);
+  }
+  return cells.map(([k, v]) => `<div><b>${esc(v)}</b><span>${esc(label(k))}</span></div>`).join("");
+}
+// a hover box beside the mark, kept inside the chart
+function anTip(host, mark, html) {
+  let tip = host.querySelector(".an-tip"); if (!tip) { tip = document.createElement("div"); tip.className = "an-tip"; host.append(tip); }
+  tip.innerHTML = html; tip.classList.remove("hidden");
+  const box = host.getBoundingClientRect(), rb = mark.getBoundingClientRect();
+  const right = rb.right - box.left + 6, left = rb.left - box.left - tip.offsetWidth - 6;
+  tip.style.left = (right + tip.offsetWidth <= box.width ? right : Math.max(0, left)) + "px";
+  tip.style.top = Math.max(0, Math.min(rb.top - box.top, box.height - tip.offsetHeight)) + "px";
+}
+const niceTop = (max) => { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1, max) / 4))); const step = p * ([1, 2, 5, 10].find((m) => p * m >= max / 4) || 10); return [Math.ceil(Math.max(1, max) / step) * step, step]; };
+// one line over time; null values break the line (no data, not zero)
+function drawSeries(host, pts, { label, fmt, time } = {}) {
+  if (!pts.length || pts.every((p) => p.v == null)) { host.innerHTML = `<div class="empty small">No data in these days.</div>`; return; }
+  const W = Math.max(280, host.clientWidth || 500), H = 120, L = 40, R = 10, T = 10, B = 22;
+  const [top, step] = niceTop(Math.max(...pts.map((p) => p.v || 0)));
+  const x = (i) => L + (pts.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (pts.length - 1)), y = (v) => T + (H - T - B) * (1 - v / top);
+  let d = "", pen = false;
+  pts.forEach((p, i) => { if (p.v == null) { pen = false; return; } d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`; pen = true; });
+  const every = Math.ceil(pts.length / Math.max(2, Math.floor((W - L - R) / 70)));
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(label || "")} over time">`;
+  for (let v = 0; v <= top; v += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end">${fmtN(v)}</text>`;
+  if (time) {
+    const starts = pts.map((p, i) => [p, i]).filter(([p]) => p.t % DAY_S === 0), gap = Math.ceil(starts.length / Math.max(2, Math.floor((W - L - R) / 70)));
+    starts.forEach(([p, i], j) => { if (j % gap === 0) svg += `<text class="tick" x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(dayLabel(p.t))}</text>`; });
+  } else pts.forEach((p, i) => { if (i % every === 0 || i === pts.length - 1) svg += `<text class="tick" x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(dayLabel(p.t))}</text>`; });
+  svg += `<path class="line" d="${d}"/>`;
+  const last = [...pts].reverse().find((p) => p.v != null), li = pts.lastIndexOf(last);
+  svg += `<circle class="dotm" cx="${x(li)}" cy="${y(last.v)}" r="3.5"/>`;
+  const slot = (W - L - R) / Math.max(1, pts.length - 1);
+  pts.forEach((p, i) => { svg += `<rect class="hit" data-i="${i}" x="${x(i) - slot / 2}" y="${T}" width="${slot}" height="${H - T - B}"/>`; });
+  host.innerHTML = svg + `</svg><div class="an-tip hidden"></div>`;
+  host.querySelectorAll(".hit").forEach((r) => r.addEventListener("mouseenter", () => {
+    const p = pts[Number(r.dataset.i)];
+    host.querySelectorAll(".hit.on").forEach((h) => h.classList.remove("on")); r.classList.add("on");
+    anTip(host, r, `<b>${esc(time ? new Date(p.t * 1000).toLocaleString() : dayLabel(p.t, true))}</b><span>${p.v == null ? "no data" : `${esc(fmt ? fmt(p.v) : String(p.v))} ${esc(label || "")}`}</span>${p.note ? `<span>${esc(p.note)}</span>` : ""}`);
+  }));
+  host.querySelector("svg").addEventListener("mouseleave", () => { host.querySelector(".an-tip").classList.add("hidden"); host.querySelectorAll(".hit.on").forEach((h) => h.classList.remove("on")); });
+}
+// response-time histogram with median and 90% markers
+function drawHist(host, rt) {
+  const rows = (rt && rt.histogram) || [];
+  if (!rows.length || !rows.some((b) => b.count)) { host.innerHTML = `<div class="empty small">No requests to agents in these days.</div>`; return; }
+  const W = Math.max(280, host.clientWidth || 500), H = 170, L = 40, R = 8, T = 18, B = 26;
+  const [top, step] = niceTop(Math.max(...rows.map((b) => b.count)));
+  const slot = (W - L - R) / rows.length, bw = Math.max(4, slot - 4), y = (v) => T + (H - T - B) * (1 - v / top);
+  const unit = (s) => s < 60 ? "s" : s < 3600 ? "m" : "h", num = (s) => s < 60 ? s : s < 3600 ? s / 60 : s / 3600;
+  const short = (s) => `${num(s)}${unit(s)}`;
+  // compact axis labels ("2–5m"); the hover says it in full
+  const name = (b, i) => i === 0 ? `<${short(b.to_seconds)}` : b.to_seconds == null ? `>${short(b.from_seconds)}`
+    : unit(b.from_seconds) === unit(b.to_seconds) ? `${num(b.from_seconds)}–${short(b.to_seconds)}` : `${short(b.from_seconds)}–${short(b.to_seconds)}`;
+  const full = (b, i) => i === 0 ? `under ${fmtDur(b.to_seconds)}` : b.to_seconds == null ? `over ${fmtDur(b.from_seconds)}` : `${fmtDur(b.from_seconds)} to ${fmtDur(b.to_seconds)}`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Time to response, distribution">`;
+  for (let v = 0; v <= top; v += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end">${fmtN(v)}</text>`;
+  rows.forEach((b, i) => {
+    const x = L + i * slot + (slot - bw) / 2;
+    if (b.count) svg += `<path class="bar agents" d="${barPath(x, y(b.count), bw, y(0) - y(b.count), true)}"/>`;
+    svg += `<text class="tick" x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${esc(name(b, i))}</text>`;
+    svg += `<rect class="hit" data-i="${i}" x="${L + i * slot}" y="${T}" width="${slot}" height="${H - T - B}"/>`;
+  });
+  // markers sit inside their bucket, placed linearly between its edges
+  const at = (s) => { const i = rows.findIndex((b) => s >= b.from_seconds && (b.to_seconds == null || s < b.to_seconds)); if (i < 0) return null;
+    const b = rows[i], f = b.to_seconds == null ? 0.5 : (s - b.from_seconds) / (b.to_seconds - b.from_seconds); return L + (i + f) * slot; };
+  [[rt.median_seconds, "median"], [rt.p90_seconds, "90%"]].forEach(([s, l]) => { const mx = s == null ? null : at(s);
+    if (mx != null) svg += `<line class="mark" x1="${mx}" x2="${mx}" y1="${T - 6}" y2="${y(0)}"/><text class="tick strong" x="${mx + 4}" y="${T - 2}">${l} ${esc(fmtDur(s))}</text>`; });
+  host.innerHTML = svg + `<line class="axis" x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}"/></svg><div class="an-tip hidden"></div>`;
+  host.querySelectorAll(".hit").forEach((r) => r.addEventListener("mouseenter", () => {
+    const i = Number(r.dataset.i), b = rows[i];
+    host.querySelectorAll(".hit.on").forEach((h) => h.classList.remove("on")); r.classList.add("on");
+    anTip(host, r, `<b>${esc(full(b, i))}</b><span>${b.count} answered</span>`);
+  }));
+  host.querySelector("svg").addEventListener("mouseleave", () => { host.querySelector(".an-tip").classList.add("hidden"); host.querySelectorAll(".hit.on").forEach((h) => h.classList.remove("on")); });
+}
+// who talks to whom: a chord diagram drawn by hand (arcs per person or agent, ribbons per pair)
+function drawChord(host, inter) {
+  const nodes = (inter && inter.nodes) || [], links = ((inter && inter.links) || []).filter((l) => l.source !== l.target && l.total > 0);
+  if (!links.length) { host.innerHTML = `<div class="empty small">No messages between people and agents in these days.</div>`; return; }
+  const W = Math.max(300, Math.min(host.clientWidth || 480, 560)), H = W, R = W / 2 - 92, r0 = R - 12, PAD = 0.03;
+  const byId = new Map(nodes.map((n) => [String(n.id), n]));
+  const vol = new Map(nodes.map((n) => [String(n.id), 0]));
+  links.forEach((l) => { vol.set(String(l.source), (vol.get(String(l.source)) || 0) + l.total); vol.set(String(l.target), (vol.get(String(l.target)) || 0) + l.total); });
+  // people first, then agents, then other; each group by volume
+  const kind = (n) => n.id === "other" ? 2 : n.identity_type === "user" ? 0 : 1;
+  const order = nodes.filter((n) => vol.get(String(n.id))).sort((p, q) => kind(p) - kind(q) || vol.get(String(q.id)) - vol.get(String(p.id)));
+  const total = order.reduce((s, n) => s + vol.get(String(n.id)), 0), k = (2 * Math.PI - PAD * order.length) / total;
+  const arcs = new Map(); let a0 = 0;
+  order.forEach((n) => { const v = vol.get(String(n.id)); arcs.set(String(n.id), { n, a0, a1: a0 + v * k, cur: a0 }); a0 += v * k + PAD; });
+  const P = (a, r) => [(r * Math.sin(a)).toFixed(2), (-r * Math.cos(a)).toFixed(2)];
+  const arcPath = (s, e, ri, ro) => `M${P(s, ro)}A${ro},${ro} 0 ${e - s > Math.PI ? 1 : 0} 1 ${P(e, ro)}L${P(e, ri)}A${ri},${ri} 0 ${e - s > Math.PI ? 1 : 0} 0 ${P(s, ri)}Z`;
+  // each arc is cut into one slice per link, biggest first
+  const slices = links.slice().sort((p, q) => q.total - p.total).map((l) => {
+    const s = arcs.get(String(l.source)), t = arcs.get(String(l.target)); if (!s || !t) return null;
+    const ss = [s.cur, s.cur += l.total * k], ts = [t.cur, t.cur += l.total * k]; return { l, ss, ts };
+  }).filter(Boolean);
+  const big = (p) => p[1] - p[0] > Math.PI ? 1 : 0;
+  const ribbon = ({ ss, ts }) => `M${P(ss[0], r0)}A${r0},${r0} 0 ${big(ss)} 1 ${P(ss[1], r0)}Q0,0 ${P(ts[0], r0)}A${r0},${r0} 0 ${big(ts)} 1 ${P(ts[1], r0)}Q0,0 ${P(ss[0], r0)}Z`;
+  const cls = (n) => n.id === "other" ? "other" : n.identity_type === "user" ? "people" : "agents";
+  const nm = (n) => n.id === "other" ? `other (${n.members})` : nameOf(n);
+  let svg = `<svg viewBox="${-W / 2} ${-H / 2} ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Who talks to whom">`;
+  svg += slices.map((s, i) => `<path class="ribbon" data-i="${i}" data-a="${s.l.source}" data-b="${s.l.target}" d="${ribbon(s)}"/>`).join("");
+  for (const { n, a0: s, a1: e } of arcs.values()) {
+    const mid = (s + e) / 2, deg = mid * 180 / Math.PI - 90, flip = mid > Math.PI;
+    svg += `<path class="arc ${cls(n)}" data-n="${n.id}" d="${arcPath(s, e, r0, R)}"/>`;
+    svg += `<g transform="rotate(${deg.toFixed(1)}) translate(${R + 8},0)${flip ? " rotate(180)" : ""}"><text class="node" text-anchor="${flip ? "end" : "start"}" dy="-0.1em">${esc(nm(n))}</text>` +
+      `<text class="tick" text-anchor="${flip ? "end" : "start"}" dy="1.1em">${fmtN(vol.get(String(n.id)))}</text></g>`;
+  }
+  host.innerHTML = svg + `</svg><div class="an-tip hidden"></div>`;
+  const svgEl = host.querySelector("svg");
+  const focus = (fn) => host.querySelectorAll(".ribbon").forEach((p) => p.classList.toggle("dim", !fn(p)));
+  host.querySelectorAll(".ribbon").forEach((p) => p.addEventListener("mouseenter", () => {
+    const l = slices[Number(p.dataset.i)].l, a = byId.get(String(l.source)), b = byId.get(String(l.target));
+    focus((q) => q === p);
+    anTip(host, p, `<b>${esc(nm(a))} ↔ ${esc(nm(b))}</b><span>${l.total} messages</span><span>${l.dms} DMs · ${l.replies} replies · ${l.mentions} mentions</span>`);
+  }));
+  host.querySelectorAll(".arc").forEach((p) => p.addEventListener("mouseenter", () => {
+    const id = p.dataset.n, n = byId.get(id);
+    focus((q) => q.dataset.a === id || q.dataset.b === id);
+    const inner = n.id === "other" && inter.other_internal ? `<span>${inter.other_internal.total ?? inter.other_internal} among themselves</span>` : "";
+    anTip(host, p, `<b>${esc(nm(n))}</b><span>${fmtN(vol.get(id))} messages with ${n.identity_type === "user" ? "agents" : "people"}</span>${inner}`);
+  }));
+  svgEl.addEventListener("mouseleave", () => { focus(() => true); host.querySelector(".an-tip").classList.add("hidden"); });
 }
 function spark(values, daily) {
   const w = 84, h = 18, max = Math.max(1, ...values), bw = w / values.length;
@@ -3813,10 +4058,12 @@ function barPath(x, y0, w, h, roundTop) {
   const r = roundTop ? Math.min(4, w / 2, h) : 0;   // rounded only on the data end
   return `M${x},${y0 + h}V${y0 + r}${r ? `Q${x},${y0} ${x + r},${y0}` : ""}H${x + w - r}${r ? `Q${x + w},${y0} ${x + w},${y0 + r}` : ""}V${y0 + h}Z`;
 }
-window.addEventListener("resize", () => { if (state.view === "settings" && state.settingsTab === "analytics" && $("an-chart")) settingsAnalytics(); });
+let anResize = 0;
+window.addEventListener("resize", () => { clearTimeout(anResize); anResize = setTimeout(() => { if (state.view === "analytics") renderAnalytics(); }, 250); });
 
 // ------------------------------------------------------------------ misc
 $("me-who").onclick = () => state.me && openProfile(state.me.id);
+$("analytics-open").onclick = () => openAnalytics();
 $("menu").onclick = () => $("app").classList.toggle("nav");
 $("app").addEventListener("click", (e) => {
   if (!$("app").classList.contains("nav") || e.target.closest("aside, #menu")) return;
@@ -3879,6 +4126,7 @@ $("channel-form").addEventListener("submit", async (e) => {
 window.addEventListener("hashchange", () => {
   if (location.hash === "#settings") { if (state.view !== "settings") openSettings(); return; }
   if (location.hash === "#activity") { if (state.view !== "activity") openActivity(); return; }
+  if (location.hash === "#analytics") { if (state.view !== "analytics") openAnalytics(); return; }
   const c = state.channels.find((x) => x.name === decodeURIComponent(location.hash.slice(1)));
   if (c && (!state.current || c.id !== state.current.id)) openChannel(c.id);
 });
