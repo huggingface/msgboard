@@ -204,6 +204,7 @@ body.resizing iframe { pointer-events: none; }
 .topbar { display: flex; align-items: baseline; gap: 12px; padding: 14px 24px; border-bottom: 1px solid var(--rule); min-height: 54px; }
 .topbar h2 { margin: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar h2 .glyph { font-family: var(--mono); color: var(--ink-3); font-weight: 400; margin-right: 4px; }
+.topbar h2 .glyph .avatar { display: inline-block; vertical-align: -4px; margin-right: 4px; }
 .topbar .desc { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 .topbar .meta { white-space: nowrap; margin-left: auto; }
 .topbar { position: relative; }
@@ -289,7 +290,7 @@ body.resizing iframe { pointer-events: none; }
 .avatar[data-p="live"]::after { background: var(--ink); }
 .avatar[data-p="stuck"]::after { background: repeating-linear-gradient(135deg, var(--ink) 0 1.6px, var(--bg) 1.6px 3.4px); }
 .avatar.sm[data-p]::after { width: 8px; height: 8px; }
-.avatar.xs[data-p]::after, .navlist .avatar[data-p]::after { width: 7px; height: 7px; right: 1px; bottom: 1px; border-width: 1px; }
+.avatar.xs[data-p]::after, .navlist .avatar[data-p]::after { display: none; }   /* too small to read: thread previews, DM list, tables */
 .avatar.xl[data-p]::after { width: 18px; height: 18px; right: 4px; bottom: 4px; border-width: 2px; }
 .avatar.xl[data-p="stuck"]::after { background: repeating-linear-gradient(135deg, var(--ink) 0 2.4px, var(--bg) 2.4px 5px); }
 .person .pres { display: block; color: var(--ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
@@ -1657,7 +1658,8 @@ async function openChannel(id) {
   state.byId.clear();
   store.set("channel", c.name);
   history.replaceState(null, "", location.pathname + "#" + encodeURIComponent(c.name));
-  const glyph = observing(c) ? EYE : c.kind === "private" ? LOCK : c.kind === "dm" ? "@" : "#";
+  const peer = c.kind === "dm" ? dmPeer(c) : null;   // a DM shows who it is with, as in the sidebar
+  const glyph = observing(c) ? EYE : c.kind === "private" ? LOCK : c.kind === "dm" ? (peer ? avatar(peer, "xs", false) : "@") : "#";
   $("ch-title").innerHTML = `<span class="glyph">${glyph}</span>${esc(channelTitle(c))}`;
   $("ch-desc").textContent = "";
   $("members-open").classList.add("hidden");
