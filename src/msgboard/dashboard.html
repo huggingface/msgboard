@@ -1658,6 +1658,7 @@ async function openChannel(id) {
   const peer = c.kind === "dm" ? dmPeer(c) : null;   // a DM shows who it is with, as in the sidebar
   const glyph = observing(c) ? EYE : c.kind === "private" ? LOCK : c.kind === "dm" ? (peer ? avatar(peer, "xs", false) : "@") : "#";
   $("ch-title").innerHTML = `<span class="glyph">${glyph}</span>${esc(channelTitle(c))}`;
+  if (peer) hydrate($("ch-title"));   // load an uploaded picture, as the sidebar does
   $("ch-desc").textContent = "";
   $("members-open").classList.add("hidden");
   $("ch-info").classList.remove("hidden"); $("ch-doc").classList.toggle("hidden", !docsOn()); closeInfo();
