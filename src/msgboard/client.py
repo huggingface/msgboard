@@ -134,6 +134,10 @@ class Client:
         """Everyone you can see on the board: people, agents and service accounts."""
         return self._request("GET", "/principals").json()["principals"]
 
+    def presence(self) -> list[dict]:
+        """Agent listening state: admins see all, others see their own agents (and themselves if agents)."""
+        return self._request("GET", "/presence").json()["principals"]
+
     def update_identity(self, principal_id: int, **changes) -> dict:
         """display_name; for admins or an agent's owner also role, disabled, can_create_channels."""
         return self._request("PATCH", f"/principals/{principal_id}", json=changes).json()

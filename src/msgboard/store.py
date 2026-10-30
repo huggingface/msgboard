@@ -27,6 +27,7 @@ from typing import Any
 from . import auth
 from .auth import Principal
 from .config import LIMITS
+from .presence import FIELDS as PRESENCE_FIELDS, unknown as unknown_presence
 from .errors import ApiError, bad_request, conflict, forbidden, not_found, unauthorized
 
 CHANNEL_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
@@ -393,6 +394,67 @@ def _check_visible(conn, p: Principal, target_id: int) -> None:
     allowed = _directory_ids(conn, p)
     if allowed is not None and target_id not in allowed:
         raise not_found("identity not found")
+
+
+# ----------------------------------------------------------------------- presence
+
+def load_presence(conn) -> dict[int, dict]:
+    records = {}
+    for row in conn.execute("""SELECT pp.* FROM principal_presence pp JOIN principals p ON p.id = pp.principal_id
+                               WHERE p.identity_type != 'user'"""):
+        record = {key: row[key] for key in PRESENCE_FIELDS}
+        record["listens"] = json.loads(record["listens"]) if record["listens"] else None
+        record["waiting"] = bool(record["waiting"]) if record["waiting"] is not None else None
+        records[row["principal_id"]] = record
+    return records
+
+
+def save_presence(conn, records: dict[int, dict]) -> None:
+    conn.executemany(
+        """INSERT INTO principal_presence
+           (principal_id, last_seen_at, last_poll_at, listens, cursor, cursor_since, waiting, waiting_since)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(principal_id) DO UPDATE SET last_seen_at=excluded.last_seen_at,
+               last_poll_at=excluded.last_poll_at, listens=excluded.listens, cursor=excluded.cursor,
+               cursor_since=excluded.cursor_since, waiting=excluded.waiting, waiting_since=excluded.waiting_since""",
+        [(pid, record["last_seen_at"], record["last_poll_at"],
+          json.dumps(record["listens"]) if record["listens"] is not None else None,
+          record["cursor"], record["cursor_since"], record["waiting"], record["waiting_since"])
+         for pid, record in records.items()])
+
+
+def attach_presence(conn, viewer: Principal, items: list[dict], records: dict[int, dict]) -> list[dict]:
+    """Only caller-visible identities enter here; never expose hidden listening channel IDs."""
+    readable = visible_channel_ids(conn, viewer)
+    allowed = set(readable) if readable is not None else None
+    out = []
+    for item in items:
+        presence = None
+        if item["identity_type"] != "user":
+            presence = dict(records.get(item["id"], unknown_presence()))
+            if presence["listens"] is not None:
+                listens = presence["listens"]
+                presence["listens"] = {"mode": listens["mode"], "channel_ids": [
+                    cid for cid in listens["channel_ids"] if allowed is None or cid in allowed]}
+        out.append(dict(item, presence=presence))
+    return out
+
+
+def list_presence(conn, viewer: Principal, records: dict[int, dict]) -> list[dict]:
+    allowed = _directory_ids(conn, viewer)
+    allowed = set(allowed) if allowed is not None else None
+    rows = conn.execute("""SELECT * FROM principals WHERE identity_type != 'user'
+                           AND (? OR id = ? OR owner_id = ?)""", (viewer.is_admin, viewer.id, viewer.id))
+    items = []
+    for row in rows:
+        if allowed is not None and row["id"] not in allowed:
+            continue
+        item = principal_json(conn, row)
+        if not viewer.is_admin and row["id"] != viewer.id and row["owner_id"] != viewer.id:
+            item.pop("hf_username")
+        items.append(item)
+    items = attach_presence(conn, viewer, items, records)
+    return sorted(items, key=lambda item: (-(item["presence"]["last_poll_at"] or 0), item["id"]))
 
 
 def _active_admins(conn) -> int:
