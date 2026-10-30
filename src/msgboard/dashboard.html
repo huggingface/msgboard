@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAEuElEQVR42u3dO07jQACA4cwjUhxiUBAdEgWCIoIaiZqOO4BERUMFN0A5AVyBh0RDjTgBouQUKBERcpTEj/FsYS270qbY3fFuJvH/HwAF+7NnHDyDaLfbNaJpSQ4BgYPAQeAgcBA4CBwEDgIHgYPAQQQOAgeBg8BB4CBwEDgIHAQOAgcROAgcBA4CB4GDwEHgIHAQOKgyafcfIYSQEmR+Za3N83zGOIQQcRzHccz58Oui17rZbFprZ4ZDCJGm6fb29sbGhrVWCMFZ8aR+v//29lav1118OOFQSn18fBwdHZ2fn3M+vOrp6enw8HB1ddUYM8s5R5IkeZ5nWaa15qzMPGOMUmoymbjfyEubkBZxbnyYikopSxniOZ0EDgIHgYPAQeAgcBA4CBwEDgIHETgIHAQOAgeBg8BBc5IvL/a5v0e/UJesH+/UaQ4HeYqjWNAwHA5PT08/Pz+11o5LLeY9IUSWZVdXV5ubmzNf7eHFnSNN0+fn516v57jOYjFwpGna7Xa/rpyq4xBCrKyspGkKDiFEkiRKKYaVHxljjDFSSnAYYzw5CEwDCRwEDgIHgYPAQeAgcNCi5MuXYPp7fAmW57knG2h5gcNa2+/3B4MBF2tRlmXgqBWXSBAEl5eXo9GIP9zXajVjzPr6+tfBqfqdo9FonJ2dwWLqlcOcw5cbqScppXyYdng0IcUEj7IEDgIHgYPAQcSj7N9fTFXaxZtHWfIbRxzHd3d34/HY54tSSjkejw8ODnZ3d/M8r8L9w4sVb6PR6OLiYjAYCCG8/aus1jrLsuvra3D814QQa2trtVrN50VNWuterxcEAcPKDCakWZb5fOcoPmSldgPgUZbAQeAgcBA4CBwEDgIHLUoe7SZY5O2XYFJKT977rRYOa+1wOIyiyPOvz40xSZKA438f9/39fc+3mlRKDQYDT5YbVQJHcZTDMHx8fJyjo+bJbn9VmXPM0frp6kw7NEeceJQlcBA4CBwEDgIHgYPAQeAgcBCBg8BB4CBwEDgIHAQOmvNKeBPMWlv8y2D3t7mEEP9uxxxjTBXOaPFrlrKPSAk4Go2GUsrzd27zPK/IW8HFr7m0tOT+Wq5ot9suF3qSJJ1OZ2trq9jd6++HNynH43Gn0+l2u44/6teyLNNaPzw83N/ft1qtxb6FFEfv/f399fXVcR2QE47Cx2QyiePYde4jZZqme3t7Ly8v5eIoZNze3p6cnJQy9s3HdEFr95uHdncaBEGz2XTHEUXR8vJyucfoZxmtVqs6/0POWus+7ShhzlHK3OdrVvvvZEgp+Zc/PMpOl1GpjQDBgQxwIAMcpZSmKTLAMf2eUa/XkQEORhNwMJqAg9EEHIwm4GA0AQejCTgYTcDBaELzjoPRBByMJuBABjiQAQ5kgAMZ4OCpFRw8tdK84WA0AQejCTgYTcDhXp7nyADHdBlSypubG2T4kAqCwIfPUSzI3tnZ0VofHx+HYYiM2Z8Ux1X25d42wjAcDofWWq01MhhWfvooUkZRJIRQSiHDh7RXn6bYlaYiuySA48+CBcMKgYPAQeAgcBCBg8BB4CBwEDgIHAQOAgeBg8BBBA4CB4GDwEHgIHAQOAgcBA4CB4GDCBz0+30DzCSPkLlRZgYAAAAASUVORK5CYII=">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css"
   integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+<script>document.documentElement.dataset.look = "a2"; try { if (localStorage.getItem("msgboard:look") === "classic") delete document.documentElement.dataset.look; } catch {}</script>
 <style>
 :root {
   --bg: #fafaf8; --panel: #f1f1ee; --ink: #111; --ink-2: #555; --ink-3: #8a8a86;
@@ -430,6 +431,46 @@ button.fchip:hover { border-color: var(--ink); }
 .pending { font: 11px var(--mono); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .readonly { font: 12px var(--mono); color: var(--ink-3); padding: 6px 0; }
 .composer { position: relative; }
+
+/* ---------- A2 look (on trial): white surfaces, a black selection, denser type, one 52px header row and one
+   60px footer row across all columns. Toggled per browser with the "A2" button by the board name. */
+:root[data-look="a2"] { --ink-2: #5f5f5b; --ink-3: #5f5f5b; --rule: #d6d6d2; --rule-2: #b9b9b4; --hover: #f4f4f2;
+  --select: #111; --select-ink: #fff; --panel: #f6f6f4; --bg: #fff; }
+@media (prefers-color-scheme: dark) {
+  :root[data-look="a2"] { --bg: #111110; --panel: #1a1a19; --ink-2: #a3a39e; --ink-3: #a3a39e; --rule: #2a2a28; --rule-2: #46463f;
+    --hover: #1c1c1a; --select: #ededea; --select-ink: #111110; }
+}
+[data-look="a2"] body { font-size: 13.5px; line-height: 1.42; }
+[data-look="a2"] aside { background: var(--bg); }
+[data-look="a2"] .brand, [data-look="a2"] .topbar { height: 52px; min-height: 52px; padding-top: 0; padding-bottom: 0; border-bottom-color: var(--rule-2); }
+[data-look="a2"] .brand { padding: 0 12px 0 16px; }
+[data-look="a2"] .topbar { padding: 0 20px; gap: 8px; }
+[data-look="a2"] .topbar > h2, [data-look="a2"] .topbar > .desc, [data-look="a2"] .topbar > .meta, [data-look="a2"] .topbar > .linkish { line-height: 51px; }
+[data-look="a2"] .topbar > button:not(.linkish) { align-self: center; }
+[data-look="a2"] .search-box { padding: 12px 16px 0; }
+[data-look="a2"] .search-box input { height: 32px; padding: 0 8px; }
+[data-look="a2"] .side-head { padding: 12px 16px 4px; }
+[data-look="a2"] .navlist li button { min-height: 30px; padding: 0 8px; }
+[data-look="a2"] .navlist li button.active .name { font-weight: 650; }
+[data-look="a2"] .side-foot { border-top: 0; }
+[data-look="a2"] .side-toggles { padding-bottom: 8px; }
+[data-look="a2"] .me { height: 60px; padding: 0 16px; border-top: 1px solid var(--rule-2); }
+[data-look="a2"] .msg { grid-template-columns: 34px minmax(0, 1fr); column-gap: 8px; padding: 3px 20px; }
+[data-look="a2"] .msg.first { padding-top: 8px; }
+[data-look="a2"] .msg > .avatar { width: 34px; height: 34px; }
+[data-look="a2"] .day { margin: 12px 20px 4px; }
+[data-look="a2"] .older { padding: 0 20px; }
+[data-look="a2"] .composer, [data-look="a2"] #panel .composer { min-height: 60px; padding: 13px 20px; border-top-color: var(--rule-2); }
+[data-look="a2"] .cbox { display: flex; flex-wrap: wrap; align-items: flex-end; }
+[data-look="a2"] .cbox .files { flex: 0 0 calc(100% - 16px); }
+[data-look="a2"] .cbox textarea { flex: 1; width: auto; min-width: 0; padding: 5px 10px; line-height: 20px; }
+[data-look="a2"] .cbox .bar { flex: none; padding: 0 3px 3px 0; height: 30px; align-items: center; }
+[data-look="a2"] .cbox .bar .btn { padding: 3px 12px; font-size: 12.5px; }
+[data-look="a2"] .cbox.multi textarea { flex-basis: 100%; }
+[data-look="a2"] .cbox.multi .bar { flex: 1 0 100%; padding-left: 10px; }
+[data-look="a2"] .new-below { bottom: 76px; }
+.look-btn { font: 600 10px/1 var(--mono); letter-spacing: .04em; border: 1px solid var(--rule-2) !important; padding: 3px 4px !important; margin-left: auto; margin-right: 2px; }
+.look-btn.on { background: var(--ink) !important; color: var(--bg) !important; border-color: var(--ink) !important; }
 .tool { background: none; border: 0; padding: 0 2px; color: var(--ink-3); display: inline-grid; place-items: center; }
 .tool:hover, .tool[aria-expanded="true"] { color: var(--ink); }
 .tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; }
@@ -666,7 +707,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 
 <div id="app" class="hidden">
   <aside>
-    <div class="brand"><b>msgboard</b><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
+    <div class="brand"><b>msgboard</b><button class="look-btn" id="look-toggle" title="Switch to the classic look (only in this browser)" aria-pressed="true">A2</button><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
     <div class="search-box"><input id="search-input" type="search" placeholder="Search" title="Ctrl/⌘ K opens the full search" aria-label="Search" autocomplete="off" spellcheck="false"></div>
     <div class="nav-scroll">
       <ul class="navlist" id="activity-list"><li><button id="activity-open"><span class="glyph"><svg class="lock" viewBox="0 0 10 11" aria-hidden="true"><path d="M2 8 V5 a3 3 0 0 1 6 0 V8 H2 Z M4 9.5 h2"/></svg></span><span class="name">Activity</span></button></li></ul>
@@ -2245,7 +2286,12 @@ function mountComposer(host, { placeholder, replyTo }) {
   input.value = draftOf(draftKey);
   input.addEventListener("input", () => setDraft(draftKey, input.value));
   let items = [], sending = false;
-  const autosize = () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 220) + "px"; };
+  const autosize = () => {
+    // A2: one line with the buttons beside it; once the text needs more, the buttons move to a row below
+    box.classList.remove("multi"); input.style.height = "auto";
+    if (document.documentElement.dataset.look === "a2" && (input.value.includes("\n") || input.scrollHeight > 32)) { box.classList.add("multi"); input.style.height = "auto"; }
+    input.style.height = Math.min(input.scrollHeight, 220) + "px";
+  };
   const UPLOADS_AT_ONCE = 3;   // the server accepts a few concurrent uploads; the rest wait their turn
   const uploading = () => items.some((it) => it.status === "uploading" || it.status === "queued");
   function renderChips() {
@@ -3366,6 +3412,16 @@ function openSettings(tab) {
   ({ invites: settingsInvites, people: settingsPeople, agents: settingsAgents, suspended: settingsSuspended, board: settingsBoard, analytics: settingsAnalytics })[tab]()
     .catch((e) => { $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
 }
+// A2 look on trial: a per-browser switch, applied before first paint by the snippet in <head>
+function setLook(a2) {
+  if (a2) document.documentElement.dataset.look = "a2"; else delete document.documentElement.dataset.look;
+  store.set("look", a2 ? "" : "classic");   // A2 is the default; only opting out is remembered
+  $("look-toggle").classList.toggle("on", a2); $("look-toggle").setAttribute("aria-pressed", a2);
+  $("look-toggle").title = a2 ? "Switch to the classic look (only in this browser)" : "Back to the A2 look";
+  markScrollingCode(document);
+}
+setLook(store.get("look") !== "classic");
+$("look-toggle").onclick = () => setLook(!document.documentElement.dataset.look);
 $("settings-open").onclick = () => { $("app").classList.remove("nav"); openSettings(); };
 $("add-agents").onclick = async () => {
   $("app").classList.remove("nav"); openSettings("invites");
