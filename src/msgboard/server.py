@@ -262,15 +262,18 @@ class Board:
 
     async def flush_presence(self) -> None:
         versions, records = self.presence.pending()
-        if records:
-            await self.db.write(store.save_presence, records)
+        history = self.presence.pending_history()
+        if records or history:
+            await self.db.write(store.save_presence, records, history)
             self.presence.saved(versions)
+            self.presence.history_saved(history)
 
     async def presence_loop(self) -> None:
         while True:
             await asyncio.sleep(PRESENCE_FLUSH_SECONDS)
             if self.shutting_down:
                 return
+            self.presence.sample(time.time())
             try:
                 await self.flush_presence()
             except Exception:
@@ -286,11 +289,13 @@ class Board:
         # writes, before the replicator takes its final snapshot. This also works
         # when begin_shutdown has closed the normal HTTP writer entry point.
         versions, records = self.presence.pending()
-        if records:
+        history = self.presence.pending_history()
+        if records or history:
             try:
-                self.db._writer.submit(self.db._run_write, store.save_presence, (records,)).result()
+                self.db._writer.submit(self.db._run_write, store.save_presence, (records, history)).result()
                 self.db.generation += 1
                 self.presence.saved(versions)
+                self.presence.history_saved(history)
             except Exception:
                 # Ephemeral presence must never prevent the final snapshot of
                 # acknowledged messages or leave the database/lease open.
@@ -333,6 +338,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     async def lifespan(app):
         board.notifier.loop = asyncio.get_running_loop()
         board.commit_lock = asyncio.Lock()
+        board.presence.sample(time.time())
         task = asyncio.create_task(board.presence_loop())
         try:
             yield
@@ -391,6 +397,9 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         p = await authn(request)
         if not p.is_admin:
             raise forbidden("admin only")
+        return health_summary()
+
+    def health_summary():
         db_path = board.data_dir / DB_NAME
         wal = Path(str(db_path) + "-wal")
         return {
@@ -686,9 +695,16 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                                                        now=time.time()))
 
     @app.get("/v1/analytics")
-    async def get_analytics(request: Request, days: int = Query(30, ge=1, le=365)):
+    async def get_analytics(request: Request, days: int = Query(7, ge=1, le=365),
+                            start: float | None = Query(None, alias="from"),
+                            end: float | None = Query(None, alias="to"),
+                            top_k: int = Query(10, ge=1, le=100)):
         p = await authn(request)
-        return await db.read(store.analytics, p, time.time(), days)
+        result = await db.read(store.analytics, p, time.time(), days, start, end, top_k,
+                               board.presence.pending_history())
+        result["listening"]["now"] = board.presence.listening_now(time.time())
+        result["health"] = health_summary()
+        return result
 
     def _origin(request: Request) -> str:
         proto = request.headers.get("x-forwarded-proto") or request.url.scheme
