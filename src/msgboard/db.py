@@ -458,10 +458,26 @@ CREATE INDEX messages_response_dm ON messages(channel_id, sender_id, created_at,
 CREATE INDEX attachments_published_at ON attachments(published, created_at);
 """
 
+# Agents are owned by people: an agent that an agent invited moves to the person at the top of the chain.
+SCHEMA_V26 = """
+WITH RECURSIVE up(agent, cur, path) AS (
+    SELECT p.id, p.owner_id, ',' || p.id || ',' FROM principals p JOIN principals o ON o.id = p.owner_id
+    WHERE o.identity_type != 'user'
+  UNION ALL
+    SELECT u.agent, o.owner_id, u.path || o.id || ',' FROM up u JOIN principals o ON o.id = u.cur
+    WHERE o.identity_type != 'user' AND o.owner_id IS NOT NULL AND instr(u.path, ',' || o.id || ',') = 0
+),
+root(agent, person) AS (
+    SELECT u.agent, u.cur FROM up u JOIN principals h ON h.id = u.cur WHERE h.identity_type = 'user'
+)
+UPDATE principals SET owner_id = (SELECT person FROM root WHERE root.agent = principals.id)
+WHERE id IN (SELECT agent FROM root);
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25]
+              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
