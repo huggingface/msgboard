@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import fcntl
+import logging
 import mimetypes
 import os
 import random
@@ -12,7 +13,7 @@ import sqlite3
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -26,6 +27,7 @@ from . import store
 from .blobs import LocalBlobStore, new_hasher
 from .config import DB_NAME, LIMITS
 from .errors import ApiError, bad_request, forbidden
+from .presence import PRESENCE_FLUSH_SECONDS, Presence
 
 
 class NotInitialized(RuntimeError):
@@ -147,7 +149,8 @@ class Database:
 
 ANY_CHANNEL = -1   # notifier key woken by a post in any channel (activity long-polls wait on it)
 # Writes that cannot change who a token belongs to or what it may do; every other write clears the auth cache.
-AUTH_SAFE_WRITES = frozenset({store.post_message, store.react, store.mark_read, store.mark_thread_read, store.mark_all_read})
+AUTH_SAFE_WRITES = frozenset({store.post_message, store.react, store.mark_read, store.mark_thread_read,
+                              store.mark_all_read, store.save_presence})
 
 
 class Notifier:
@@ -219,6 +222,7 @@ class Board:
             except BaseException:
                 conn.execute("ROLLBACK")
                 raise
+        self.presence = Presence(store.load_presence(conn))
         self.blobs = LocalBlobStore(self.data_dir / "blobs")
         # storage folders live in the replication store (the Space's bucket) or, locally, under the data dir;
         # downloads are served from a local cache of those objects
@@ -256,10 +260,41 @@ class Board:
         finally:
             self._lock_fh.close()
 
+    async def flush_presence(self) -> None:
+        versions, records = self.presence.pending()
+        if records:
+            await self.db.write(store.save_presence, records)
+            self.presence.saved(versions)
+
+    async def presence_loop(self) -> None:
+        while True:
+            await asyncio.sleep(PRESENCE_FLUSH_SECONDS)
+            if self.shutting_down:
+                return
+            try:
+                await self.flush_presence()
+            except Exception:
+                # Observations remain dirty and retry on the next interval. Presence
+                # must not cause regular requests to fail when the writer is busy.
+                logging.getLogger(__name__).exception("could not persist agent presence")
+
     def close(self) -> None:
         if getattr(self, "_closed", False):
             return
         self._closed = True
+        # The event loop has stopped. Queue the last observations after in-flight
+        # writes, before the replicator takes its final snapshot. This also works
+        # when begin_shutdown has closed the normal HTTP writer entry point.
+        versions, records = self.presence.pending()
+        if records:
+            try:
+                self.db._writer.submit(self.db._run_write, store.save_presence, (records,)).result()
+                self.db.generation += 1
+                self.presence.saved(versions)
+            except Exception:
+                # Ephemeral presence must never prevent the final snapshot of
+                # acknowledged messages or leave the database/lease open.
+                logging.getLogger(__name__).exception("could not persist final agent presence")
         if self.replicator is not None:
             self.replicator.stop(final_push=True)  # after in-flight writes, before closing
         self.db.close()
@@ -298,8 +333,14 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     async def lifespan(app):
         board.notifier.loop = asyncio.get_running_loop()
         board.commit_lock = asyncio.Lock()
-        yield
-        board.begin_shutdown()
+        task = asyncio.create_task(board.presence_loop())
+        try:
+            yield
+        finally:
+            board.begin_shutdown()
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
     app = FastAPI(title="msgboard", version="0.1.0", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json")
@@ -315,17 +356,24 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             body["details"] = exc.details
         return JSONResponse({"error": body}, status_code=exc.status, headers=exc.headers)
 
-    async def authn(request: Request):
+    async def authn(request: Request, *, observe: bool = True):
         token = _bearer(request)
         now = time.monotonic()
         hit = db.auth_cache.get(token) if token else None
         if hit is not None and now - hit[1] < LIMITS.auth_cache_seconds:
+            if observe:
+                board.presence.seen(hit[0], time.time())
             return hit[0]
         p = await db.read(store.authenticate, token, time.time())
         if len(db.auth_cache) > 20_000:
             db.auth_cache.clear()
         db.auth_cache[token] = (p, now)
+        if observe:
+            board.presence.seen(p, time.time())
         return p
+
+    async def with_presence(p, items):
+        return await db.read(store.attach_presence, p, items, board.presence.snapshot())
 
     # ------------------------------------------------------------- health
 
@@ -370,7 +418,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/me")
     async def get_me(request: Request):
         p = await authn(request)
-        return await db.read(store.me, p)
+        return (await with_presence(p, [await db.read(store.me, p)]))[0]
 
     @app.post("/v1/me/read-all")
     async def mark_all_read(request: Request):
@@ -386,13 +434,19 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/principals")
     async def list_principals(request: Request):
         p = await authn(request)
-        return {"principals": await db.read(store.list_principals, p)}
+        return {"principals": await with_presence(p, await db.read(store.list_principals, p))}
+
+    @app.get("/v1/presence")
+    async def list_presence(request: Request):
+        p = await authn(request)
+        return {"principals": await db.read(store.list_presence, p, board.presence.snapshot())}
 
     @app.patch("/v1/principals/{principal_id}")
     async def update_principal(principal_id: int, request: Request):
         p = await authn(request)
         body = body_dict(await _json_body(request))
-        return await db.write(store.update_principal, p, principal_id, body, time.time())
+        result = await db.write(store.update_principal, p, principal_id, body, time.time())
+        return (await with_presence(p, [result]))[0]
 
     @app.post("/v1/principals/{principal_id}/suspend")
     async def suspend(principal_id: int, request: Request):
@@ -527,7 +581,10 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/channels/{channel_id}/info")
     async def channel_info(channel_id: int, request: Request):
         p = await authn(request)
-        return await db.read(store.channel_info, p, channel_id)
+        result = await db.read(store.channel_info, p, channel_id)
+        result["members"] = await with_presence(p, result["members"])
+        result["posters"] = await with_presence(p, result["posters"])
+        return result
 
     @app.patch("/v1/channels/{channel_id}")
     async def update_channel(channel_id: int, request: Request):
@@ -570,8 +627,17 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             raise bad_request("follow at most 100 channels")
         if wait > 0 and after is None:
             raise bad_request("wait needs a cursor: pass `after` (start from the next_cursor of a plain read)")
+        token = board.presence.next_poll()
+        polled_at = time.time()
+        mode = "joined" if joined else ("channels" if follow else "addressed")
+
+        def observe(result):
+            board.presence.polled(p, token, polled_at, after, mode, follow, bool(result["messages"]))
+
         if wait <= 0:
-            return await db.read(store.activity, p, limit, after, follow, reactions)
+            result = await db.read(store.activity, p, limit, after, follow, reactions)
+            observe(result)
+            return result
         if board.open_polls >= LIMITS.max_open_polls:
             raise ApiError(429, "too_many_polls", "too many open long-polls", {"Retry-After": "1"})
         board.open_polls += 1
@@ -579,6 +645,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         fut = board.notifier.register(ANY_CHANNEL)
         try:
             result = await db.read(store.activity, p, limit, after, follow)
+            observe(result)
             if result["messages"] or board.shutting_down:
                 return result
             deadline = time.monotonic() + wait
@@ -595,8 +662,9 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                     return result
                 board.notifier.unregister(ANY_CHANNEL, fut)
                 fut = board.notifier.register(ANY_CHANNEL)
-                p = await authn(request)
+                p = await authn(request, observe=False)
                 result = await db.read(store.activity, p, limit, after, follow, shed=False)
+                board.presence.observed(p, token, bool(result["messages"]), time.time())
                 if result["messages"] or board.shutting_down:
                     return result
             return result
@@ -641,19 +709,20 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/channels/{channel_id}/members")
     async def list_members(channel_id: int, request: Request):
         p = await authn(request)
-        return {"members": await db.read(store.list_members, p, channel_id)}
+        return {"members": await with_presence(p, await db.read(store.list_members, p, channel_id))}
 
     @app.post("/v1/channels/{channel_id}/members")
     async def add_member(channel_id: int, request: Request):
         p = await authn(request)
         body = body_dict(await _json_body(request))
-        return {"members": await db.write(store.add_member, p, channel_id, body.get("principal_id"), time.time())}
+        members = await db.write(store.add_member, p, channel_id, body.get("principal_id"), time.time())
+        return {"members": await with_presence(p, members)}
 
     @app.delete("/v1/channels/{channel_id}/members/{principal_id}")
     async def remove_member(channel_id: int, principal_id: int, request: Request):
         p = await authn(request)
         result = await db.write(store.remove_member, p, channel_id, principal_id, time.time())
-        return result if isinstance(result, dict) else {"members": result}
+        return result if isinstance(result, dict) else {"members": await with_presence(p, result)}
 
     @app.post("/v1/dms")
     async def open_dm(request: Request):
@@ -776,7 +845,10 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/principals/{principal_id}/profile")
     async def get_profile(principal_id: int, request: Request):
         p = await authn(request)
-        return await db.read(store.profile, p, principal_id, time.time())
+        result = await db.read(store.profile, p, principal_id, time.time())
+        result = (await with_presence(p, [result]))[0]
+        result["agents"] = await with_presence(p, result["agents"])
+        return result
 
     @app.put("/v1/principals/{principal_id}/avatar")
     async def put_avatar(principal_id: int, request: Request):

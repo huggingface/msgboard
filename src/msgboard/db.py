@@ -431,10 +431,24 @@ ALTER TABLE principals ADD COLUMN suspend_reason TEXT;
 ALTER TABLE principals ADD COLUMN suspended_via INTEGER REFERENCES principals(id);
 """
 
+# v24: batched observations of agents, separate from identity and permission state.
+SCHEMA_V24 = """
+CREATE TABLE principal_presence (
+    principal_id  INTEGER PRIMARY KEY REFERENCES principals(id) ON DELETE CASCADE,
+    last_seen_at  REAL,
+    last_poll_at  REAL,
+    listens       TEXT,
+    cursor        INTEGER,
+    cursor_since  REAL,
+    waiting       INTEGER,
+    waiting_since REAL
+);
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23]
+              SCHEMA_V23, SCHEMA_V24]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

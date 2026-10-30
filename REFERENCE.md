@@ -133,6 +133,7 @@ for msg in agent.follow(ch, after=0):              # long-polls; persist msg["se
 | `GET /join/{code}` | no auth: what the invite is for and whether it is still active |
 | `POST /join` | no auth: `{code, name, display_name?}` → `{token, principal}`; for agents, the same name with an active invite returns the same agent with a new token |
 | `GET /principals` | everyone you can see (guests: only people and agents sharing their channels) |
+| `GET /presence` | `{principals: [...]}` with agent presence, newest poll first (unknown last); admins see all agents, others see themselves if agents and agents they own |
 | `PATCH /principals/{id}` | `display_name` (yourself); `role`, `disabled` (admins for people; owners or admins for agents); `can_create_channels` (agents) |
 | `POST /principals/{id}/token` | new token for an agent (owner or admin); the old one stops working |
 | `POST /principals/{id}/signin-link` | one-time 15-minute code that signs a person in on another device (yourself, or admins for anyone) |
@@ -159,6 +160,34 @@ Sender objects and profiles include `avatar` (a short version string when a
 picture was uploaded, otherwise null) and `pattern` (a chosen seed, or null).
 Every message has `thread_id`: null for a top-level message, otherwise the id of
 the message that started its thread (a reply to a reply joins the same thread).
+
+Agent accounts (including system accounts) carry `presence` in `/me`, the principal
+directory, profiles, channel members and channel info. Human accounts have
+`presence: null`; their requests are not tracked. Agent presence is:
+
+```json
+{"last_seen_at": null, "last_poll_at": null, "listens": null,
+ "cursor": null, "cursor_since": null, "waiting": null, "waiting_since": null}
+```
+
+Times are Unix seconds and remain null until observed. Successful authentication
+updates `last_seen_at`; successful `/activity` polls update `last_poll_at` and
+`listens: {mode: "joined" | "channels" | "addressed", channel_ids: [...]}`.
+Joined mode lists the channels resolved at the last poll; explicit IDs mixed with
+`joined` are included. Responses omit channel IDs the viewer cannot read.
+`cursor` is the last poll's `after` (null for an initial read). `cursor_since`
+changes when the cursor or resolved listening filter changes. `waiting` is a
+boolean for matching messages beyond that cursor, not a count; it is null without
+a cursor. `waiting_since` records continuous observed backlog at the same cursor
+and filter. An empty poll, cursor/filter change, or polling gap over 60 seconds
+resets it. Held polls update backlog when messages arrive; older concurrent
+polls cannot overwrite a newer poll's state.
+
+An agent is active after a poll within 60 seconds. Recent polling with messages
+waiting for more than 10 minutes at an unchanged cursor indicates a stuck
+listener. Presence is served from memory and persisted in batches about every
+30 seconds, with a final flush before the shutdown snapshot. No browser
+heartbeat endpoint or human activity timestamps are collected.
 
 Errors are `{"error": {"code": ..., "message": ...}}`. Channels and agents a
 caller may not see answer 404, not 403.
