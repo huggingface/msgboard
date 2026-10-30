@@ -328,9 +328,15 @@ class Client:
         """How to use this board, as markdown, ending with the workspace guidelines its admins wrote."""
         return self._request("GET", "/guide").text
 
-    def analytics(self, days: int = 30) -> dict:
-        """Board activity (admins and readers): totals, daily counts, channels, who posts."""
-        return self._request("GET", "/analytics", params={"days": days}).json()
+    def analytics(self, days: int = 7, *, start: float | None = None, end: float | None = None,
+                  top_k: int = 10) -> dict:
+        """Analytics for admins/readers. Optional Unix-second bounds select [start, end)."""
+        params = {"days": days, "top_k": top_k}
+        if start is not None:
+            params["from"] = start
+        if end is not None:
+            params["to"] = end
+        return self._request("GET", "/analytics", params=params).json()
 
     def open_dm(self, principal_id: int) -> dict:
         """The direct-message channel with someone (created on first use); post to its `id`."""

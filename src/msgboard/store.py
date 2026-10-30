@@ -25,6 +25,7 @@ import sqlite3
 from typing import Any
 
 from . import auth
+from . import analytics as analyticsmod
 from .auth import Principal
 from .config import LIMITS
 from .presence import FIELDS as PRESENCE_FIELDS, unknown as unknown_presence
@@ -409,7 +410,7 @@ def load_presence(conn) -> dict[int, dict]:
     return records
 
 
-def save_presence(conn, records: dict[int, dict]) -> None:
+def save_presence(conn, records: dict[int, dict], history: dict | None = None) -> None:
     conn.executemany(
         """INSERT INTO principal_presence
            (principal_id, last_seen_at, last_poll_at, listens, cursor, cursor_since, waiting, waiting_since)
@@ -421,6 +422,11 @@ def save_presence(conn, records: dict[int, dict]) -> None:
           json.dumps(record["listens"]) if record["listens"] is not None else None,
           record["cursor"], record["cursor_since"], record["waiting"], record["waiting_since"])
          for pid, record in records.items()])
+    if history:
+        conn.executemany("""INSERT INTO presence_history (minute, sampled_at, agents) VALUES (?, ?, ?)
+                            ON CONFLICT(minute) DO UPDATE SET sampled_at=excluded.sampled_at, agents=excluded.agents
+                            WHERE excluded.sampled_at >= presence_history.sampled_at""",
+                         [(minute, sample[0], sample[1]) for minute, sample in history.items()])
 
 
 def attach_presence(conn, viewer: Principal, items: list[dict], records: dict[int, dict]) -> list[dict]:
@@ -2001,28 +2007,26 @@ def _reactions_to_me(conn, p: Principal, scope: str, limit: int) -> list[dict]:
 # ------------------------------------------------------------------ analytics
 
 
-def analytics(conn, p: Principal, now: float, days: int = 30) -> dict:
+def analytics(conn, p: Principal, now: float, days: int = 7, start: float | None = None,
+              end: float | None = None, top_k: int = 10, history: dict | None = None) -> dict:
     """Board activity for admins (and readers): totals, a daily series, channels and who posts."""
     if not p.sees_everything:
-        raise forbidden("only admins can see analytics")
+        raise forbidden("only admins and readers can see analytics")
     days = max(1, min(int(days), 365))
-    day0 = (int(now // 86400) - days + 1) * 86400            # start of the first UTC day in the window
-    kind = "CASE WHEN p.identity_type = 'user' THEN 'people' ELSE 'agents' END"
-    daily = {(day0 + i * 86400): {"people": 0, "agents": 0} for i in range(days)}
-    for d, k, n in conn.execute(f"""SELECT CAST(m.created_at / 86400 AS INTEGER) * 86400, {kind}, COUNT(*)
-                                    FROM messages m JOIN principals p ON p.id = m.sender_id
-                                    WHERE m.created_at >= ? GROUP BY 1, 2""", (day0,)):
-        if d in daily:
-            daily[d][k] = n
-    series = [{"day": d, **v} for d, v in sorted(daily.items())]
+    start, end = analyticsmod.bounds(now, days, start, end)
+    if not 1 <= top_k <= 100:
+        raise bad_request("top_k must be between 1 and 100")
+    stats = _analytics_messages(conn, start, end)
+    series = [{key: row[key] for key in ("day", "people", "agents")} for row in stats["daily"]]
+    daily = {row["day"]: row for row in series}
 
     chans: dict = {}
     for r in conn.execute("""SELECT c.id, c.name, c.kind, c.archived,
                                     (SELECT COUNT(*) FROM messages m WHERE m.channel_id = c.id) AS total,
-                                    (SELECT COUNT(*) FROM messages m WHERE m.channel_id = c.id AND m.created_at >= :d0) AS recent,
-                                    (SELECT COUNT(DISTINCT m.sender_id) FROM messages m WHERE m.channel_id = c.id AND m.created_at >= :d0) AS posters,
+                                    (SELECT COUNT(*) FROM messages m WHERE m.channel_id = c.id AND m.created_at >= :d0 AND m.created_at < :end) AS recent,
+                                    (SELECT COUNT(DISTINCT m.sender_id) FROM messages m WHERE m.channel_id = c.id AND m.created_at >= :d0 AND m.created_at < :end) AS posters,
                                     (SELECT MAX(m.created_at) FROM messages m WHERE m.channel_id = c.id) AS last_at
-                             FROM channels c""", {"d0": day0}):
+                             FROM channels c""", {"d0": start, "end": end}):
         key = "dm" if r["kind"] == "dm" else r["id"]          # DMs are counted together, never by pair
         c = chans.setdefault(key, {"id": None if key == "dm" else r["id"], "name": "direct messages" if key == "dm" else r["name"],
                                    "kind": r["kind"], "archived": bool(r["archived"]) if key != "dm" else False,
@@ -2033,15 +2037,15 @@ def analytics(conn, p: Principal, now: float, days: int = 30) -> dict:
 
     per_day = {}
     for pid, d, n in conn.execute("""SELECT sender_id, CAST(created_at / 86400 AS INTEGER) * 86400, COUNT(*) FROM messages
-                                     WHERE created_at >= ? GROUP BY 1, 2""", (day0,)):
+                                     WHERE created_at >= ? AND created_at < ? GROUP BY 1, 2""", (start, end)):
         per_day.setdefault(pid, {})[d] = n
     posters = []
     for r in conn.execute("""SELECT p.id, p.display_name, p.external_id, p.identity_type, p.role, p.owner_id, p.pattern_seed,
                                     substr(av.sha256, 1, 12) AS avatar, COUNT(m.id) AS n, MAX(m.created_at) AS last_at,
                                     COUNT(DISTINCT m.channel_id) AS nchannels
-                             FROM principals p JOIN messages m ON m.sender_id = p.id AND m.created_at >= ?
+                             FROM principals p JOIN messages m ON m.sender_id = p.id AND m.created_at >= ? AND m.created_at < ?
                              LEFT JOIN avatars av ON av.principal_id = p.id
-                             GROUP BY p.id ORDER BY n DESC""", (day0,)):
+                             GROUP BY p.id ORDER BY n DESC, p.id""", (start, end)):
         posters.append({"id": r["id"], "display_name": r["display_name"], "external_id": r["external_id"],
                         "identity_type": r["identity_type"], "role": r["role"], "avatar": r["avatar"], "pattern": r["pattern_seed"],
                         "owner": _brief(conn, r["owner_id"]), "messages": r["n"], "last_at": r["last_at"], "channels": r["nchannels"],
@@ -2049,6 +2053,7 @@ def analytics(conn, p: Principal, now: float, days: int = 30) -> dict:
 
     count = lambda sql, *a: conn.execute(sql, a).fetchone()[0]
     week = now - 7 * 86400
+    files = _analytics_files(conn, start, end)
     totals = {
         "messages": count("SELECT COUNT(*) FROM messages"),
         "messages_window": sum(d["people"] + d["agents"] for d in series),
@@ -2056,14 +2061,136 @@ def analytics(conn, p: Principal, now: float, days: int = 30) -> dict:
         "agents": count("SELECT COUNT(*) FROM principals WHERE identity_type != 'user' AND disabled = 0"),
         "channels": count("SELECT COUNT(*) FROM channels WHERE kind != 'dm' AND archived = 0"),
         "active_people_7d": count("""SELECT COUNT(DISTINCT m.sender_id) FROM messages m JOIN principals p ON p.id = m.sender_id
-                                     WHERE m.created_at >= ? AND p.identity_type = 'user'""", week),
+                                     WHERE m.created_at >= ? AND m.created_at < ? AND p.identity_type = 'user'""", week, now),
         "active_agents_7d": count("""SELECT COUNT(DISTINCT m.sender_id) FROM messages m JOIN principals p ON p.id = m.sender_id
-                                     WHERE m.created_at >= ? AND p.identity_type != 'user'""", week),
-        "threads_window": count("SELECT COUNT(DISTINCT thread_id) FROM messages WHERE thread_id IS NOT NULL AND created_at >= ?", day0),
-        "attachments_window": count("SELECT COUNT(*) FROM attachments WHERE published = 1 AND created_at >= ?", day0),
+                                     WHERE m.created_at >= ? AND m.created_at < ? AND p.identity_type != 'user'""", week, now),
+        "threads_window": count("SELECT COUNT(DISTINCT thread_id) FROM messages WHERE thread_id IS NOT NULL AND created_at >= ? AND created_at < ?", start, end),
+        "attachments_window": files["count"],
     }
-    return {"days": days, "since": day0, "generated_at": now, "totals": totals, "daily": series,
-            "channels": channels, "posters": posters}
+    return {"days": len(series), "since": start, "generated_at": now, "totals": totals, "daily": series,
+            "channels": channels, "posters": posters, "range": {"from": start, "to": end, "bucket_seconds": 86400},
+            "message_stats": stats, "response_times": _analytics_responses(conn, start, min(now, end)),
+            "interactions": _analytics_interactions(conn, start, end, top_k), "files": files,
+            "listening": _analytics_listening(conn, start, end, history or {})}
+
+
+def _analytics_messages(conn, start: float, end: float) -> dict:
+    import math
+
+    daily = {day: {"day": day, "messages": 0, "people": 0, "agents": 0, "words": 0, "characters": 0}
+             for day in range(int(start // 86400) * 86400, math.ceil(end / 86400) * 86400, 86400)}
+    for row in conn.execute("""SELECT m.created_at, m.body, p.identity_type FROM messages m
+                               JOIN principals p ON p.id = m.sender_id
+                               WHERE m.created_at >= ? AND m.created_at < ?""", (start, end)):
+        data = daily[int(row["created_at"] // 86400) * 86400]
+        data["messages"] += 1
+        data["people" if row["identity_type"] == "user" else "agents"] += 1
+        data["characters"] += len(row["body"])
+        data["words"] += len(analyticsmod.WORD.findall(row["body"]))
+    for data in daily.values():
+        data["average_length"] = data["characters"] / data["messages"] if data["messages"] else None
+    total = {key: sum(data[key] for data in daily.values()) for key in ("messages", "words", "characters")}
+    return {**total, "average_length": total["characters"] / total["messages"] if total["messages"] else None,
+            "daily": list(daily.values())}
+
+
+def _analytics_files(conn, start: float, end: float) -> dict:
+    rows = conn.execute("""SELECT uploader_id, COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes
+                           FROM attachments WHERE published = 1 AND created_at >= ? AND created_at < ?
+                           GROUP BY uploader_id ORDER BY bytes DESC, uploader_id""", (start, end))
+    people = [dict(_brief(conn, row["uploader_id"]), count=row["count"], bytes=row["bytes"]) for row in rows]
+    return {"count": sum(item["count"] for item in people), "bytes": sum(item["bytes"] for item in people),
+            "by_principal": people}
+
+
+def _analytics_responses(conn, start: float, end: float) -> dict:
+    # Each request/agent appears once even when a DM also mentions its recipient.
+    # Indexed first-response lookups avoid joining every request to every later message.
+    rows = conn.execute("""WITH requests AS (
+        SELECT m.id, mm.principal_id AS target, m.channel_id, COALESCE(m.thread_id, m.id) AS thread,
+               m.created_at, c.kind
+        FROM messages m JOIN message_mentions mm ON mm.message_id = m.id
+        JOIN principals p ON p.id = mm.principal_id JOIN channels c ON c.id = m.channel_id
+        WHERE m.created_at >= :start AND m.created_at < :end AND p.identity_type != 'user'
+              AND mm.principal_id != m.sender_id
+        UNION
+        SELECT m.id, cm.principal_id, m.channel_id, COALESCE(m.thread_id, m.id), m.created_at, c.kind
+        FROM messages m JOIN channels c ON c.id = m.channel_id
+        JOIN channel_members cm ON cm.channel_id = c.id JOIN principals p ON p.id = cm.principal_id
+        WHERE c.kind = 'dm' AND m.created_at >= :start AND m.created_at < :end
+              AND p.identity_type != 'user' AND cm.principal_id != m.sender_id
+    ) SELECT q.target, q.created_at,
+        CASE WHEN q.kind = 'dm' THEN (
+            SELECT r.created_at FROM messages r WHERE r.channel_id = q.channel_id AND r.sender_id = q.target
+                AND r.created_at >= q.created_at AND r.created_at < :end AND r.id > q.id
+            ORDER BY r.created_at, r.id LIMIT 1)
+        ELSE (
+            SELECT r.created_at FROM messages r WHERE r.sender_id = q.target AND r.thread_id = q.thread
+                AND r.created_at >= q.created_at AND r.created_at < :end AND r.id > q.id
+            ORDER BY r.created_at, r.id LIMIT 1)
+        END AS answered_at FROM requests q""", {"start": start, "end": end})
+    agents = {}
+    latencies = []
+    requests = 0
+    for row in rows:
+        requests += 1
+        agent = agents.setdefault(row["target"], {"requests": 0, "latencies": []})
+        agent["requests"] += 1
+        if row["answered_at"] is not None:
+            latency = row["answered_at"] - row["created_at"]
+            latencies.append(latency)
+            agent["latencies"].append(latency)
+    per_agent = [dict(_brief(conn, pid), **analyticsmod.response_summary(data["requests"], data["latencies"]))
+                 for pid, data in agents.items()]
+    return {"rule": "Mention or DM to an agent -> its first later message in that thread or DM, before the range ends. Reactions do not count.",
+            **analyticsmod.response_summary(requests, latencies), "histogram": analyticsmod.response_histogram(latencies),
+            "agents": sorted(per_agent, key=lambda item: (-item["requests"], item["id"]))}
+
+
+def _analytics_interactions(conn, start: float, end: float, top_k: int) -> dict:
+    rows = conn.execute("""WITH events AS (
+        SELECT m.id, m.sender_id AS source, cm.principal_id AS target, 0 AS priority
+        FROM messages m JOIN channels c ON c.id = m.channel_id
+        JOIN channel_members cm ON cm.channel_id = m.channel_id
+        WHERE c.kind = 'dm' AND m.created_at >= :start AND m.created_at < :end AND cm.principal_id != m.sender_id
+        UNION ALL
+        SELECT m.id, m.sender_id, parent.sender_id, 1
+        FROM messages m JOIN messages parent ON parent.id = m.reply_to JOIN channels c ON c.id = m.channel_id
+        WHERE c.kind != 'dm' AND m.created_at >= :start AND m.created_at < :end
+        UNION ALL
+        SELECT m.id, m.sender_id, mm.principal_id, 2
+        FROM messages m JOIN message_mentions mm ON mm.message_id = m.id JOIN channels c ON c.id = m.channel_id
+        WHERE c.kind != 'dm' AND m.created_at >= :start AND m.created_at < :end
+    ), pairs AS (
+        SELECT e.id, min(source, target) AS a, max(source, target) AS b, min(priority) AS priority
+        FROM events e JOIN principals s ON s.id = e.source JOIN principals t ON t.id = e.target
+        WHERE (s.identity_type = 'user') != (t.identity_type = 'user') GROUP BY e.id, a, b
+    ) SELECT a, b, priority, COUNT(*) AS count FROM pairs GROUP BY a, b, priority""", {"start": start, "end": end})
+    edges = {}
+    weights = {}
+    for row in rows:
+        a, b, count = row["a"], row["b"], row["count"]
+        edge = edges.setdefault((a, b), {"source": a, "target": b, "total": 0, "mentions": 0, "replies": 0, "dms": 0})
+        edge[("dms", "replies", "mentions")[row["priority"]]] += count
+        edge["total"] += count
+        for pid in (a, b):
+            weights[pid] = weights.get(pid, 0) + count
+    selected = sorted(weights, key=lambda pid: (-weights[pid], pid))[:top_k]
+    identities = {pid: _brief(conn, pid) for pid in selected}
+    return analyticsmod.chord_graph(list(edges.values()), identities, top_k)
+
+
+def _analytics_listening(conn, start: float, end: float, pending: dict) -> dict:
+    first = conn.execute("SELECT sampled_at FROM presence_history ORDER BY minute LIMIT 1").fetchone()
+    started_at = first[0] if first else None
+    if pending:
+        candidate = min(sample[0] for sample in pending.values())
+        started_at = min(started_at, candidate) if started_at is not None else candidate
+    rows = conn.execute("SELECT minute, sampled_at, agents FROM presence_history WHERE minute >= ? AND minute < ?",
+                        (int(start // 60) * 60, end))
+    samples = {row[0]: (row[1], row[2]) for row in rows}
+    samples.update(pending)
+    return analyticsmod.listening_series(start, end, samples, started_at)
 
 
 # ------------------------------------------------------------------ search

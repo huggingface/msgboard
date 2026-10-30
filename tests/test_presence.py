@@ -242,11 +242,14 @@ def test_migrate_existing_board_to_presence(tmp_path):
     token = init_board(data)
     with dbmod.connect(data / "board.db") as conn:
         conn.execute("DROP TABLE principal_presence")
+        conn.execute("DROP TABLE presence_history")
+        for index in ("messages_created_at", "messages_response_thread", "messages_response_dm", "attachments_published_at"):
+            conn.execute(f"DROP INDEX {index}")
         conn.execute("PRAGMA user_version=23")
     assert cmd_init(Namespace(data_dir=str(data))) == 0
     with ThreadedServer(data) as server, Client(server.url, token) as op:
         assert op.me()["presence"] is None
-    assert list(data.glob("*.pre-v24-*.bak"))
+    assert list(data.glob(f"*.pre-v{dbmod.SCHEMA_VERSION}-*.bak"))
 
 
 def test_presence_flush_failure_does_not_skip_final_messages(tmp_path, monkeypatch):
@@ -259,7 +262,7 @@ def test_presence_flush_failure_does_not_skip_final_messages(tmp_path, monkeypat
             with Client.join(server.url, invitation["code"], "bot") as bot:
                 bot.post(channel["id"], "acknowledged before shutdown")
 
-        def fail_presence(conn, records):
+        def fail_presence(conn, records, history=None):
             raise RuntimeError("presence flush failed")
 
         monkeypatch.setattr(store, "save_presence", fail_presence)

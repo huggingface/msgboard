@@ -20,6 +20,8 @@ class Presence:
         self._version = 0
         self._poll_sequence = 0
         self._latest_poll: dict[int, int] = {}
+        self._history: dict[int, tuple[float, int]] = {}
+        self._last_sample_minute: int | None = None
         self._lock = threading.Lock()
 
     def _put(self, pid: int, record: dict) -> None:
@@ -95,3 +97,28 @@ class Presence:
             for pid, version in versions.items():
                 if self._dirty.get(pid) == version:
                     del self._dirty[pid]
+
+    def listening_now(self, now: float) -> int:
+        with self._lock:
+            return self._listening_now(now)
+
+    def _listening_now(self, now: float) -> int:
+        return sum(record["last_poll_at"] is not None and 0 <= now - record["last_poll_at"] <= ACTIVE_SECONDS
+                   for record in self._records.values())
+
+    def sample(self, now: float) -> None:
+        minute = int(now // 60) * 60
+        with self._lock:
+            if self._last_sample_minute is None or minute > self._last_sample_minute:
+                self._last_sample_minute = minute
+                self._history[minute] = (now, self._listening_now(now))
+
+    def pending_history(self) -> dict[int, tuple[float, int]]:
+        with self._lock:
+            return dict(self._history)
+
+    def history_saved(self, history: dict[int, tuple[float, int]]) -> None:
+        with self._lock:
+            for minute, sample in history.items():
+                if self._history.get(minute) == sample:
+                    del self._history[minute]
