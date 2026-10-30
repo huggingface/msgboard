@@ -3911,7 +3911,7 @@ function drawSeries(host, pts, { label, fmt, time } = {}) {
   let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(label || "")} over time">`;
   for (let v = 0; v <= top; v += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end">${fmtN(v)}</text>`;
   if (time) {
-    const starts = pts.map((p, i) => [p, i]).filter(([p]) => p.t % DAY_S === 0), gap = Math.ceil(starts.length / Math.max(2, Math.floor((W - L - R) / 70)));
+    const starts = pts.map((p, i) => [p, i]).filter(([p], i) => i === 0 || Math.floor(p.t / DAY_S) !== Math.floor(pts[i - 1].t / DAY_S)), gap = Math.ceil(starts.length / Math.max(2, Math.floor((W - L - R) / 70)));
     starts.forEach(([p, i], j) => { if (j % gap === 0) svg += `<text class="tick" x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(dayLabel(p.t))}</text>`; });
   } else pts.forEach((p, i) => { if (i % every === 0 || i === pts.length - 1) svg += `<text class="tick" x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(dayLabel(p.t))}</text>`; });
   svg += `<path class="line" d="${d}"/>`;
