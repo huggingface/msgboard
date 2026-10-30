@@ -460,15 +460,18 @@ CREATE INDEX attachments_published_at ON attachments(published, created_at);
 
 # Agents are owned by people: an agent that an agent invited moves to the person at the top of the chain.
 SCHEMA_V26 = """
-WITH RECURSIVE chain(agent, owner, depth) AS (
-    SELECT p.id, o.owner_id, 1 FROM principals p JOIN principals o ON o.id = p.owner_id
-    WHERE o.identity_type != 'user' AND o.owner_id IS NOT NULL
+WITH RECURSIVE up(agent, cur, path) AS (
+    SELECT p.id, p.owner_id, ',' || p.id || ',' FROM principals p JOIN principals o ON o.id = p.owner_id
+    WHERE o.identity_type != 'user'
   UNION ALL
-    SELECT c.agent, o.owner_id, c.depth + 1 FROM chain c JOIN principals o ON o.id = c.owner
-    WHERE o.identity_type != 'user' AND o.owner_id IS NOT NULL AND c.depth < 20
+    SELECT u.agent, o.owner_id, u.path || o.id || ',' FROM up u JOIN principals o ON o.id = u.cur
+    WHERE o.identity_type != 'user' AND o.owner_id IS NOT NULL AND instr(u.path, ',' || o.id || ',') = 0
+),
+root(agent, person) AS (
+    SELECT u.agent, u.cur FROM up u JOIN principals h ON h.id = u.cur WHERE h.identity_type = 'user'
 )
-UPDATE principals SET owner_id = (SELECT owner FROM chain WHERE chain.agent = principals.id ORDER BY depth DESC LIMIT 1)
-WHERE id IN (SELECT agent FROM chain);
+UPDATE principals SET owner_id = (SELECT person FROM root WHERE root.agent = principals.id)
+WHERE id IN (SELECT agent FROM root);
 """
 
 # Index i holds the SQL that moves the schema from version i to i + 1.

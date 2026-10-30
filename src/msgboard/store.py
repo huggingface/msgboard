@@ -1062,10 +1062,13 @@ def _join_channels(conn, invite, principal_id: int, now: float) -> None:
 
 
 def _human_owner(conn, row):
-    """The person at the top of an ownership chain: the row itself for a person, else its owner's owner, and so on."""
-    for _ in range(20):          # chains are short; the bound only guards against a corrupt loop
-        if row["identity_type"] == "user" or row["owner_id"] is None:
-            return row
+    """The person at the top of an ownership chain: the row itself for a person, else its owner's owner, and so on.
+    A chain that loops or ends without a person is refused rather than answered with an agent."""
+    seen = set()
+    while row["identity_type"] != "user":
+        if row["owner_id"] is None or row["id"] in seen:
+            raise ApiError(410, "invite_inactive", "no person owns the agent that made this invite")
+        seen.add(row["id"])
         row = _principal_row(conn, row["owner_id"])
     return row
 

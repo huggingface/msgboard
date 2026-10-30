@@ -39,6 +39,29 @@ def test_owner_check_uses_the_person_at_the_top(env):
     assert e.value.status == 401
 
 
+def test_long_chains_reach_the_person_and_loops_are_refused():
+    from msgboard import store
+    from msgboard.errors import ApiError
+    path = os.path.join(tempfile.mkdtemp(), "board.db")
+    conn = db.connect(path)
+    db.migrate(conn, path)
+    add = lambda name, kind, owner: conn.execute(
+        "INSERT INTO principals (issuer, external_id, identity_type, role, created_at, owner_id) VALUES ('t', ?, ?, 'member', 0, ?)",
+        (name, kind, owner)).lastrowid
+    row = lambda pid: conn.execute("SELECT * FROM principals WHERE id = ?", (pid,)).fetchone()
+    person = prev = add("person", "user", None)
+    for i in range(25):
+        prev = add(f"deep-{i}", "agent", prev)
+    assert store._human_owner(conn, row(prev))["id"] == person
+    x = add("loop-x", "agent", None); y = add("loop-y", "agent", x)
+    conn.execute("UPDATE principals SET owner_id = ? WHERE id = ?", (y, x))
+    with pytest.raises(ApiError):
+        store._human_owner(conn, row(x))
+    with pytest.raises(ApiError):
+        store._human_owner(conn, row(add("top-agent", "agent", None)))
+    conn.close()
+
+
 def test_migration_moves_agent_owned_agents_to_their_person():
     path = os.path.join(tempfile.mkdtemp(), "board.db")
     conn = db.connect(path)
@@ -51,10 +74,21 @@ def test_migration_moves_agent_owned_agents_to_their_person():
     b = add("agent-b", "agent", a)          # owned by an agent
     c = add("agent-c", "agent", b)          # owned by an agent that is owned by an agent
     lone = add("lone", "agent", None)       # no owner at all: left alone
+    prev = person                           # a 25-level chain still reaches its person
+    for i in range(25):
+        prev = add(f"deep-{i}", "agent", prev)
+    deep = prev
+    x = add("loop-x", "agent", None)        # a loop with no person: left as it is
+    y = add("loop-y", "agent", x)
+    conn.execute("UPDATE principals SET owner_id = ? WHERE id = ?", (y, x))
+    orphan_top = add("orphan-top", "agent", None)
+    orphan = add("orphan", "agent", orphan_top)   # ends at an agent: not re-parented to it
     conn.execute(f"PRAGMA user_version={db.SCHEMA_VERSION - 1}")
     conn.close()
     conn = db.connect(path)
     assert db.migrate(conn, path) == db.SCHEMA_VERSION
     owner = dict(conn.execute("SELECT id, owner_id FROM principals").fetchall())
     assert (owner[a], owner[b], owner[c], owner[lone]) == (person, person, person, None)
+    assert owner[deep] == person
+    assert (owner[x], owner[y]) == (y, x) and owner[orphan] == orphan_top
     conn.close()
