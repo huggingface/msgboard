@@ -165,8 +165,8 @@ svg .tagtext { fill:#fff;font-size:2.05px; }
 <rect class="changed" x="57" y="12" width="58" height="19"/>
 <rect class="tag" x="57" y="9" width="9" height="3"/><text class="tagtext" x="58" y="11.3">NEW</text>
 <text class="lbl" x="86" y="18" text-anchor="middle">MOBILETEXTINPUT()</text>
-<text class="lbl-s" x="86" y="22.5" text-anchor="middle">MAX-WIDTH: 720PX</text>
-<text class="lbl-s" x="86" y="27" text-anchor="middle">OR POINTER: COARSE</text>
+<text class="lbl-s" x="86" y="22.5" text-anchor="middle">PRIMARY POINTER</text>
+<text class="lbl-s" x="86" y="27" text-anchor="middle">POINTER: COARSE</text>
 <circle class="of" cx="110" cy="8" r="2.4"/><text class="lbl" x="110" y="8.8" text-anchor="middle">1</text>
 <line class="wa newflow" x1="115" y1="21" x2="132" y2="21"/>
 <text class="lbl-s" x="119" y="18">TRUE</text>
@@ -198,7 +198,7 @@ svg .tagtext { fill:#fff;font-size:2.05px; }
 <text class="code" x="178" y="95" text-anchor="end">KEY-501A</text>
 </svg><figcaption><span class="n">Figure 1.</span>Input Routing In The Shared Dashboard</figcaption></figure>
 <section class="para" style="margin-top:2mm"><div class="num">2</div><div><h2>HOW IT WORKS.</h2>
-<p>(1) Each Enter checks the current viewport and primary pointer. (2) Mobile handlers return before sending, saving or choosing a mention. The browser inserts the line break. Channel, DM and thread composers share this path.</p></div></section>
+<p>(1) Each Enter checks the current primary pointer. (2) Mobile handlers return before sending, saving or choosing a mention. The browser inserts the line break. Channel, DM and thread composers share this path.</p></div></section>
 <section class="para"><div class="num">2.1</div><div><h3>Native text entry.</h3>
 <p class="flush">No synthetic newline is inserted. The textarea retains browser caret, selection and composition behavior.</p></div></section>
 <figure><svg viewBox="0 0 180 60" role="img" aria-label="Mobile message entry sequence">
@@ -218,7 +218,7 @@ svg .tagtext { fill:#fff;font-size:2.05px; }
 <div class="lower"><div>
 <section class="para"><div class="num">3</div><div><h2>DATA.</h2></div></section>
 <div class="tcap">Table 1. Keyboard Rules</div><table><thead><tr><th>Condition</th><th>Result</th></tr></thead><tbody>
-<tr><td>Viewport at most 720 px</td><td>Enter = newline</td></tr>
+<tr><td>Narrow desktop, fine pointer</td><td>Enter = send / save</td></tr>
 <tr><td>Primary pointer coarse</td><td>Enter = newline</td></tr>
 <tr><td>Desktop plain Enter</td><td>Send / save</td></tr>
 <tr><td>Shift + Enter</td><td>Newline</td></tr>
@@ -233,7 +233,7 @@ svg .tagtext { fill:#fff;font-size:2.05px; }
 <li><span>4</span><span>EDIT - enter, then Save</span></li>
 <li><span>5</span><span>DESKTOP - enter sends</span></li>
 </ol></div></div></div>
-<footer class="foot"><div class="rule"></div><div class="line">PR #2 - mobile-enter-newline - opened 31 Oct 2026 - last commit 31 Oct 2026 - 1 commit, +4 / -0</div></footer>
+<footer class="foot"><div class="rule"></div><div class="line">PR #2 - mobile-enter-newline - opened 31 Oct 2026 - last commit 31 Oct 2026 - 2 commits, +4 / -0</div></footer>
 </div><script>
   // Fit check: room left between the last content block and the footer.
   // .page hides overflow, so without this an overfull page fails silently.
