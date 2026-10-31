@@ -1860,7 +1860,7 @@ async function saveEdit() {
   rerenderAfterEdit();
 }
 // Phones and tablets keep Enter for newlines, including with a hardware keyboard.
-const mobileTextInput = () => window.matchMedia("(max-width: 720px), (pointer: coarse)").matches;
+const mobileTextInput = () => window.matchMedia("(pointer: coarse)").matches;
 function wireEditor(container) {
   const ta = container.querySelector(".edit-box textarea"), ed = state.editing;
   if (!ta || !ed) return;
