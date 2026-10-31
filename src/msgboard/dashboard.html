@@ -1859,6 +1859,8 @@ async function saveEdit() {
   finally { ed.saving = false; }
   rerenderAfterEdit();
 }
+// Phones and tablets keep Enter for newlines, including with a hardware keyboard.
+const mobileTextInput = () => window.matchMedia("(max-width: 720px), (pointer: coarse)").matches;
 function wireEditor(container) {
   const ta = container.querySelector(".edit-box textarea"), ed = state.editing;
   if (!ta || !ed) return;
@@ -1867,6 +1869,7 @@ function wireEditor(container) {
   ta.addEventListener("input", () => { keep(); size(); });
   ta.addEventListener("keyup", keep); ta.addEventListener("click", keep);
   ta.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && mobileTextInput()) return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); saveEdit(); }
     else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancelEdit(); }
   });
@@ -2457,6 +2460,7 @@ function mountComposer(host, { placeholder, replyTo }) {
   input.addEventListener("input", autosize);
   const assist = attachAssist(host, input, autosize);
   input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && mobileTextInput()) return;
     if (assist.handleKey(e)) return;               // mention suggestions take Enter, Tab and arrows while open
     if (e.key === "ArrowUp" && !input.value && !e.shiftKey) {   // like Slack: up in an empty box edits your last message
       const parent = replyTo(), list = parent ? [state.panel.root, ...state.thread] : state.roots, m = lastOwnMessage(list);
