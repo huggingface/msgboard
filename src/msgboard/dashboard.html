@@ -393,6 +393,11 @@ button.fchip:hover { border-color: var(--ink); }
 .v-zoom button:disabled { opacity: .35; cursor: default; }
 .v-zoom #v-zoom-fit { border-left: 1px solid var(--rule-2); font-size: 11px; }
 .v-zoom span { min-width: 44px; text-align: center; font: 11px var(--mono); color: var(--ink); }
+/* every control in the header is the same height; arrows and +/- are drawn, so they sit exactly in the middle */
+.v-icon { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: square; stroke-linejoin: miter; display: block; }
+.v-nav button, #v-zoom-out, #v-zoom-in { width: 28px; padding: 0; }
+.v-nav button, .v-tabs button, .v-head .btn { height: 28px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+.v-zoom { height: 28px; box-sizing: border-box; } .v-zoom button { height: 100%; display: inline-flex; align-items: center; justify-content: center; }
 .v-pages { min-width: max-content; }
 .v-body iframe { flex: 1; width: 100%; height: 100%; border: 0; background: #fff; }
 .v-body.pdf { display: block; background: var(--panel); }
@@ -407,6 +412,16 @@ button.fchip:hover { border-color: var(--ink); }
 .v-empty { margin: auto; text-align: center; color: var(--ink-3); font: 12px var(--mono); padding: 40px; }
 .v-empty .fprev { width: 64px; height: 64px; font-size: 13px; margin: 0 auto 14px; }
 @media (max-width: 720px) { #viewer { padding: 0; } .v-panel { height: 100%; border: 0; } .v-nav span { display: none; } }
+/* phones: the file name and the close button on the first row, the controls on a second row */
+@media (max-width: 720px) {
+  .v-head { flex-wrap: wrap; gap: 8px 6px; padding: 8px 12px 10px; }
+  .v-title { order: 0; flex: 1 1 calc(100% - 44px); flex-direction: column; align-items: flex-start; gap: 1px; }
+  .v-head .close { order: 1; font-size: 26px; padding: 0 4px; }
+  .v-tabs, .v-nav, .v-zoom, #v-open, #v-link, #v-download { order: 2; }
+  .v-head .btn { white-space: nowrap; }
+  #v-download { margin-left: auto; }
+  .v-zoom span { min-width: 34px; } #v-zoom-fit { padding: 0 6px; }   /* keeps the controls on one row at 375 px */
+}
 .replies { display: inline-flex; align-items: center; gap: 8px; margin-top: 5px; padding: 3px 8px 3px 3px; border: 1px solid transparent; background: none; font-size: 12.5px; text-align: left; max-width: 100%; }
 .replies:hover { border-color: var(--rule-2); background: var(--bg); }
 .replies .faces { display: inline-flex; gap: 3px; }
@@ -804,8 +819,8 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="v-head">
       <div class="v-title"><b id="v-name"></b><span class="mono" id="v-meta"></span></div>
       <div class="v-tabs hidden" id="v-tabs"><button data-view="render" class="on">Preview</button><button data-view="source">Source</button></div>
-      <div class="v-nav" id="v-nav"><button id="v-prev" aria-label="Previous file">‹</button><span id="v-pos"></span><button id="v-next" aria-label="Next file">›</button></div>
-      <div class="v-zoom hidden" id="v-zoom" role="group" aria-label="Zoom"><button id="v-zoom-out" title="Zoom out (−)" aria-label="Zoom out">−</button><span id="v-zoom-level">fit</span><button id="v-zoom-in" title="Zoom in (+)" aria-label="Zoom in">+</button><button id="v-zoom-fit" title="Fit to window (0)">fit</button></div>
+      <div class="v-nav" id="v-nav"><button id="v-prev" aria-label="Previous file"><svg class="v-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2.5 4 6l3.5 3.5"/></svg></button><span id="v-pos"></span><button id="v-next" aria-label="Next file"><svg class="v-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6 4.5 9.5"/></svg></button></div>
+      <div class="v-zoom hidden" id="v-zoom" role="group" aria-label="Zoom"><button id="v-zoom-out" title="Zoom out (−)" aria-label="Zoom out"><svg class="v-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7"/></svg></button><span id="v-zoom-level">fit</span><button id="v-zoom-in" title="Zoom in (+)" aria-label="Zoom in"><svg class="v-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7M6 2.5v7"/></svg></button><button id="v-zoom-fit" title="Fit to window (0)">fit</button></div>
       <button class="btn ghost small hidden" id="v-open" title="Open in the browser's own viewer">Open in new tab</button>
       <button class="btn ghost small" id="v-link" title="Copy a link to this file">Copy link</button>
       <button class="btn small" id="v-download">Download</button>
