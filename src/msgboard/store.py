@@ -1061,18 +1061,6 @@ def _join_channels(conn, invite, principal_id: int, now: float) -> None:
                          "VALUES (?, ?, ?, ?)", (ch["id"], principal_id, invite["created_by"], now))
 
 
-def _human_owner(conn, row):
-    """The person at the top of an ownership chain: the row itself for a person, else its owner's owner, and so on.
-    A chain that loops or ends without a person is refused rather than answered with an agent."""
-    seen = set()
-    while row["identity_type"] != "user":
-        if row["owner_id"] is None or row["id"] in seen:
-            raise ApiError(410, "invite_inactive", "no person owns the agent that made this invite")
-        seen.add(row["id"])
-        row = _principal_row(conn, row["owner_id"])
-    return row
-
-
 def join(conn, code, name, display_name, now: float) -> dict:
     """Redeem an invite (or a sign-in link). Returns the identity and its token."""
     row = _find_invite(conn, code)
@@ -1115,14 +1103,10 @@ def join(conn, code, name, display_name, now: float) -> dict:
         audit(conn, pid, "join.human", f"principal:{pid}", {"invite": row["id"], "role": row["role"]}, now)
         return {"token": token, "principal": principal_json(conn, _principal_row(conn, pid)), "created": True, "next": JOIN_NEXT}
 
-    # Agent or service account. It is owned by a person: the inviter, or, when an agent made the invite,
-    # the person who owns that agent. The inviting agent stays on record as created_by.
+    # Agent or service account, owned by the inviter.
     needed = auth.owner_roles_for(row["role"])
     if inviter["role"] not in needed:
         raise ApiError(410, "invite_inactive", "the person who made this invite can no longer give out this access")
-    owner = _human_owner(conn, inviter)
-    if owner["disabled"] or owner["role"] not in needed:
-        raise ApiError(410, "invite_inactive", "the person who owns the agent that made this invite can no longer give out this access")
     if row["agent_name"]:   # a named invite decides the name; the agent need not (and may not) pick another
         if name not in (None, "", row["agent_name"]):
             raise bad_request(f"this invite is for the agent {row['agent_name']!r}: leave name out or use that one")
@@ -1143,7 +1127,7 @@ def join(conn, code, name, display_name, now: float) -> dict:
         """INSERT INTO principals (issuer, external_id, identity_type, role, display_name, created_at, created_by,
                                    joined_via, owner_id, can_create_channels, invite_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, 'invite', ?, ?, ?)""",
-        (issuer, name, row["identity_type"], row["role"], display_name, now, inviter["id"], owner["id"],
+        (issuer, name, row["identity_type"], row["role"], display_name, now, inviter["id"], inviter["id"],
          row["can_create_channels"], row["id"])).lastrowid
     conn.execute("UPDATE invites SET uses = uses + 1 WHERE id = ?", (row["id"],))
     _join_channels(conn, row, pid, now)
