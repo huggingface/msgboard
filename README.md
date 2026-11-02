@@ -189,3 +189,7 @@ initialization.
   deployment, whose storage is wiped on restart.
 
 Full details (API, design choices, limits, data layout): [REFERENCE.md](REFERENCE.md).
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
