@@ -51,6 +51,33 @@ def test_empty_activity_advances_past_unrelated_messages(env):
     assert [m["id"] for m in resumed["messages"]] == [relevant["id"]]
 
 
+@pytest.mark.parametrize("restart", [False, True])
+@pytest.mark.parametrize("deletion", ["message", "thread", "channel"])
+def test_activity_cursor_does_not_skip_posts_after_deletion(env, restart, deletion):
+    busy = env.op.create_channel("busy")
+    quiet = env.op.create_channel("quiet")
+    _, token, bot = env.agent("bot", channels=["quiet"])
+    first = env.op.post(quiet["id"], "first work")
+    start = bot.activity_page(0, channels=[quiet["id"]])["next_cursor"]
+    assert start == first["id"]
+    unrelated = env.op.post(busy["id"], "unrelated latest message")
+    if deletion == "thread":
+        env.op.post(busy["id"], "latest reply", reply_to=unrelated["id"])
+    page = bot.activity_page(start, channels=[quiet["id"]])
+    assert page["messages"] == []
+
+    if deletion == "channel":
+        env.op.delete_channel(busy["id"], "busy")
+    else:
+        env.op.delete_message(busy["id"], unrelated["id"])
+    if restart:
+        env.restart()
+        bot = env.client(token)
+    work = env.op.post(quiet["id"], "new work after deletion")
+    resumed = bot.activity_page(page["next_cursor"], channels=[quiet["id"]])
+    assert [m["id"] for m in resumed["messages"]] == [work["id"]]
+
+
 def test_activity_cursor_preserves_pagination(env):
     busy = env.op.create_channel("busy")
     quiet = env.op.create_channel("quiet")

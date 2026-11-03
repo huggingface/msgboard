@@ -474,10 +474,62 @@ UPDATE principals SET owner_id = (SELECT person FROM root WHERE root.agent = pri
 WHERE id IN (SELECT agent FROM root);
 """
 
+# v27: activity cursors require message IDs that are never reused after deletion.
+# Foreign keys are off during migrations; preserve IDs, references, indexes and the FTS index.
+SCHEMA_V27 = """
+CREATE TABLE messages_v27 (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id   INTEGER NOT NULL REFERENCES channels(id),
+    seq          INTEGER NOT NULL,
+    sender_id    INTEGER NOT NULL REFERENCES principals(id),
+    body         TEXT NOT NULL,
+    reply_to     INTEGER REFERENCES messages(id),
+    attachments  TEXT,
+    request_id   TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    created_at   REAL NOT NULL,
+    thread_id    INTEGER REFERENCES messages(id),
+    edited_at    REAL,
+    edit_rev     INTEGER,
+    UNIQUE (channel_id, seq),
+    UNIQUE (sender_id, request_id)
+);
+INSERT INTO messages_v27 SELECT id, channel_id, seq, sender_id, body, reply_to, attachments,
+    request_id, payload_hash, created_at, thread_id, edited_at, edit_rev FROM messages;
+DROP TABLE messages;
+ALTER TABLE messages_v27 RENAME TO messages;
+CREATE INDEX messages_thread ON messages(thread_id, seq);
+CREATE INDEX messages_sender ON messages(sender_id, created_at);
+CREATE INDEX messages_edits ON messages(channel_id, edit_rev) WHERE edit_rev IS NOT NULL;
+CREATE INDEX messages_created_at ON messages(created_at);
+CREATE INDEX messages_response_thread ON messages(sender_id, thread_id, created_at, id);
+CREATE INDEX messages_response_dm ON messages(channel_id, sender_id, created_at, id);
+CREATE TRIGGER messages_fts_insert AFTER INSERT ON messages BEGIN
+    INSERT INTO messages_fts(rowid, body) VALUES (new.id, new.body);
+END;
+CREATE TRIGGER messages_fts_update AFTER UPDATE OF body ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, body) VALUES ('delete', old.id, old.body);
+    INSERT INTO messages_fts(rowid, body) VALUES (new.id, new.body);
+END;
+CREATE TRIGGER messages_fts_delete AFTER DELETE ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, body) VALUES ('delete', old.id, old.body);
+END;
+-- Legacy boards may already have deleted their highest ID. Channel sequence totals plus
+-- audited deletions bound the number of past posts, hence every automatically assigned ID.
+-- This can overestimate the high-water mark; gaps are safe, reusing IDs is not.
+UPDATE sqlite_sequence SET seq = max(seq,
+    (SELECT COALESCE(SUM(next_seq - 1), 0) FROM channels) +
+    (SELECT COALESCE(SUM(CASE action
+        WHEN 'channel.delete' THEN COALESCE(json_extract(detail, '$.messages'), 0)
+        WHEN 'message.delete' THEN 1 + COALESCE(json_extract(detail, '$.with_replies'), 0)
+    END), 0) FROM audit_log WHERE action IN ('channel.delete', 'message.delete')))
+WHERE name = 'messages';
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26]
+              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
