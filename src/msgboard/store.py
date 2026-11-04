@@ -1669,6 +1669,8 @@ def find_mention_spans(conn, body: str) -> list[tuple]:
             continue
         best = None
         for name, row in candidates:
+            if name in GROUP_MENTIONS:
+                continue                     # @all, @agents ... always mean the group, never someone named so
             end = i + 1 + len(name)
             if best is not None and len(name) < best:
                 break                        # every identity sharing the longest name has been collected
