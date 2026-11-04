@@ -123,6 +123,20 @@ def test_group_mentions_reach_only_channel_members(env):
     assert ids(env.op.post(gen["id"], "@other-bot and @agents"))  == ["bot", "other-bot"]   # by name still works
 
 
+def test_group_words_are_not_personal_names(env):
+    gen = env.op.create_channel("general")
+    _, _, bot = env.agent("bot", channels=["general"])
+    named, _, agents = env.agent("agents-bot", display_name="Agents")       # not a member
+    _, _, humans = env.agent("humans-bot", display_name="humans")           # not a member, and not a person
+    ids = lambda m: sorted(x["external_id"] for x in m["mentions"])
+    assert ids(env.op.post(gen["id"], "@agents go")) == ["bot"]
+    assert ids(env.op.post(gen["id"], "@humans look")) == []
+    env.op.update_identity(named["id"], display_name="Agent Smith")        # a former name is no way in either
+    assert ids(env.op.post(gen["id"], "@Agents again")) == ["bot"]
+    assert agents.activity_page(0)["messages"] == [] and humans.activity_page(0)["messages"] == []
+    assert ids(env.op.post(gen["id"], "@Agent Smith hi")) == ["agents-bot"]  # their other names still work
+
+
 def test_invite_can_join_all_open_channels(env):
     a = env.op.create_channel("alpha"); b = env.op.create_channel("beta")
     old = env.op.create_channel("old"); env.op.update_channel(old["id"], archived=True)
