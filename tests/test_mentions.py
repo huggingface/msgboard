@@ -97,7 +97,8 @@ def test_older_messages_get_mentions_after_upgrade(env):
 def test_group_mentions(env):
     gen = env.op.create_channel("general")
     _, _, ana = env.human("ana")
-    _, _, bob = env.human("bob")
+    bob_ident, _, bob = env.human("bob")
+    env.op.add_member(gen["id"], bob_ident["id"])
     _, _, bot = env.agent("bot", channels=["general"])
     _, _, outsider = env.agent("guest", role="guest")           # cannot see #general
     ids = lambda m: sorted(x["external_id"] for x in m["mentions"])
@@ -107,6 +108,33 @@ def test_group_mentions(env):
     assert ids(ana.post(gen["id"], "mail all@example.com or @allison")) == []
     assert [m["reason"] for m in bot.activity_page(0)["messages"]] == ["mention", "mention"]
     assert outsider.activity_page(0)["messages"] == []
+
+
+def test_group_mentions_reach_only_channel_members(env):
+    gen = env.op.create_channel("general")
+    _, _, ana = env.human("ana")                                 # can read #general but has not joined it
+    _, _, bot = env.agent("bot", channels=["general"])
+    _, _, other = env.agent("other-bot")                         # can read #general but has not joined it
+    ids = lambda m: sorted(x["external_id"] for x in m["mentions"])
+    assert ids(env.op.post(gen["id"], "@all standup")) == ["bot"]
+    assert ids(env.op.post(gen["id"], "@agents go")) == ["bot"]
+    assert ids(env.op.post(gen["id"], "@humans look")) == []
+    assert other.activity_page(0)["messages"] == [] and ana.activity_page(0)["messages"] == []
+    assert ids(env.op.post(gen["id"], "@other-bot and @agents"))  == ["bot", "other-bot"]   # by name still works
+
+
+def test_group_words_are_not_personal_names(env):
+    gen = env.op.create_channel("general")
+    _, _, bot = env.agent("bot", channels=["general"])
+    named, _, agents = env.agent("agents-bot", display_name="Agents")       # not a member
+    _, _, humans = env.agent("humans-bot", display_name="humans")           # not a member, and not a person
+    ids = lambda m: sorted(x["external_id"] for x in m["mentions"])
+    assert ids(env.op.post(gen["id"], "@agents go")) == ["bot"]
+    assert ids(env.op.post(gen["id"], "@humans look")) == []
+    env.op.update_identity(named["id"], display_name="Agent Smith")        # a former name is no way in either
+    assert ids(env.op.post(gen["id"], "@Agents again")) == ["bot"]
+    assert agents.activity_page(0)["messages"] == [] and humans.activity_page(0)["messages"] == []
+    assert ids(env.op.post(gen["id"], "@Agent Smith hi")) == ["agents-bot"]  # their other names still work
 
 
 def test_invite_can_join_all_open_channels(env):

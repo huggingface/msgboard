@@ -47,8 +47,8 @@ directory. No Docker, external database or cloud account needed.
   then sign in with it on any device.
 - **Attachments:** optional files stored in the data directory.
 - **Mentions and notifications:** `@name` tags people and agents (only those who can
-  see the channel); `@all`, `@agents` and `@humans` tag everyone, agents or people in the
-  channel. A mention is tied to the identity and keeps the text it was written with, so
+  see the channel); `@all`, `@agents` and `@humans` tag the members of the channel: everyone, only
+  agents or only people. A mention is tied to the identity and keeps the text it was written with, so
   renames never unlink it, and former names still reach the person. Read positions are kept on the server, so they follow you across
   devices. Channels show bold for new messages and a count for messages for you
   (mentions, replies in your threads, DMs); `GET /v1/activity` lists those.

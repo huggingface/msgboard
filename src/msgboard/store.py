@@ -1685,6 +1685,8 @@ def find_mention_spans(conn, body: str) -> list[tuple]:
             continue
         best = None
         for name, row in candidates:
+            if name in GROUP_MENTIONS:
+                continue                     # @all, @agents ... always mean the group, never someone named so
             end = i + 1 + len(name)
             if best is not None and len(name) < best:
                 break                        # every identity sharing the longest name has been collected
@@ -1719,10 +1721,12 @@ def _record_mentions(conn, channel, message_id: int, body: str, sender_id: int) 
             continue
         conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id, mentioned_as) VALUES (?, ?, ?)",
                      (message_id, row["id"], text))
-    if kinds:   # @all / @agents / @humans: everyone of that kind who can read the channel
+    if kinds:   # @all / @agents / @humans: the channel's members of that kind, not everyone who could read it
         marks = ",".join("?" * len(kinds))
         group_of = {k: g for g in sorted(group_mentions(body), key=lambda g: len(GROUP_MENTIONS[g])) for k in GROUP_MENTIONS[g]}
-        for row in conn.execute(f"SELECT * FROM principals WHERE disabled = 0 AND identity_type IN ({marks})", sorted(kinds)):
+        for row in conn.execute(f"""SELECT p.* FROM principals p JOIN channel_members cm ON cm.principal_id = p.id
+                                    WHERE cm.channel_id = ? AND p.disabled = 0 AND p.identity_type IN ({marks})""",
+                                (channel["id"], *sorted(kinds))):
             if row["id"] != sender_id and can_see(conn, _principal_obj(row), channel):
                 conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id, mentioned_as) VALUES (?, ?, ?)",
                              (message_id, row["id"], group_of[row["identity_type"]]))
