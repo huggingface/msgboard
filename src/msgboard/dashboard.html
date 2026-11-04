@@ -1389,10 +1389,11 @@ async function loadPeople(force = false) {
   return state.people;
 }
 // ids of a channel's members, for @ suggestions; dropped when someone joins, leaves or is added
-const memberIds = new Map();
+const memberIds = new Map(), knownMembers = new Map();
 async function loadMemberIds(c) {
   if (!memberIds.has(c.id)) memberIds.set(c.id, api("GET", `/channels/${c.id}/members`)
-    .then((r) => new Set(r.members.map((m) => m.id)), () => { memberIds.delete(c.id); return null; }));
+    .then((r) => { const ids = new Set(r.members.map((m) => m.id)); knownMembers.set(c.id, ids); return ids; },
+      () => { memberIds.delete(c.id); return knownMembers.get(c.id) || new Set(); }));   // on failure: the last list, or none
   return memberIds.get(c.id);
 }
 async function pick(title, filterFn, onPick) {
@@ -2609,8 +2610,8 @@ function attachAssist(host, input, autosize) {
         .map(([, c]) => ({ insert: `#${c.name} `, html: `<span class="glyph">${c.kind === "private" ? LOCK : "#"}</span><span>${esc(c.name)}</span>` +
           (c.description ? `<small>${esc(c.description.length > 40 ? c.description.slice(0, 39) + "…" : c.description)}</small>` : "") }));
     } else {
-      const members = state.current ? await loadMemberIds(state.current) : null;   // only people in this channel
-      const people = (await loadPeople()).filter((p) => !p.disabled && p.id !== state.me.id && (!members || members.has(p.id)));
+      const members = state.current ? await loadMemberIds(state.current) : new Set();   // only people in this channel
+      const people = (await loadPeople()).filter((p) => !p.disabled && p.id !== state.me.id && members.has(p.id));
       const tags = state.current && state.current.kind !== "dm"
         ? ["all", "agents", "humans"].filter((g) => !q || g.startsWith(q)).map((g) => ({ insert: `@${g} `,
             html: `<span class="glyph">@</span><span>${g}</span><small>${esc(GROUP_TAGS[g])}</small>` })) : [];
