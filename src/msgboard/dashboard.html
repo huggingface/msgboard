@@ -124,6 +124,20 @@ a[data-internal] { font-weight: 600; }
 .rchip:disabled { cursor: default; }
 .rchip.radd { color: var(--ink-3); font: 14px/1 var(--mono); visibility: hidden; }
 .msg:hover .rchip.radd, .rchip.radd:focus-visible { visibility: visible; }
+.rchip[data-react] { -webkit-touch-callout: none; user-select: none; }
+.rchip.who-open { border-color: var(--ink); position: relative; z-index: 31; }
+.rchip.who-open.below { border-bottom-color: var(--bg); }
+.rchip.who-open.above { border-top-color: var(--bg); }
+/* a short neck joins the open chip to its list (covering the list's edge there), so the list clears the neighbouring chips */
+.rchip.who-open::after { content: ""; position: absolute; left: -1px; right: -1px; height: 7px; background: var(--bg); border: 1px solid var(--ink); border-width: 0 1px; }
+.rchip.who-open.below::after { top: 100%; }
+.rchip.who-open.above::after { bottom: 100%; }
+.who-pop { position: fixed; z-index: 30; width: max-content; min-width: 160px; max-width: min(260px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
+.who-pop .wl { max-height: 264px; overflow-y: auto; padding: 4px 0; overscroll-behavior: contain; }
+.who-pop .person { display: flex; align-items: center; gap: 8px; padding: 4px 10px; width: 100%; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.who-pop .person:hover, .who-pop .person:focus-visible { background: var(--hover); outline: none; box-shadow: inset 2px 0 0 var(--ink); }
+.who-pop .pname { display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.who-pop .pname small { font: 11px var(--mono); color: var(--ink-3); }
 .react-pop { position: fixed; z-index: 30; width: min(320px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
 .react-pop .rquick { display: flex; justify-content: space-between; padding: 6px; border-bottom: 1px solid var(--rule); }
 .react-pop .rquick button, .react-pop .emoji-grid button { width: 34px; height: 32px; border: 0; background: none; font-size: 20px; line-height: 1; padding: 0; }
@@ -1800,9 +1814,9 @@ function reactionsHTML(m) {
   if (!list.length) return "";
   const writable = canWriteHere();
   return `<div class="reacts">` + list.map((r) => {
-    const who = r.by.map((b) => nameOf(b)).join(", ");
+    const names = r.by.slice(0, 10).map((b) => nameOf(b)).join(", ") + (r.by.length > 10 ? ` and ${r.by.length - 10} more` : "");
     return `<button class="rchip ${r.me ? "mine" : ""}" data-react="${esc(r.emoji)}" data-mid="${m.id}" ${writable ? "" : "disabled"}
-      title="${esc(who)} reacted with ${esc(r.emoji)}" aria-pressed="${r.me}"><span class="re">${esc(r.emoji)}</span><span class="rc">${r.count}</span></button>`;
+      aria-label="${esc(r.emoji)} ${r.count}: ${esc(names)}. Down arrow lists everyone." aria-haspopup="dialog" aria-pressed="${r.me}"><span class="re">${esc(r.emoji)}</span><span class="rc">${r.count}</span></button>`;
   }).join("") + (writable ? `<button class="rchip radd" data-react-pick="${m.id}" title="Add reaction" aria-label="Add reaction">+</button>` : "") + `</div>`;
 }
 async function toggleReaction(mid, emoji) {
@@ -1815,6 +1829,104 @@ async function toggleReaction(mid, emoji) {
     store.set("emoji-recent", JSON.stringify([emoji, ...recentEmoji().filter((x) => x !== emoji)].slice(0, 18)));
   } catch (e) { alert("Could not react: " + e.message); }
 }
+// who reacted: a list that opens on hover, keyboard focus or a long press; each name opens that profile
+let whoPop = null, whoTimer = 0, pressTimer = 0, pressedOpen = false, pressStart = [0, 0], quietChip = null;
+function reactionAt(chip) {
+  const m = state.byId.get(Number(chip.dataset.mid));
+  return m && (m.reactions || []).find((r) => r.emoji === chip.dataset.react);
+}
+function openWho(chip) {
+  clearTimeout(whoTimer);
+  const r = reactionAt(chip);
+  if (!r) return closeWho();
+  if (!whoPop) {
+    whoPop = document.createElement("div"); whoPop.className = "who-pop"; whoPop.setAttribute("role", "dialog");
+    whoPop.addEventListener("pointerenter", () => clearTimeout(whoTimer));
+    whoPop.addEventListener("pointerleave", (e) => { if (e.pointerType !== "touch") hideWhoSoon(); });
+    document.body.appendChild(whoPop);
+  }
+  const people = r.by.map((b) => (state.people || []).find((p) => p.id === b.id) || b);
+  const key = chip.dataset.mid + " " + r.emoji, old = whoPop.querySelector(".wl");
+  const keep = whoPop.key === key && old ? { top: old.scrollTop, focus: whoPop.contains(document.activeElement) && document.activeElement.dataset.profile } : null;
+  if (whoPop.chip && whoPop.chip !== chip) whoPop.chip.classList.remove("who-open", "below", "above");
+  whoPop.chip = chip; whoPop.key = key; whoPop.sig = r.by.map((b) => b.id).join(",");
+  whoPop.pane = chip.parentElement.closest("#messages, #panel-scroll") || document;   // the feed and a thread can show the same message
+  whoPop.setAttribute("aria-label", `Reacted with ${r.emoji}`);
+  whoPop.innerHTML = `<div class="wl">${people.map((p) => `<button type="button" class="person" data-profile="${p.id}">${avatar(p, "xs", false)}<span class="pname">${esc(nameOf(p))}<small>${esc(kindLabel(p))}</small></span></button>`).join("")}</div>`;
+  hydrate(whoPop);
+  // the list hangs off the chip itself, as if the chip grew open (above it when there is no room below)
+  const a = chip.getBoundingClientRect(), wl = whoPop.querySelector(".wl");
+  const room = { below: window.innerHeight - a.bottom - 14, above: a.top - 14 };   // fit short windows: shrink the list, it scrolls
+  wl.style.maxHeight = "";
+  let below = a.bottom + whoPop.offsetHeight + 14 < window.innerHeight || room.below >= room.above;
+  if (whoPop.offsetHeight > room[below ? "below" : "above"]) wl.style.maxHeight = Math.max(60, room[below ? "below" : "above"] - 2) + "px";
+  if (keep) { wl.scrollTop = keep.top; if (keep.focus) { const b = wl.querySelector(`[data-profile="${keep.focus}"]`); if (b) b.focus({ preventScroll: true }); } }
+  const w = whoPop.offsetWidth, h = whoPop.offsetHeight;
+  chip.classList.add("who-open"); chip.classList.toggle("below", below); chip.classList.toggle("above", !below);
+  whoPop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, a.left)) + "px";
+  whoPop.style.top = (below ? a.bottom + 5 : Math.max(8, a.top - h - 5)) + "px";
+}
+function closeWho(refocus) {
+  clearTimeout(whoTimer);
+  if (!whoPop) return;
+  const chip = whoPop.chip;
+  chip.classList.remove("who-open", "below", "above"); whoPop.remove(); whoPop = null;
+  if (refocus && chip.isConnected) { quietChip = chip; chip.focus(); }   // back on the reaction, without reopening its list
+}
+function hideWhoSoon() { clearTimeout(whoTimer); whoTimer = setTimeout(closeWho, 250); }   // time to move onto the list
+const chipAt = (t) => t && t.closest && t.closest(".rchip[data-react]");
+document.addEventListener("pointerover", (e) => {
+  const chip = e.pointerType !== "touch" && chipAt(e.target);
+  if (chip && (!whoPop || whoPop.chip !== chip)) openWho(chip); else if (chip) clearTimeout(whoTimer);
+});
+document.addEventListener("pointerout", (e) => {
+  if (e.pointerType !== "touch" && whoPop && chipAt(e.target) === whoPop.chip && !whoPop.contains(e.relatedTarget) && chipAt(e.relatedTarget) !== whoPop.chip) hideWhoSoon();
+});
+document.addEventListener("focusin", (e) => {
+  const chip = chipAt(e.target);
+  if (chip && chip !== quietChip && e.target.matches(":focus-visible")) openWho(chip);
+  if (chip !== quietChip) quietChip = null;
+});
+document.addEventListener("focusout", (e) => {
+  if (whoPop && (chipAt(e.target) === whoPop.chip || whoPop.contains(e.target))
+      && !whoPop.contains(e.relatedTarget) && chipAt(e.relatedTarget) !== whoPop.chip) hideWhoSoon();
+});
+// keyboard: arrow down from the reaction goes into the list, arrows move, Esc or Tab goes back to the reaction
+document.addEventListener("keydown", (e) => {
+  if (!whoPop && e.key === "ArrowDown" && chipAt(e.target)) { e.preventDefault(); openWho(chipAt(e.target)); }
+  if (!whoPop) return;
+  const rows = [...whoPop.querySelectorAll(".person")], i = rows.indexOf(document.activeElement);
+  if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeWho(whoPop.contains(document.activeElement)); }   // only the list, not the panel too
+  else if (e.key === "ArrowDown" && chipAt(e.target) === whoPop.chip && rows.length) { e.preventDefault(); rows[0].focus(); }
+  else if (i >= 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+    e.preventDefault();
+    if (e.key === "ArrowUp" && i === 0) whoPop.chip.focus(); else rows[Math.min(rows.length - 1, i + (e.key === "ArrowDown" ? 1 : -1))].focus();
+  } else if (i >= 0 && e.key === "Tab") { e.preventDefault(); whoPop.chip.focus(); }
+}, true);
+// phones: press and hold a reaction for the list; a plain tap still adds or removes yours
+document.addEventListener("pointerdown", (e) => {
+  if (whoPop && !whoPop.contains(e.target) && chipAt(e.target) !== whoPop.chip) closeWho();
+  const chip = e.pointerType === "touch" && chipAt(e.target);
+  clearTimeout(pressTimer); pressedOpen = false;
+  if (chip) { pressStart = [e.clientX, e.clientY]; pressTimer = setTimeout(() => { pressedOpen = true; openWho(chip); }, 450); }
+});
+["pointerup", "pointercancel"].forEach((t) => document.addEventListener(t, () => clearTimeout(pressTimer)));
+document.addEventListener("pointermove", (e) => {   // a finger always wobbles a little: only a real move cancels the hold
+  if (e.pointerType === "touch" && pressTimer && Math.hypot(e.clientX - pressStart[0], e.clientY - pressStart[1]) > 10) clearTimeout(pressTimer);
+});
+document.addEventListener("contextmenu", (e) => { if (chipAt(e.target)) e.preventDefault(); });
+document.addEventListener("scroll", (e) => { if (whoPop && !whoPop.contains(e.target)) closeWho(); }, true);
+// new reactions arrive while the list is open: follow the re-rendered chip, or close if the reaction is gone
+new MutationObserver(() => {
+  if (!whoPop) return;
+  const { mid, react } = whoPop.chip.dataset;
+  const pane = whoPop.pane.isConnected || whoPop.pane === document ? whoPop.pane : document;
+  const chip = whoPop.chip.isConnected ? whoPop.chip
+    : pane.querySelector(`.rchip[data-mid="${mid}"][data-react="${CSS.escape(react)}"]`);
+  const r = chip && reactionAt(chip);
+  if (!r) return closeWho();
+  if (chip !== whoPop.chip || r.by.map((b) => b.id).join(",") !== whoPop.sig) openWho(chip);
+}).observe(document.body, { childList: true, subtree: true });
 const recentEmoji = () => { try { return JSON.parse(store.get("emoji-recent") || "[]"); } catch { return []; } };
 let reactPop = null;
 function closeReactPicker() { if (reactPop) { reactPop.remove(); reactPop = null; document.removeEventListener("mousedown", reactOutside, true); } }
@@ -2337,7 +2449,8 @@ document.addEventListener("click", (e) => {
   const rpick = e.target.closest("[data-react-pick]");
   if (rpick) { openReactPicker(rpick, Number(rpick.dataset.reactPick)); return; }
   const rchip = e.target.closest("[data-react]");
-  if (rchip) { if (!rchip.disabled) toggleReaction(Number(rchip.dataset.mid), rchip.dataset.react); return; }
+  if (rchip) { if (pressedOpen) { pressedOpen = false; return; }   // that was a long press: it opened the list
+    if (!rchip.disabled) toggleReaction(Number(rchip.dataset.mid), rchip.dataset.react); return; }
   const edit = e.target.closest("[data-edit]");
   if (edit) { startEdit(Number(edit.dataset.edit), edit.dataset.where); return; }
   if (e.target.closest("[data-edit-save]")) { saveEdit(); return; }
@@ -3029,6 +3142,7 @@ function profileSuspend(p) {
     ${s.via ? "" : `<button class="linkish" id="prof-unsuspend">Unsuspend</button>`}</div>`;
 }
 async function openProfile(id) {
+  closeWho();
   state.panel = { type: "profile", id };
   openPanel("profile", "Profile", "");
   $("panel-scroll").innerHTML = `<div class="empty">Loading…</div>`;
