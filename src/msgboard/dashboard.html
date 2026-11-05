@@ -1566,9 +1566,35 @@ const notifyWanted = () => store.get("notify") === "on" && "Notification" in win
 function initNotify() {
   if (!("Notification" in window)) return;
   $("notify-row").classList.remove("hidden");
-  $("notify-on").checked = notifyWanted();
-  if (notifyWanted()) notifyLoop();
+  syncNotify();
 }
+function syncNotify() {   // on load, and when another tab flips the switch
+  $("notify-on").checked = notifyWanted();
+  if (notifyWanted()) { if (!notifyCtrl || notifyCtrl.signal.aborted) notifyLoop(); }
+  else if (notifyCtrl) notifyCtrl.abort();
+}
+function notifyOff(why) {
+  store.set("notify", "off"); $("notify-on").checked = false; if (notifyCtrl) notifyCtrl.abort();
+  if (why) alert(why);
+}
+const NO_NOTIFY = "This browser does not show notifications from web pages (most phone browsers only allow them for installed apps).";
+// which tab is in front, and on which channel: shared through localStorage, so a tab behind it stays quiet
+function noteFront() {
+  const front = document.visibilityState === "visible" && document.hasFocus() && state.view === "chat" && state.current;
+  if (front) store.set("notify-front", JSON.stringify({ channel: state.current.id, at: Date.now() }));
+  else if (frontIsMe) store.del("notify-front");
+  frontIsMe = !!front;
+}
+let frontIsMe = false;
+["focus", "blur", "visibilitychange", "pagehide"].forEach((t) => window.addEventListener(t, () => setTimeout(noteFront)));
+setInterval(() => { if (frontIsMe) noteFront(); }, 30000);   // keep it fresh; a crashed tab's note goes stale after a minute
+function onScreenSomewhere(channelId) {
+  try {
+    const f = JSON.parse(store.get("notify-front") || "null");
+    return !!f && f.channel === channelId && Date.now() - f.at < 60000;
+  } catch { return false; }
+}
+window.addEventListener("storage", (e) => { if (e.key === "msgboard:notify") syncNotify(); });
 $("notify-on").onchange = async () => {
   const box = $("notify-on");
   if (!box.checked) { store.set("notify", "off"); if (notifyCtrl) notifyCtrl.abort(); return; }
@@ -1581,6 +1607,8 @@ $("notify-on").onchange = async () => {
       : "Notifications are blocked for this site. Allow them in the browser's site settings (the icon left of the address), then try again.");
     return;
   }
+  try { new Notification("Notifications are on", { body: "You will hear about mentions, replies in your threads and DMs here.", tag: "msgboard-on" }); }
+  catch { return notifyOff(NO_NOTIFY); }
   store.set("notify", "on"); notifyLoop();
 };
 async function notifyLoop() {
@@ -1592,7 +1620,7 @@ async function notifyLoop() {
       // no `channels`: only what is addressed to me. The first call returns a cursor meaning "now".
       const page = await api("GET", after == null ? "/activity" : `/activity?after=${after}&wait=25`, { signal: ctrl.signal });
       if (typeof page.next_cursor !== "number") throw new Error("no cursor");
-      if (after != null) page.messages.forEach(notifyFor);
+      if (after != null && notifyWanted() && !ctrl.signal.aborted) page.messages.forEach(notifyFor);   // the switch may have flipped meanwhile
       after = page.next_cursor; wait = 5000;
     } catch (e) {
       if (ctrl.signal.aborted) return;
@@ -1604,13 +1632,13 @@ async function notifyLoop() {
 function notifyFor(m) {
   if (!["mention", "reply", "dm"].includes(m.reason) || m.sender.id === state.me.id) return;
   const looking = document.visibilityState === "visible" && document.hasFocus() && state.view === "chat" && state.current && state.current.id === m.channel.id;
-  if (looking) return;   // it is on screen already
+  if (looking || onScreenSomewhere(m.channel.id)) return;   // it is on screen already, in this tab or another
   const where = m.channel.kind === "dm" ? "direct message" : m.reason === "reply" ? `replied in #${m.channel.name}` : `in #${m.channel.name}`;
   const text = (m.body || "").replace(/\s+/g, " ").trim();
   try {
     const n = new Notification(`${nameOf(m.sender)} ${where}`, { body: text.length > 160 ? text.slice(0, 159) + "…" : text || "(attachment)", tag: "msgboard-" + m.id });
     n.onclick = () => { window.focus(); n.close(); routeHash("#msg/" + m.id); };
-  } catch {}   // some browsers only allow notifications from a service worker
+  } catch { notifyOff(); $("notify-row").title = NO_NOTIFY; }   // some browsers only allow them from a service worker
 }
 
 // ------------------------------------------------------------------ channels and DMs
@@ -1697,6 +1725,7 @@ async function saveChannelOrder(ids) {
 function renderChannels() {
   const total = state.channels.reduce((n, c) => n + (c.for_me || 0), 0);
   document.title = (total ? `(${total > 99 ? "99+" : total}) ` : "") + baseTitle;
+  noteFront();   // the channel on screen may have changed
   $("settings-open").classList.toggle("on", state.view === "settings");
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
