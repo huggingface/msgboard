@@ -134,8 +134,8 @@ a[data-internal] { font-weight: 600; }
 .rchip.who-open.above::after { bottom: 100%; }
 .who-pop { position: fixed; z-index: 30; width: max-content; min-width: 160px; max-width: min(260px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
 .who-pop .wl { max-height: 264px; overflow-y: auto; padding: 4px 0; overscroll-behavior: contain; }
-.who-pop .person { display: flex; align-items: center; gap: 8px; padding: 4px 10px; }
-.who-pop .person:hover { background: var(--hover); }
+.who-pop .person { display: flex; align-items: center; gap: 8px; padding: 4px 10px; width: 100%; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.who-pop .person:hover, .who-pop .person:focus-visible { background: var(--hover); outline: none; box-shadow: inset 2px 0 0 var(--ink); }
 .who-pop .pname { display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .who-pop .pname small { font: 11px var(--mono); color: var(--ink-3); }
 .react-pop { position: fixed; z-index: 30; width: min(320px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
@@ -1816,7 +1816,7 @@ function reactionsHTML(m) {
   return `<div class="reacts">` + list.map((r) => {
     const names = r.by.slice(0, 10).map((b) => nameOf(b)).join(", ") + (r.by.length > 10 ? ` and ${r.by.length - 10} more` : "");
     return `<button class="rchip ${r.me ? "mine" : ""}" data-react="${esc(r.emoji)}" data-mid="${m.id}" ${writable ? "" : "disabled"}
-      aria-label="${esc(r.emoji)} ${r.count}: ${esc(names)}" aria-pressed="${r.me}"><span class="re">${esc(r.emoji)}</span><span class="rc">${r.count}</span></button>`;
+      aria-label="${esc(r.emoji)} ${r.count}: ${esc(names)}. Down arrow lists everyone." aria-haspopup="dialog" aria-pressed="${r.me}"><span class="re">${esc(r.emoji)}</span><span class="rc">${r.count}</span></button>`;
   }).join("") + (writable ? `<button class="rchip radd" data-react-pick="${m.id}" title="Add reaction" aria-label="Add reaction">+</button>` : "") + `</div>`;
 }
 async function toggleReaction(mid, emoji) {
@@ -1830,7 +1830,7 @@ async function toggleReaction(mid, emoji) {
   } catch (e) { alert("Could not react: " + e.message); }
 }
 // who reacted: a list that opens on hover, keyboard focus or a long press; each name opens that profile
-let whoPop = null, whoTimer = 0, pressTimer = 0, pressedOpen = false;
+let whoPop = null, whoTimer = 0, pressTimer = 0, pressedOpen = false, pressStart = [0, 0], quietChip = null;
 function reactionAt(chip) {
   const m = state.byId.get(Number(chip.dataset.mid));
   return m && (m.reactions || []).find((r) => r.emoji === chip.dataset.react);
@@ -1846,20 +1846,32 @@ function openWho(chip) {
     document.body.appendChild(whoPop);
   }
   const people = r.by.map((b) => (state.people || []).find((p) => p.id === b.id) || b);
+  const key = chip.dataset.mid + " " + r.emoji, old = whoPop.querySelector(".wl");
+  const keep = whoPop.key === key && old ? { top: old.scrollTop, focus: whoPop.contains(document.activeElement) && document.activeElement.dataset.profile } : null;
   if (whoPop.chip && whoPop.chip !== chip) whoPop.chip.classList.remove("who-open", "below", "above");
-  whoPop.chip = chip; whoPop.sig = r.by.map((b) => b.id).join(",");
+  whoPop.chip = chip; whoPop.key = key; whoPop.sig = r.by.map((b) => b.id).join(",");
+  whoPop.pane = chip.parentElement.closest("#messages, #panel-scroll") || document;   // the feed and a thread can show the same message
   whoPop.setAttribute("aria-label", `Reacted with ${r.emoji}`);
-  whoPop.innerHTML = `<div class="wl">${people.map((p) => `<div class="person" data-profile="${p.id}">${avatar(p, "xs", false)}<span class="pname">${esc(nameOf(p))}<small>${esc(kindLabel(p))}</small></span></div>`).join("")}</div>`;
+  whoPop.innerHTML = `<div class="wl">${people.map((p) => `<button type="button" class="person" data-profile="${p.id}">${avatar(p, "xs", false)}<span class="pname">${esc(nameOf(p))}<small>${esc(kindLabel(p))}</small></span></button>`).join("")}</div>`;
   hydrate(whoPop);
   // the list hangs off the chip itself, as if the chip grew open (above it when there is no room below)
-  const a = chip.getBoundingClientRect(), w = whoPop.offsetWidth, h = whoPop.offsetHeight, below = a.bottom + h + 14 < window.innerHeight;
+  const a = chip.getBoundingClientRect(), wl = whoPop.querySelector(".wl");
+  const room = { below: window.innerHeight - a.bottom - 14, above: a.top - 14 };   // fit short windows: shrink the list, it scrolls
+  wl.style.maxHeight = "";
+  let below = a.bottom + whoPop.offsetHeight + 14 < window.innerHeight || room.below >= room.above;
+  if (whoPop.offsetHeight > room[below ? "below" : "above"]) wl.style.maxHeight = Math.max(60, room[below ? "below" : "above"] - 2) + "px";
+  if (keep) { wl.scrollTop = keep.top; if (keep.focus) { const b = wl.querySelector(`[data-profile="${keep.focus}"]`); if (b) b.focus({ preventScroll: true }); } }
+  const w = whoPop.offsetWidth, h = whoPop.offsetHeight;
   chip.classList.add("who-open"); chip.classList.toggle("below", below); chip.classList.toggle("above", !below);
   whoPop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, a.left)) + "px";
   whoPop.style.top = (below ? a.bottom + 5 : Math.max(8, a.top - h - 5)) + "px";
 }
-function closeWho() {
+function closeWho(refocus) {
   clearTimeout(whoTimer);
-  if (whoPop) { whoPop.chip.classList.remove("who-open", "below", "above"); whoPop.remove(); whoPop = null; }
+  if (!whoPop) return;
+  const chip = whoPop.chip;
+  chip.classList.remove("who-open", "below", "above"); whoPop.remove(); whoPop = null;
+  if (refocus && chip.isConnected) { quietChip = chip; chip.focus(); }   // back on the reaction, without reopening its list
 }
 function hideWhoSoon() { clearTimeout(whoTimer); whoTimer = setTimeout(closeWho, 250); }   // time to move onto the list
 const chipAt = (t) => t && t.closest && t.closest(".rchip[data-react]");
@@ -1870,26 +1882,47 @@ document.addEventListener("pointerover", (e) => {
 document.addEventListener("pointerout", (e) => {
   if (e.pointerType !== "touch" && whoPop && chipAt(e.target) === whoPop.chip && !whoPop.contains(e.relatedTarget) && chipAt(e.relatedTarget) !== whoPop.chip) hideWhoSoon();
 });
-document.addEventListener("focusin", (e) => { const chip = chipAt(e.target); if (chip && e.target.matches(":focus-visible")) openWho(chip); });
-document.addEventListener("focusout", (e) => { if (whoPop && chipAt(e.target) === whoPop.chip) hideWhoSoon(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && whoPop) closeWho(); });
+document.addEventListener("focusin", (e) => {
+  const chip = chipAt(e.target);
+  if (chip && chip !== quietChip && e.target.matches(":focus-visible")) openWho(chip);
+  if (chip !== quietChip) quietChip = null;
+});
+document.addEventListener("focusout", (e) => {
+  if (whoPop && (chipAt(e.target) === whoPop.chip || whoPop.contains(e.target))
+      && !whoPop.contains(e.relatedTarget) && chipAt(e.relatedTarget) !== whoPop.chip) hideWhoSoon();
+});
+// keyboard: arrow down from the reaction goes into the list, arrows move, Esc or Tab goes back to the reaction
+document.addEventListener("keydown", (e) => {
+  if (!whoPop && e.key === "ArrowDown" && chipAt(e.target)) { e.preventDefault(); openWho(chipAt(e.target)); }
+  if (!whoPop) return;
+  const rows = [...whoPop.querySelectorAll(".person")], i = rows.indexOf(document.activeElement);
+  if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeWho(whoPop.contains(document.activeElement)); }   // only the list, not the panel too
+  else if (e.key === "ArrowDown" && chipAt(e.target) === whoPop.chip && rows.length) { e.preventDefault(); rows[0].focus(); }
+  else if (i >= 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+    e.preventDefault();
+    if (e.key === "ArrowUp" && i === 0) whoPop.chip.focus(); else rows[Math.min(rows.length - 1, i + (e.key === "ArrowDown" ? 1 : -1))].focus();
+  } else if (i >= 0 && e.key === "Tab") { e.preventDefault(); whoPop.chip.focus(); }
+}, true);
 // phones: press and hold a reaction for the list; a plain tap still adds or removes yours
 document.addEventListener("pointerdown", (e) => {
   if (whoPop && !whoPop.contains(e.target) && chipAt(e.target) !== whoPop.chip) closeWho();
   const chip = e.pointerType === "touch" && chipAt(e.target);
   clearTimeout(pressTimer); pressedOpen = false;
-  if (chip) pressTimer = setTimeout(() => { pressedOpen = true; openWho(chip); }, 450);
+  if (chip) { pressStart = [e.clientX, e.clientY]; pressTimer = setTimeout(() => { pressedOpen = true; openWho(chip); }, 450); }
 });
 ["pointerup", "pointercancel"].forEach((t) => document.addEventListener(t, () => clearTimeout(pressTimer)));
-document.addEventListener("pointermove", (e) => { if (e.pointerType === "touch" && pressTimer) clearTimeout(pressTimer); });
+document.addEventListener("pointermove", (e) => {   // a finger always wobbles a little: only a real move cancels the hold
+  if (e.pointerType === "touch" && pressTimer && Math.hypot(e.clientX - pressStart[0], e.clientY - pressStart[1]) > 10) clearTimeout(pressTimer);
+});
 document.addEventListener("contextmenu", (e) => { if (chipAt(e.target)) e.preventDefault(); });
 document.addEventListener("scroll", (e) => { if (whoPop && !whoPop.contains(e.target)) closeWho(); }, true);
 // new reactions arrive while the list is open: follow the re-rendered chip, or close if the reaction is gone
 new MutationObserver(() => {
   if (!whoPop) return;
   const { mid, react } = whoPop.chip.dataset;
+  const pane = whoPop.pane.isConnected || whoPop.pane === document ? whoPop.pane : document;
   const chip = whoPop.chip.isConnected ? whoPop.chip
-    : document.querySelector(`.rchip[data-mid="${mid}"][data-react="${CSS.escape(react)}"]`);
+    : pane.querySelector(`.rchip[data-mid="${mid}"][data-react="${CSS.escape(react)}"]`);
   const r = chip && reactionAt(chip);
   if (!r) return closeWho();
   if (chip !== whoPop.chip || r.by.map((b) => b.id).join(",") !== whoPop.sig) openWho(chip);
