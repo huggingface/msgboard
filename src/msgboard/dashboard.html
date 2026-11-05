@@ -124,6 +124,15 @@ a[data-internal] { font-weight: 600; }
 .rchip:disabled { cursor: default; }
 .rchip.radd { color: var(--ink-3); font: 14px/1 var(--mono); visibility: hidden; }
 .msg:hover .rchip.radd, .rchip.radd:focus-visible { visibility: visible; }
+.rchip[data-react] { -webkit-touch-callout: none; user-select: none; }
+.who-pop { position: fixed; z-index: 30; width: min(260px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
+.who-pop .wh { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--rule); }
+.who-pop .wh .re { font-size: 16px; line-height: 1; }
+.who-pop .wl { max-height: 264px; overflow-y: auto; padding: 4px 0; overscroll-behavior: contain; }
+.who-pop .person { display: flex; align-items: center; gap: 8px; padding: 4px 10px; }
+.who-pop .person:hover { background: var(--hover); }
+.who-pop .pname { display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.who-pop .pname small { font: 11px var(--mono); color: var(--ink-3); }
 .react-pop { position: fixed; z-index: 30; width: min(320px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
 .react-pop .rquick { display: flex; justify-content: space-between; padding: 6px; border-bottom: 1px solid var(--rule); }
 .react-pop .rquick button, .react-pop .emoji-grid button { width: 34px; height: 32px; border: 0; background: none; font-size: 20px; line-height: 1; padding: 0; }
@@ -1800,9 +1809,9 @@ function reactionsHTML(m) {
   if (!list.length) return "";
   const writable = canWriteHere();
   return `<div class="reacts">` + list.map((r) => {
-    const who = r.by.map((b) => nameOf(b)).join(", ");
+    const names = r.by.slice(0, 10).map((b) => nameOf(b)).join(", ") + (r.by.length > 10 ? ` and ${r.by.length - 10} more` : "");
     return `<button class="rchip ${r.me ? "mine" : ""}" data-react="${esc(r.emoji)}" data-mid="${m.id}" ${writable ? "" : "disabled"}
-      title="${esc(who)} reacted with ${esc(r.emoji)}" aria-pressed="${r.me}"><span class="re">${esc(r.emoji)}</span><span class="rc">${r.count}</span></button>`;
+      aria-label="${esc(r.emoji)} ${r.count}: ${esc(names)}" aria-pressed="${r.me}"><span class="re">${esc(r.emoji)}</span><span class="rc">${r.count}</span></button>`;
   }).join("") + (writable ? `<button class="rchip radd" data-react-pick="${m.id}" title="Add reaction" aria-label="Add reaction">+</button>` : "") + `</div>`;
 }
 async function toggleReaction(mid, emoji) {
@@ -1815,6 +1824,66 @@ async function toggleReaction(mid, emoji) {
     store.set("emoji-recent", JSON.stringify([emoji, ...recentEmoji().filter((x) => x !== emoji)].slice(0, 18)));
   } catch (e) { alert("Could not react: " + e.message); }
 }
+// who reacted: a list that opens on hover, keyboard focus or a long press; each name opens that profile
+let whoPop = null, whoTimer = 0, pressTimer = 0, pressedOpen = false;
+function reactionAt(chip) {
+  const m = state.byId.get(Number(chip.dataset.mid));
+  return m && (m.reactions || []).find((r) => r.emoji === chip.dataset.react);
+}
+function openWho(chip) {
+  clearTimeout(whoTimer);
+  const r = reactionAt(chip);
+  if (!r) return closeWho();
+  if (!whoPop) {
+    whoPop = document.createElement("div"); whoPop.className = "who-pop"; whoPop.setAttribute("role", "dialog");
+    whoPop.addEventListener("pointerenter", () => clearTimeout(whoTimer));
+    whoPop.addEventListener("pointerleave", (e) => { if (e.pointerType !== "touch") hideWhoSoon(); });
+    document.body.appendChild(whoPop);
+  }
+  const people = r.by.map((b) => (state.people || []).find((p) => p.id === b.id) || b);
+  whoPop.chip = chip; whoPop.sig = r.by.map((b) => b.id).join(",");
+  whoPop.setAttribute("aria-label", `Reacted with ${r.emoji}`);
+  whoPop.innerHTML = `<div class="wh"><span class="re">${esc(r.emoji)}</span><span class="label">${r.count} ${r.count === 1 ? "reaction" : "reactions"}</span></div>
+    <div class="wl">${people.map((p) => `<div class="person" data-profile="${p.id}">${avatar(p, "xs", false)}<span class="pname">${esc(nameOf(p))}<small>${esc(kindLabel(p))}</small></span></div>`).join("")}</div>`;
+  hydrate(whoPop);
+  const a = chip.getBoundingClientRect(), w = whoPop.offsetWidth, h = whoPop.offsetHeight;
+  whoPop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, a.left)) + "px";
+  whoPop.style.top = (a.bottom + 6 + h < window.innerHeight ? a.bottom + 6 : Math.max(8, a.top - h - 6)) + "px";
+}
+function closeWho() { clearTimeout(whoTimer); if (whoPop) { whoPop.remove(); whoPop = null; } }
+function hideWhoSoon() { clearTimeout(whoTimer); whoTimer = setTimeout(closeWho, 250); }   // time to move onto the list
+const chipAt = (t) => t && t.closest && t.closest(".rchip[data-react]");
+document.addEventListener("pointerover", (e) => {
+  const chip = e.pointerType !== "touch" && chipAt(e.target);
+  if (chip && (!whoPop || whoPop.chip !== chip)) openWho(chip); else if (chip) clearTimeout(whoTimer);
+});
+document.addEventListener("pointerout", (e) => {
+  if (e.pointerType !== "touch" && whoPop && chipAt(e.target) === whoPop.chip && !whoPop.contains(e.relatedTarget) && chipAt(e.relatedTarget) !== whoPop.chip) hideWhoSoon();
+});
+document.addEventListener("focusin", (e) => { const chip = chipAt(e.target); if (chip && e.target.matches(":focus-visible")) openWho(chip); });
+document.addEventListener("focusout", (e) => { if (whoPop && chipAt(e.target) === whoPop.chip) hideWhoSoon(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && whoPop) closeWho(); });
+// phones: press and hold a reaction for the list; a plain tap still adds or removes yours
+document.addEventListener("pointerdown", (e) => {
+  if (whoPop && !whoPop.contains(e.target) && chipAt(e.target) !== whoPop.chip) closeWho();
+  const chip = e.pointerType === "touch" && chipAt(e.target);
+  clearTimeout(pressTimer); pressedOpen = false;
+  if (chip) pressTimer = setTimeout(() => { pressedOpen = true; openWho(chip); }, 450);
+});
+["pointerup", "pointercancel"].forEach((t) => document.addEventListener(t, () => clearTimeout(pressTimer)));
+document.addEventListener("pointermove", (e) => { if (e.pointerType === "touch" && pressTimer) clearTimeout(pressTimer); });
+document.addEventListener("contextmenu", (e) => { if (chipAt(e.target)) e.preventDefault(); });
+document.addEventListener("scroll", (e) => { if (whoPop && !whoPop.contains(e.target)) closeWho(); }, true);
+// new reactions arrive while the list is open: follow the re-rendered chip, or close if the reaction is gone
+new MutationObserver(() => {
+  if (!whoPop) return;
+  const { mid, react } = whoPop.chip.dataset;
+  const chip = whoPop.chip.isConnected ? whoPop.chip
+    : document.querySelector(`.rchip[data-mid="${mid}"][data-react="${CSS.escape(react)}"]`);
+  const r = chip && reactionAt(chip);
+  if (!r) return closeWho();
+  if (chip !== whoPop.chip || r.by.map((b) => b.id).join(",") !== whoPop.sig) openWho(chip);
+}).observe(document.body, { childList: true, subtree: true });
 const recentEmoji = () => { try { return JSON.parse(store.get("emoji-recent") || "[]"); } catch { return []; } };
 let reactPop = null;
 function closeReactPicker() { if (reactPop) { reactPop.remove(); reactPop = null; document.removeEventListener("mousedown", reactOutside, true); } }
@@ -2337,7 +2406,8 @@ document.addEventListener("click", (e) => {
   const rpick = e.target.closest("[data-react-pick]");
   if (rpick) { openReactPicker(rpick, Number(rpick.dataset.reactPick)); return; }
   const rchip = e.target.closest("[data-react]");
-  if (rchip) { if (!rchip.disabled) toggleReaction(Number(rchip.dataset.mid), rchip.dataset.react); return; }
+  if (rchip) { if (pressedOpen) { pressedOpen = false; return; }   // that was a long press: it opened the list
+    if (!rchip.disabled) toggleReaction(Number(rchip.dataset.mid), rchip.dataset.react); return; }
   const edit = e.target.closest("[data-edit]");
   if (edit) { startEdit(Number(edit.dataset.edit), edit.dataset.where); return; }
   if (e.target.closest("[data-edit-save]")) { saveEdit(); return; }
@@ -3029,6 +3099,7 @@ function profileSuspend(p) {
     ${s.via ? "" : `<button class="linkish" id="prof-unsuspend">Unsuspend</button>`}</div>`;
 }
 async function openProfile(id) {
+  closeWho();
   state.panel = { type: "profile", id };
   openPanel("profile", "Profile", "");
   $("panel-scroll").innerHTML = `<div class="empty">Loading…</div>`;
