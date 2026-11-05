@@ -125,9 +125,10 @@ a[data-internal] { font-weight: 600; }
 .rchip.radd { color: var(--ink-3); font: 14px/1 var(--mono); visibility: hidden; }
 .msg:hover .rchip.radd, .rchip.radd:focus-visible { visibility: visible; }
 .rchip[data-react] { -webkit-touch-callout: none; user-select: none; }
-.who-pop { position: fixed; z-index: 30; width: min(260px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
-.who-pop .wh { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--rule); }
-.who-pop .wh .re { font-size: 16px; line-height: 1; }
+.rchip.who-open { border-color: var(--ink); position: relative; z-index: 31; }
+.rchip.who-open.below { border-bottom-color: var(--bg); }
+.rchip.who-open.above { border-top-color: var(--bg); }
+.who-pop { position: fixed; z-index: 30; width: max-content; min-width: 160px; max-width: min(260px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
 .who-pop .wl { max-height: 264px; overflow-y: auto; padding: 4px 0; overscroll-behavior: contain; }
 .who-pop .person { display: flex; align-items: center; gap: 8px; padding: 4px 10px; }
 .who-pop .person:hover { background: var(--hover); }
@@ -1841,16 +1842,21 @@ function openWho(chip) {
     document.body.appendChild(whoPop);
   }
   const people = r.by.map((b) => (state.people || []).find((p) => p.id === b.id) || b);
+  if (whoPop.chip && whoPop.chip !== chip) whoPop.chip.classList.remove("who-open", "below", "above");
   whoPop.chip = chip; whoPop.sig = r.by.map((b) => b.id).join(",");
   whoPop.setAttribute("aria-label", `Reacted with ${r.emoji}`);
-  whoPop.innerHTML = `<div class="wh"><span class="re">${esc(r.emoji)}</span><span class="label">${r.count} ${r.count === 1 ? "reaction" : "reactions"}</span></div>
-    <div class="wl">${people.map((p) => `<div class="person" data-profile="${p.id}">${avatar(p, "xs", false)}<span class="pname">${esc(nameOf(p))}<small>${esc(kindLabel(p))}</small></span></div>`).join("")}</div>`;
+  whoPop.innerHTML = `<div class="wl">${people.map((p) => `<div class="person" data-profile="${p.id}">${avatar(p, "xs", false)}<span class="pname">${esc(nameOf(p))}<small>${esc(kindLabel(p))}</small></span></div>`).join("")}</div>`;
   hydrate(whoPop);
-  const a = chip.getBoundingClientRect(), w = whoPop.offsetWidth, h = whoPop.offsetHeight;
+  // the list hangs off the chip itself, as if the chip grew open (above it when there is no room below)
+  const a = chip.getBoundingClientRect(), w = whoPop.offsetWidth, h = whoPop.offsetHeight, below = a.bottom + h + 8 < window.innerHeight;
+  chip.classList.add("who-open"); chip.classList.toggle("below", below); chip.classList.toggle("above", !below);
   whoPop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, a.left)) + "px";
-  whoPop.style.top = (a.bottom + 6 + h < window.innerHeight ? a.bottom + 6 : Math.max(8, a.top - h - 6)) + "px";
+  whoPop.style.top = (below ? a.bottom - 1 : Math.max(8, a.top - h + 1)) + "px";
 }
-function closeWho() { clearTimeout(whoTimer); if (whoPop) { whoPop.remove(); whoPop = null; } }
+function closeWho() {
+  clearTimeout(whoTimer);
+  if (whoPop) { whoPop.chip.classList.remove("who-open", "below", "above"); whoPop.remove(); whoPop = null; }
+}
 function hideWhoSoon() { clearTimeout(whoTimer); whoTimer = setTimeout(closeWho, 250); }   // time to move onto the list
 const chipAt = (t) => t && t.closest && t.closest(".rchip[data-react]");
 document.addEventListener("pointerover", (e) => {
