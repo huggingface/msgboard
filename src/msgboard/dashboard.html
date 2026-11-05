@@ -121,7 +121,17 @@ a[data-internal] { font-weight: 600; }
 .rchip:hover:not(:disabled) { border-color: var(--ink); }
 .rchip.mine { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 .rchip.mine .rc { color: var(--ink); font-weight: 600; }
-.rchip:disabled { cursor: default; }
+.rchip[aria-disabled="true"] { cursor: default; }
+.rchip[data-react] { touch-action: pan-y; -webkit-touch-callout: none; user-select: none; }
+.reaction-people { position: fixed; z-index: 40; width: min(300px, calc(100vw - 16px)); display: flex; flex-direction: column;
+  border: 1px solid var(--ink); background: var(--bg); box-shadow: 3px 3px 0 var(--rule-2); padding: 8px; }
+.reaction-people-head { display: flex; align-items: center; gap: 8px; padding: 0 3px 7px; border-bottom: 1px solid var(--rule); font: 11px var(--mono); }
+.reaction-people-head button { margin-left: auto; font-size: 18px; text-decoration: none; line-height: 1; }
+.reaction-people-list { overflow-y: auto; min-height: 0; overscroll-behavior: contain; padding-top: 4px; }
+.reaction-person { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; padding: 6px 3px; }
+.reaction-person:hover, .reaction-person:focus-visible { background: var(--hover); outline: 1px solid var(--ink); outline-offset: -1px; }
+.reaction-person-name { min-width: 0; overflow-wrap: anywhere; flex: 1; }
+.reaction-person small { color: var(--ink-3); font: 10px var(--mono); flex: none; }
 .rchip.radd { color: var(--ink-3); font: 14px/1 var(--mono); visibility: hidden; }
 .msg:hover .rchip.radd, .rchip.radd:focus-visible { visibility: visible; }
 .react-pop { position: fixed; z-index: 30; width: min(320px, calc(100vw - 16px)); background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
@@ -1432,6 +1442,7 @@ function showLoginBox(html) {
   $("login-box").innerHTML = `<div class="label">message board</div><h1>msgboard</h1>` + html;
 }
 async function showLogin(error) {
+  closeReactionPeople();
   const cfg = await loadAuthConfig();
   const framed = window.self !== window.top;
   showLoginBox(`
@@ -1668,6 +1679,7 @@ function updateMeta(live) {
   $("ch-join").onclick = () => joinChannel(c);
 }
 function showChat() {
+  closeReactionPeople();
   state.view = "chat";
   $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("chat-view").style.display = "contents";
 }
@@ -1800,11 +1812,163 @@ function reactionsHTML(m) {
   if (!list.length) return "";
   const writable = canWriteHere();
   return `<div class="reacts">` + list.map((r) => {
-    const who = r.by.map((b) => nameOf(b)).join(", ");
-    return `<button class="rchip ${r.me ? "mine" : ""}" data-react="${esc(r.emoji)}" data-mid="${m.id}" ${writable ? "" : "disabled"}
-      title="${esc(who)} reacted with ${esc(r.emoji)}" aria-pressed="${r.me}"><span class="re">${esc(r.emoji)}</span><span class="rc">${r.count}</span></button>`;
+    return `<button class="rchip ${r.me ? "mine" : ""}" data-react="${esc(r.emoji)}" data-mid="${m.id}" aria-disabled="${!writable}"
+      aria-label="${esc(r.emoji)}: ${r.count} reactions. Arrow Down shows people." aria-haspopup="dialog" aria-expanded="false" aria-pressed="${r.me}"><span class="re">${esc(r.emoji)}</span><span class="rc">${r.count}</span></button>`;
   }).join("") + (writable ? `<button class="rchip radd" data-react-pick="${m.id}" title="Add reaction" aria-label="Add reaction">+</button>` : "") + `</div>`;
 }
+// One interactive list, keyed by message + emoji + pane, survives normal feed redraws.
+let reactionPeople = null, reactionLeaveTimer = 0, reactionHold = null, reactionSuppress = null;
+let reactionPointer = "", reactionReturningFocus = false;
+function reactionAnchor(who) {
+  return [...document.querySelectorAll(`${who.pane} .rchip[data-mid="${who.mid}"]`)].find((b) => b.dataset.react === who.emoji);
+}
+function closeReactionPeople(restoreFocus = false) {
+  clearTimeout(reactionLeaveTimer);
+  const who = reactionPeople; if (!who) return;
+  reactionPeople = null;
+  who.anchor?.removeAttribute("aria-controls"); who.anchor?.setAttribute("aria-expanded", "false"); who.el.remove();
+  if (restoreFocus) {
+    reactionReturningFocus = true; reactionAnchor(who)?.focus({ preventScroll: true }); reactionReturningFocus = false;
+  }
+}
+function reactionPeopleLeave() {
+  clearTimeout(reactionLeaveTimer);
+  if (reactionPeople && !reactionPeople.pinned && !reactionPeople.el.contains(document.activeElement))
+    reactionLeaveTimer = setTimeout(() => closeReactionPeople(), 180);
+}
+function positionReactionPeople() {
+  const who = reactionPeople; if (!who) return;
+  const a = who.anchor.getBoundingClientRect(), viewport = window.visualViewport;
+  const left = viewport?.offsetLeft || 0, top = viewport?.offsetTop || 0;
+  const width = viewport?.width || innerWidth, height = viewport?.height || innerHeight;
+  const scroll = who.anchor.closest(".scroll")?.getBoundingClientRect();
+  if (a.bottom <= Math.max(top, scroll?.top || top) || a.top >= Math.min(top + height, scroll?.bottom || top + height)) return closeReactionPeople();
+  who.el.style.width = Math.min(300, width - 16) + "px";
+  const below = top + height - a.bottom - 14, above = a.top - top - 14;
+  const down = below >= Math.min(360, who.el.scrollHeight) || below >= above;
+  who.el.style.maxHeight = Math.max(60, Math.min(360, down ? below : above)) + "px";
+  const r = who.el.getBoundingClientRect();
+  who.el.style.left = Math.max(left + 8, Math.min(a.left, left + width - r.width - 8)) + "px";
+  who.el.style.top = (down ? a.bottom + 6 : a.top - r.height - 6) + "px";
+}
+function syncReactionPeople() {
+  const who = reactionPeople; if (!who) return;
+  const anchor = reactionAnchor(who), message = state.byId.get(who.mid);
+  const reaction = message?.reactions?.find((r) => r.emoji === who.emoji);
+  if (!anchor || !reaction || !reaction.by.length) return closeReactionPeople();
+  who.anchor = anchor; anchor.setAttribute("aria-controls", "reaction-people"); anchor.setAttribute("aria-expanded", "true");
+  const known = new Map((state.people || []).map((p) => [p.id, p]));
+  const people = reaction.by.map((p) => ({ ...known.get(p.id), ...p })).sort((a, b) => nameOf(a).localeCompare(nameOf(b)) || a.id - b.id);
+  const key = JSON.stringify(people.map((p) => [p.id, nameOf(p), p.identity_type, p.avatar, p.pattern]));
+  if (key !== who.key) {
+    const active = who.el.querySelector("[data-react-person]:focus")?.dataset.reactPerson;
+    const scroll = who.el.querySelector(".reaction-people-list")?.scrollTop || 0;
+    who.el.innerHTML = `<div class="reaction-people-head"><span>${esc(who.emoji)}</span><span>${people.length} reacted</span>` +
+      `<button type="button" class="linkish" data-react-close aria-label="Close reaction list">×</button></div>` +
+      `<div class="reaction-people-list">${people.map((p) => `<button type="button" class="reaction-person" data-react-person="${p.id}">` +
+        `${avatar(p, "xs", false)}<span class="reaction-person-name">${esc(nameOf(p))}</span><small>${esc(kindLabel(p))}</small></button>`).join("")}</div>`;
+    who.el.querySelector(".reaction-people-list").scrollTop = scroll;
+    if (active) who.el.querySelector(`[data-react-person="${active}"]`)?.focus({ preventScroll: true });
+    hydrate(who.el); who.key = key;
+  }
+  positionReactionPeople();
+}
+function showReactionPeople(anchor, pinned = false) {
+  clearTimeout(reactionLeaveTimer);
+  const mid = Number(anchor.dataset.mid), emoji = anchor.dataset.react;
+  const pane = anchor.closest("#panel-scroll") ? "#panel-scroll" : "#messages";
+  if (reactionPeople && reactionPeople.mid === mid && reactionPeople.emoji === emoji && reactionPeople.pane === pane) {
+    reactionPeople.pinned ||= pinned; return syncReactionPeople();
+  }
+  closeReactionPeople();
+  const el = document.createElement("div"); el.id = "reaction-people"; el.className = "reaction-people";
+  el.setAttribute("role", "dialog"); el.setAttribute("aria-label", `People who reacted with ${emoji}`);
+  document.body.appendChild(el); reactionPeople = { mid, emoji, pane, anchor, el, pinned };
+  el.onpointerenter = () => clearTimeout(reactionLeaveTimer); el.onpointerleave = reactionPeopleLeave;
+  el.onfocusin = () => clearTimeout(reactionLeaveTimer);
+  el.onfocusout = (e) => { if (!el.contains(e.relatedTarget) && e.relatedTarget !== reactionPeople?.anchor) closeReactionPeople(); };
+  el.onclick = (e) => {
+    const person = e.target.closest("[data-react-person]");
+    if (person) { e.stopPropagation(); closeReactionPeople(); openProfile(Number(person.dataset.reactPerson)); }
+    else if (e.target.closest("[data-react-close]")) { e.stopPropagation(); closeReactionPeople(true); }
+  };
+  syncReactionPeople();
+  // Reuse the existing principal cache for uploaded avatars; never fetch one profile per reactor.
+  if (!state.people) loadPeople().then(syncReactionPeople, () => {});
+}
+document.addEventListener("pointerover", (e) => {
+  const chip = e.target.closest?.(".rchip[data-react]");
+  if (chip && e.pointerType !== "touch" && !chip.contains(e.relatedTarget)) showReactionPeople(chip);
+});
+document.addEventListener("pointerout", (e) => {
+  const who = reactionPeople;
+  if (who && e.target.closest?.(".rchip[data-react]") === who.anchor && !who.el.contains(e.relatedTarget) && !who.anchor.contains(e.relatedTarget)) reactionPeopleLeave();
+});
+document.addEventListener("focusin", (e) => {
+  const chip = e.target.closest?.(".rchip[data-react]");
+  if (chip && reactionPointer !== "touch" && !reactionReturningFocus) showReactionPeople(chip);
+});
+document.addEventListener("focusout", (e) => {
+  const who = reactionPeople;
+  if (who && e.target === who.anchor && !who.el.contains(e.relatedTarget)) reactionPeopleLeave();
+});
+document.addEventListener("keydown", (e) => {
+  reactionPointer = "";
+  const who = reactionPeople, chip = e.target.closest?.(".rchip[data-react]");
+  if (e.key === "Escape" && who) { e.preventDefault(); e.stopImmediatePropagation(); closeReactionPeople(true); return; }
+  if (chip && (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey && who?.anchor === chip))) {
+    e.preventDefault(); showReactionPeople(chip); reactionPeople?.el.querySelector("[data-react-person]")?.focus(); return;
+  }
+  if (!who || !who.el.contains(e.target)) return;
+  const rows = [...who.el.querySelectorAll("[data-react-person]")], i = rows.indexOf(e.target);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); rows[(i + (e.key === "ArrowDown" ? 1 : rows.length - 1)) % rows.length]?.focus(); }
+  if (e.key === "Tab" && (i === 0 && e.shiftKey || i === rows.length - 1 && !e.shiftKey)) {
+    e.preventDefault(); const anchor = who.anchor;
+    const next = [...document.querySelectorAll('button:not(:disabled), a[href], input, textarea, [tabindex="0"]')]
+      .filter((b) => b.getClientRects().length && !who.el.contains(b));
+    const target = e.shiftKey ? anchor : next[next.indexOf(anchor) + 1];
+    closeReactionPeople(); target?.focus();
+  }
+}, true);
+function cancelReactionHold() {
+  if (reactionHold) clearTimeout(reactionHold.timer);
+  reactionHold = null;
+}
+document.addEventListener("pointerdown", (e) => {
+  reactionPointer = e.pointerType; reactionSuppress = null;
+  const who = reactionPeople;
+  if (who && !who.el.contains(e.target) && !who.anchor.contains(e.target)) closeReactionPeople();
+  cancelReactionHold();
+  const chip = e.target.closest?.(".rchip[data-react]");
+  if (!chip || e.pointerType !== "touch") return;
+  const hold = reactionHold = { x: e.clientX, y: e.clientY, mid: chip.dataset.mid, emoji: chip.dataset.react };
+  hold.timer = setTimeout(() => {
+    if (reactionHold !== hold || !chip.isConnected) return;
+    showReactionPeople(chip, true); reactionSuppress = { mid: hold.mid, emoji: hold.emoji, until: Infinity };
+  }, 500);
+}, true);
+document.addEventListener("pointermove", (e) => {
+  if (reactionHold && Math.hypot(e.clientX - reactionHold.x, e.clientY - reactionHold.y) > 10) cancelReactionHold();
+}, { passive: true });
+for (const event of ["pointerup", "pointercancel"]) document.addEventListener(event, () => {
+  cancelReactionHold(); if (reactionSuppress) reactionSuppress.until = Date.now() + 900;
+}, true);
+document.addEventListener("contextmenu", (e) => {
+  if (e.target.closest?.(".rchip[data-react]") && (reactionHold || matchMedia("(pointer: coarse)").matches)) e.preventDefault();
+});
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest?.(".rchip[data-react]");
+  if (chip && reactionSuppress && Date.now() < reactionSuppress.until && chip.dataset.mid === reactionSuppress.mid && chip.dataset.react === reactionSuppress.emoji) {
+    e.preventDefault(); e.stopImmediatePropagation(); reactionSuppress = null;
+  }
+}, true);
+document.addEventListener("scroll", (e) => {
+  if (reactionPeople && !reactionPeople.el.contains(e.target)) positionReactionPeople();
+}, { capture: true, passive: true });
+document.addEventListener("visibilitychange", () => { if (document.hidden) { cancelReactionHold(); closeReactionPeople(); } });
+window.addEventListener("resize", positionReactionPeople);
+window.visualViewport?.addEventListener("resize", positionReactionPeople);
+
 async function toggleReaction(mid, emoji) {
   const c = state.current, m = state.byId.get(mid);
   if (!c || !m) return;
@@ -1820,6 +1984,7 @@ let reactPop = null;
 function closeReactPicker() { if (reactPop) { reactPop.remove(); reactPop = null; document.removeEventListener("mousedown", reactOutside, true); } }
 function reactOutside(e) { if (reactPop && !reactPop.contains(e.target)) closeReactPicker(); }
 function openReactPicker(anchor, mid) {
+  closeReactionPeople();
   closeReactPicker();
   const pop = reactPop = document.createElement("div");
   pop.className = "react-pop"; pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", "Add reaction");
@@ -2015,6 +2180,7 @@ function renderList(container, list, opts = {}) {
   container.querySelectorAll("[data-att]").forEach(fillFile);
   hydrate(container);
   wireEditor(container);
+  if (reactionPeople) requestAnimationFrame(syncReactionPeople);
 }
 // Re-render without moving what you are reading: remember the first visible message and its offset, put it back after.
 const nearBottom = (sc) => sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80;
@@ -2337,7 +2503,7 @@ document.addEventListener("click", (e) => {
   const rpick = e.target.closest("[data-react-pick]");
   if (rpick) { openReactPicker(rpick, Number(rpick.dataset.reactPick)); return; }
   const rchip = e.target.closest("[data-react]");
-  if (rchip) { if (!rchip.disabled) toggleReaction(Number(rchip.dataset.mid), rchip.dataset.react); return; }
+  if (rchip) { if (canWriteHere()) toggleReaction(Number(rchip.dataset.mid), rchip.dataset.react); return; }
   const edit = e.target.closest("[data-edit]");
   if (edit) { startEdit(Number(edit.dataset.edit), edit.dataset.where); return; }
   if (e.target.closest("[data-edit-save]")) { saveEdit(); return; }
@@ -3029,6 +3195,7 @@ function profileSuspend(p) {
     ${s.via ? "" : `<button class="linkish" id="prof-unsuspend">Unsuspend</button>`}</div>`;
 }
 async function openProfile(id) {
+  closeReactionPeople();
   state.panel = { type: "profile", id };
   openPanel("profile", "Profile", "");
   $("panel-scroll").innerHTML = `<div class="empty">Loading…</div>`;
@@ -3247,6 +3414,7 @@ function drawActivity(host, days) {
 
 // ------------------------------------------------------------------ activity
 async function openActivity() {
+  closeReactionPeople();
   state.view = "activity";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -3527,6 +3695,7 @@ async function jumpTo(m) {
 // ------------------------------------------------------------------ settings
 const EXPIRY = [["never", null], ["1 day", 86400], ["7 days", 604800], ["30 days", 2592000]];
 function openSettings(tab) {
+  closeReactionPeople();
   state.view = "settings";
   if (state.poll) state.poll.abort();
   state.current = null; renderChannels(); closePanel();
@@ -3849,6 +4018,7 @@ function analyticsRange() {
 }
 function leaveAnalytics() { $("analytics").classList.add("hidden"); $("analytics-open").classList.remove("on"); }
 async function openAnalytics() {
+  closeReactionPeople();
   if (!canAnalytics()) return;
   state.view = "analytics";
   if (state.poll) state.poll.abort();
