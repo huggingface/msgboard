@@ -2629,6 +2629,7 @@ function mountComposer(host, { placeholder, replyTo }) {
   const filesKey = "draft-files:" + draftKey;
   try { items = JSON.parse(store.get(filesKey) || "[]").map((f) => ({ file: { name: f.name, type: f.type, size: f.size }, label: f.label, url: f.url, uid: uid(), loaded: f.size, status: "done", thumb: null })); } catch {}
   const saveFiles = () => {
+    if (sending) return;   // in flight: the draft gives them up, so a box opened meanwhile cannot remove them
     const done = items.filter((it) => it.status === "done").map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }));
     if (done.length) store.set(filesKey, JSON.stringify(done)); else store.del(filesKey);
   };
@@ -2670,6 +2671,7 @@ function mountComposer(host, { placeholder, replyTo }) {
   async function start(it) {
     it.status = "uploading"; it.loaded = 0; it.error = null; renderChips();
     const limits = await myStorageLimits();   // the file is registered already, so Send waits for it
+    if (!items.includes(it)) return pump();    // removed while the limits loaded: never upload it
     if (limits && it.file.size > limits.max) {
       items = items.filter((x) => x !== it); if (it.thumb) URL.revokeObjectURL(it.thumb);
       pending.textContent = `${it.file.name} is larger than ${fmtSize(limits.max)}, this board's limit per file.`;
@@ -2776,6 +2778,7 @@ function mountComposer(host, { placeholder, replyTo }) {
     if (sending || !c || uploading() || (!text && !ready.length)) return;
     if (items.some((it) => it.status === "error")) { pending.textContent = "Remove or retry the files that did not upload."; return; }
     sending = true; renderChips();
+    store.del(filesKey); setDraft(draftKey, "");   // taken out of the draft while sending; put back if it fails
     const key = uid();  // reused on every retry, so a resend never duplicates
     try {
       const payload = { body: text };
@@ -2793,7 +2796,7 @@ function mountComposer(host, { placeholder, replyTo }) {
       }
       input.value = ""; autosize(); pending.textContent = ""; setDraft(draftKey, ""); store.del(filesKey);
       items.forEach((it) => it.thumb && URL.revokeObjectURL(it.thumb)); items = [];
-    } catch (e) { pending.textContent = "Not sent: " + e.message; }
+    } catch (e) { pending.textContent = "Not sent: " + e.message; setDraft(draftKey, input.value); }
     finally { sending = false; renderChips(); input.focus(); }
   }
   if (items.length) renderChips();   // files kept with the draft
