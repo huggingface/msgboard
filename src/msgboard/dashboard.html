@@ -1581,11 +1581,14 @@ const NO_NOTIFY = "This browser does not show notifications from web pages (most
 // which tab is in front, and on which channel: shared through localStorage, so a tab behind it stays quiet
 function noteFront() {
   const front = document.visibilityState === "visible" && document.hasFocus() && state.view === "chat" && state.current;
-  if (front) store.set("notify-front", JSON.stringify({ channel: state.current.id, at: Date.now() }));
-  else if (frontIsMe) store.del("notify-front");
+  if (front) store.set("notify-front", JSON.stringify({ channel: state.current.id, at: Date.now(), tab: tabId }));
+  else if (frontIsMe) {   // only clear the note if it is still ours: another tab may have come to the front meanwhile
+    try { if ((JSON.parse(store.get("notify-front") || "null") || {}).tab === tabId) store.del("notify-front"); } catch {}
+  }
   frontIsMe = !!front;
 }
 let frontIsMe = false;
+const tabId = Math.random().toString(36).slice(2);
 ["focus", "blur", "visibilitychange", "pagehide"].forEach((t) => window.addEventListener(t, () => setTimeout(noteFront)));
 setInterval(() => { if (frontIsMe) noteFront(); }, 30000);   // keep it fresh; a crashed tab's note goes stale after a minute
 function onScreenSomewhere(channelId) {
