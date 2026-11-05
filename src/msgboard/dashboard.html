@@ -1388,6 +1388,14 @@ async function loadPeople(force = false) {
   if (!state.people || force) state.people = (await api("GET", "/principals")).principals;
   return state.people;
 }
+// ids of a channel's members, for @ suggestions; dropped when someone joins, leaves or is added
+const memberIds = new Map(), knownMembers = new Map();
+async function loadMemberIds(c) {
+  if (!memberIds.has(c.id)) memberIds.set(c.id, api("GET", `/channels/${c.id}/members`)
+    .then((r) => { const ids = new Set(r.members.map((m) => m.id)); knownMembers.set(c.id, ids); return ids; },
+      () => { memberIds.delete(c.id); return knownMembers.get(c.id) || new Set(); }));   // on failure: the last list, or none
+  return memberIds.get(c.id);
+}
 async function pick(title, filterFn, onPick) {
   $("pick-title").textContent = title; $("pick-filter").value = ""; $("pick-error").classList.add("hidden");
   const people = (await loadPeople(true)).filter(filterFn);
@@ -1562,7 +1570,7 @@ const joinable = (c) => c.member === false && c.kind !== "dm" && !c.archived && 
 async function joinChannel(c) {
   try {
     await api("POST", `/channels/${c.id}/members`, { body: { principal_id: state.me.id } });
-    c.member = true; renderChannels(); updateMeta(true);
+    memberIds.delete(c.id); c.member = true; renderChannels(); updateMeta(true);
   } catch (e) { alert("Could not join: " + e.message); }
 }
 const showPrivate = () => !!(state.me && state.me.prefs && state.me.prefs.show_private);
@@ -1666,6 +1674,7 @@ function showChat() {
 async function openChannel(id) {
   const c = state.channels.find((x) => x.id === id);
   if (!c) return;
+  memberIds.delete(c.id);   // members change elsewhere too: fetch them fresh for each visit
   showChat();
   if (state.poll) state.poll.abort();
   if (state.panel && state.panel.type !== "profile") closePanel();
@@ -2601,7 +2610,8 @@ function attachAssist(host, input, autosize) {
         .map(([, c]) => ({ insert: `#${c.name} `, html: `<span class="glyph">${c.kind === "private" ? LOCK : "#"}</span><span>${esc(c.name)}</span>` +
           (c.description ? `<small>${esc(c.description.length > 40 ? c.description.slice(0, 39) + "…" : c.description)}</small>` : "") }));
     } else {
-      const people = (await loadPeople()).filter((p) => !p.disabled && p.id !== state.me.id);
+      const members = state.current ? await loadMemberIds(state.current) : new Set();   // only people in this channel
+      const people = (await loadPeople()).filter((p) => !p.disabled && p.id !== state.me.id && members.has(p.id));
       const tags = state.current && state.current.kind !== "dm"
         ? ["all", "agents", "humans"].filter((g) => !q || g.startsWith(q)).map((g) => ({ insert: `@${g} `,
             html: `<span class="glyph">@</span><span>${g}</span><small>${esc(GROUP_TAGS[g])}</small>` })) : [];
@@ -2978,9 +2988,10 @@ async function openMembers() {
   hydrate($("panel-scroll"));
   if ($("member-add")) $("member-add").onclick = () => pick("Add to " + c.name,
     (p) => !p.disabled && !members.some((m) => m.id === p.id),
-    async (p) => { await api("POST", `/channels/${c.id}/members`, { body: { principal_id: p.id } }); openMembers(); });
+    async (p) => { await api("POST", `/channels/${c.id}/members`, { body: { principal_id: p.id } }); memberIds.delete(c.id); openMembers(); });
   $("panel-scroll").querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
     const r = await api("DELETE", `/channels/${c.id}/members/${b.dataset.remove}`);
+    memberIds.delete(c.id);
     if (r.left) { closePanel(); await refreshChannels(); const first = state.channels[0]; if (first) openChannel(first.id); }
     else openMembers();
   });

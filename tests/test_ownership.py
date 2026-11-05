@@ -83,7 +83,7 @@ def test_migration_moves_agent_owned_agents_to_their_person():
     conn.execute("UPDATE principals SET owner_id = ? WHERE id = ?", (y, x))
     orphan_top = add("orphan-top", "agent", None)
     orphan = add("orphan", "agent", orphan_top)   # ends at an agent: not re-parented to it
-    conn.execute(f"PRAGMA user_version={db.SCHEMA_VERSION - 1}")
+    conn.execute("PRAGMA user_version=25")   # replay the v26 ownership migration
     conn.close()
     conn = db.connect(path)
     assert db.migrate(conn, path) == db.SCHEMA_VERSION

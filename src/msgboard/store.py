@@ -1689,6 +1689,8 @@ def find_mention_spans(conn, body: str) -> list[tuple]:
             continue
         best = None
         for name, row in candidates:
+            if name in GROUP_MENTIONS:
+                continue                     # @all, @agents ... always mean the group, never someone named so
             end = i + 1 + len(name)
             if best is not None and len(name) < best:
                 break                        # every identity sharing the longest name has been collected
@@ -1723,10 +1725,12 @@ def _record_mentions(conn, channel, message_id: int, body: str, sender_id: int) 
             continue
         conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id, mentioned_as) VALUES (?, ?, ?)",
                      (message_id, row["id"], text))
-    if kinds:   # @all / @agents / @humans: everyone of that kind who can read the channel
+    if kinds:   # @all / @agents / @humans: the channel's members of that kind, not everyone who could read it
         marks = ",".join("?" * len(kinds))
         group_of = {k: g for g in sorted(group_mentions(body), key=lambda g: len(GROUP_MENTIONS[g])) for k in GROUP_MENTIONS[g]}
-        for row in conn.execute(f"SELECT * FROM principals WHERE disabled = 0 AND identity_type IN ({marks})", sorted(kinds)):
+        for row in conn.execute(f"""SELECT p.* FROM principals p JOIN channel_members cm ON cm.principal_id = p.id
+                                    WHERE cm.channel_id = ? AND p.disabled = 0 AND p.identity_type IN ({marks})""",
+                                (channel["id"], *sorted(kinds))):
             if row["id"] != sender_id and can_see(conn, _principal_obj(row), channel):
                 conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id, mentioned_as) VALUES (?, ?, ?)",
                              (message_id, row["id"], group_of[row["identity_type"]]))
@@ -1978,6 +1982,7 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     Without `after`: the newest `limit`, newest first (what the Activity view shows).
     With `after`: messages with id > after, oldest first, for an agent that resumes from a saved
     cursor. Message ids grow with every post across the whole board, so `next_cursor` is one number.
+    An exhausted page advances past unrelated messages too; a partial page stops at its last result.
     """
     limit = max(1, min(int(limit), 200))
     follow = list(dict.fromkeys(follow or []))
@@ -1990,13 +1995,16 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     scope = "" if ids is None else (f" AND +m.channel_id IN ({','.join(str(int(i)) for i in ids)})" if ids else " AND 0")
     followed = f" OR +m.channel_id IN ({','.join(str(int(i)) for i in follow)})" if follow else ""
     order = "DESC" if after is None else "ASC"
+    # Capture the boundary before reading: a later post must remain available to the next poll.
+    through = conn.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
     rows = conn.execute(MESSAGE_SELECT + f"""
-        WHERE m.sender_id != :me AND m.id > :after{scope} AND (
+        WHERE m.sender_id != :me AND m.id > :after AND m.id <= :through{scope} AND (
             m.id IN (SELECT message_id FROM message_mentions WHERE principal_id = :me)
             OR m.thread_id IN {MY_THREADS}
             OR m.channel_id IN (SELECT c.id FROM channels c JOIN channel_members cm ON cm.channel_id = c.id
                                 WHERE c.kind = 'dm' AND cm.principal_id = :me){followed})
-        ORDER BY m.id {order} LIMIT :limit""", {"me": p.id, "limit": limit + 1, "after": after or 0}).fetchall()
+        ORDER BY m.id {order} LIMIT :limit""", {"me": p.id, "limit": limit + 1, "after": after or 0,
+                                               "through": through}).fetchall()
     has_more = len(rows) > limit
     messages = [_message_json(r) for r in rows[:limit]]
     _attach_mentions(conn, messages)
@@ -2022,9 +2030,11 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
         else:
             m["unread"] = m["seq"] > reads.get(cid, 0) and (cid in reads or m["created_at"] > baseline)
     if after is None:
-        cursor = conn.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]   # "everything up to now"
+        cursor = through   # "everything up to now"
+    elif has_more:
+        cursor = messages[-1]["id"]
     else:
-        cursor = messages[-1]["id"] if messages else after
+        cursor = max(after, through)   # exhausted this range, including messages not for this caller
     out = {"messages": messages, "next_cursor": cursor, "has_more": has_more}
     if reactions and after is None:
         out["reactions"] = _reactions_to_me(conn, p, scope, limit)
