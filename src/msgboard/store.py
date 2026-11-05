@@ -677,10 +677,17 @@ def list_channels(conn, p: Principal, name: str | None = None) -> list[dict]:
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
     out, mine = [], {r[0] for r in conn.execute("SELECT channel_id FROM channel_members WHERE principal_id = ?", (p.id,))}
-    for r in conn.execute(sql + " ORDER BY kind = 'dm', id", args).fetchall():
+    rows = conn.execute(sql + " ORDER BY kind = 'dm', id", args).fetchall()
+    if not rows:
+        return []
+    reads = {r["channel_id"]: r for r in conn.execute(
+        "SELECT channel_id, last_read_seq, thread_floor FROM channel_reads WHERE principal_id = ?", (p.id,))}
+    baseline = _reads_baseline(conn, p)
+    for r in rows:
         item = _channel_json(conn, r)
         item["member"] = r["id"] in mine
-        item.update(unread_counts(conn, p, r))
+        item.update(_unread_counts(conn, p, r, reads.get(r["id"]), baseline,
+                                   r["kind"] == "dm" and item["member"]))
         out.append(item)
     return out
 
@@ -1868,9 +1875,15 @@ def unread_counts(conn, p: Principal, channel) -> dict:
     reply stays "for me" until I open its thread, even after I have looked at the channel."""
     row = conn.execute("SELECT last_read_seq, thread_floor FROM channel_reads WHERE principal_id = ? AND channel_id = ?",
                        (p.id, channel["id"])).fetchone()
-    params = {"me": p.id, "c": channel["id"], "lr": row[0] if row else 0, "floor": row[1] if row else 0,
-              "has_row": 1 if row else 0, "baseline": _reads_baseline(conn, p),
-              "dm": 1 if channel["kind"] == "dm" and _is_channel_member(conn, channel["id"], p.id) else 0}
+    return _unread_counts(conn, p, channel, row, _reads_baseline(conn, p),
+                          channel["kind"] == "dm" and _is_channel_member(conn, channel["id"], p.id))
+
+
+def _unread_counts(conn, p: Principal, channel, row, baseline: float, dm: bool) -> dict:
+    """Count using caller-provided read state, shared across a channel listing."""
+    params = {"me": p.id, "c": channel["id"], "lr": row["last_read_seq"] if row else 0,
+              "floor": row["thread_floor"] if row else 0,
+              "has_row": 1 if row else 0, "baseline": baseline, "dm": int(dm)}
     r = conn.execute(f"""
         SELECT COALESCE(SUM(CASE WHEN m.thread_id IS NULL AND m.seq > :lr THEN 1 ELSE 0 END), 0),
                COALESCE(SUM(CASE WHEN {FOR_ME} AND ((m.thread_id IS NULL AND m.seq > :lr)
