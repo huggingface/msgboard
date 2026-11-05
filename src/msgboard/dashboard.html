@@ -2625,6 +2625,14 @@ function mountComposer(host, { placeholder, replyTo }) {
   input.value = draftOf(draftKey);
   input.addEventListener("input", () => setDraft(draftKey, input.value));
   let items = [], sending = false;
+  // uploaded files stay with the draft, so leaving and coming back keeps them (and their marks) working
+  const filesKey = "draft-files:" + draftKey;
+  try { items = JSON.parse(store.get(filesKey) || "[]").map((f) => ({ file: { name: f.name, type: f.type, size: f.size }, label: f.label, url: f.url, uid: uid(), loaded: f.size, status: "done", thumb: null })); } catch {}
+  const saveFiles = () => {
+    const done = items.filter((it) => it.status === "done").map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }));
+    if (done.length) store.set(filesKey, JSON.stringify(done)); else store.del(filesKey);
+  };
+  const composerId = uid();   // a mark dragged from another box would point at that box's file
   const autosize = () => {
     // A2: one line with the buttons beside it; once the text needs more, the buttons move to a row below
     box.classList.remove("multi"); input.style.height = "auto";
@@ -2634,6 +2642,7 @@ function mountComposer(host, { placeholder, replyTo }) {
   const UPLOADS_AT_ONCE = 3;   // the server accepts a few concurrent uploads; the rest wait their turn
   const uploading = () => items.some((it) => it.status === "uploading" || it.status === "queued");
   function renderChips() {
+    saveFiles();
     chips.classList.toggle("hidden", !items.length);
     chips.innerHTML = items.map((it, i) => {
       const kind = kindOf(it.file.name, it.file.type);
@@ -2646,7 +2655,7 @@ function mountComposer(host, { placeholder, replyTo }) {
         `<span class="fcopy"><span class="fname">${esc(it.label)}</span><span class="fmeta">${meta}</span>` +
         (it.status === "uploading" || it.status === "queued" ? `<span class="fbar"><span style="width:${it.status === "queued" ? 0 : pct}%"></span></span>` : "") + `</span>` +
         (it.status === "error" ? `<button class="retry" data-retry="${i}">retry</button>` : "") +
-        `<button data-remove="${i}" aria-label="Remove ${esc(it.file.name)}">×</button></div>`;
+        `<button data-remove="${i}" aria-label="Remove ${esc(it.file.name)}" ${sending ? "disabled" : ""}>×</button></div>`;
     }).join("");
     sendBtn.disabled = sending || uploading();
   }
@@ -2660,6 +2669,12 @@ function mountComposer(host, { placeholder, replyTo }) {
   }
   async function start(it) {
     it.status = "uploading"; it.loaded = 0; it.error = null; renderChips();
+    const limits = await myStorageLimits();   // the file is registered already, so Send waits for it
+    if (limits && it.file.size > limits.max) {
+      items = items.filter((x) => x !== it); if (it.thumb) URL.revokeObjectURL(it.thumb);
+      pending.textContent = `${it.file.name} is larger than ${fmtSize(limits.max)}, this board's limit per file.`;
+      return pump();
+    }
     for (let attempt = 0; ; attempt++) {
       try {
         it.url = (await uploadToStorage(it, (loaded) => { it.loaded = loaded; renderChips(); })).url;
@@ -2676,12 +2691,10 @@ function mountComposer(host, { placeholder, replyTo }) {
     }
     pump();
   }
-  async function addFiles(files) {
+  function addFiles(files) {
     pending.textContent = "";
-    const limits = await myStorageLimits();
     for (let file of files) {
       if (items.length >= MAX_FILES) { pending.textContent = `At most ${MAX_FILES} files per message.`; break; }
-      if (limits && file.size > limits.max) { pending.textContent = `${file.name} is larger than ${fmtSize(limits.max)}, this board's limit per file.`; continue; }
       if (!file.name || file.name === "image.png") {   // pasted screenshots
         const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
         file = new File([file], `pasted-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${ext}`, { type: file.type });
@@ -2698,6 +2711,7 @@ function mountComposer(host, { placeholder, replyTo }) {
   chips.addEventListener("click", (e) => {
     const r = e.target.closest("[data-remove]"), t = e.target.closest("[data-retry]");
     if (r) {
+      if (sending) return;   // the message may already hold this file's link
       const it = items[Number(r.dataset.remove)];
       items = items.filter((x) => x !== it);
       if (input.value.includes(fileToken(it))) { input.value = input.value.split(fileToken(it)).join(""); autosize(); }
@@ -2712,7 +2726,14 @@ function mountComposer(host, { placeholder, replyTo }) {
     const c = e.target.closest(".fchip[draggable]"); if (!c) return;
     const it = items[Number(c.dataset.i)];
     if (input.value.includes(fileToken(it))) input.value = input.value.split(fileToken(it)).join("");   // moving it
-    e.dataTransfer.setData("text/plain", fileToken(it)); e.dataTransfer.effectAllowed = "copyMove";
+    e.dataTransfer.setData("text/plain", fileToken(it)); e.dataTransfer.setData("application/x-msgboard-composer", composerId);
+    e.dataTransfer.effectAllowed = "copyMove";
+  });
+  input.addEventListener("drop", (e) => {   // a chip from the other box (feed vs thread) has no file here: refuse it
+    const from = [...e.dataTransfer.types].includes("application/x-msgboard-composer");
+    if (from && e.dataTransfer.getData("application/x-msgboard-composer") !== composerId) {
+      e.preventDefault(); pending.textContent = "That file belongs to the other message box. Attach it here too.";
+    }
   });
   chips.addEventListener("dragend", () => { autosize(); renderChips(); input.dispatchEvent(new Event("input")); });
   input.addEventListener("input", () => renderChips());
@@ -2770,11 +2791,12 @@ function mountComposer(host, { placeholder, replyTo }) {
           await sleep(Math.min(500 * 2 ** attempt, 4000));
         }
       }
-      input.value = ""; autosize(); pending.textContent = ""; setDraft(draftKey, "");
+      input.value = ""; autosize(); pending.textContent = ""; setDraft(draftKey, ""); store.del(filesKey);
       items.forEach((it) => it.thumb && URL.revokeObjectURL(it.thumb)); items = [];
     } catch (e) { pending.textContent = "Not sent: " + e.message; }
     finally { sending = false; renderChips(); input.focus(); }
   }
+  if (items.length) renderChips();   // files kept with the draft
   if (input.value) { autosize(); input.setSelectionRange(input.value.length, input.value.length); }
   if (window.matchMedia("(min-width: 721px)").matches) input.focus();
 }
