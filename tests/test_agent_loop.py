@@ -33,6 +33,94 @@ def test_activity_cursor_resumes_and_follows_channels(env):
     assert small["has_more"] and len(small["messages"]) == 1
 
 
+def test_empty_activity_advances_past_unrelated_messages(env):
+    busy = env.op.create_channel("busy")
+    quiet = env.op.create_channel("quiet")
+    _, _, bot = env.agent("bot", channels=["quiet"])
+    start = bot.activity_page(channels=[quiet["id"]])["next_cursor"]
+    unrelated = env.op.post(busy["id"], "news outside the followed channel")
+
+    page = bot.activity_page(start, channels=[quiet["id"]])
+    assert page["messages"] == []
+    assert page["has_more"] is False
+    # This history has been exhausted; polling again must not scan it from start.
+    assert page["next_cursor"] == unrelated["id"]
+
+    relevant = env.op.post(quiet["id"], "new work for the bot")
+    resumed = bot.activity_page(page["next_cursor"], channels=[quiet["id"]])
+    assert [m["id"] for m in resumed["messages"]] == [relevant["id"]]
+
+
+@pytest.mark.parametrize("restart", [False, True])
+@pytest.mark.parametrize("deletion", ["message", "thread", "channel"])
+def test_activity_cursor_does_not_skip_posts_after_deletion(env, restart, deletion):
+    busy = env.op.create_channel("busy")
+    quiet = env.op.create_channel("quiet")
+    _, token, bot = env.agent("bot", channels=["quiet"])
+    first = env.op.post(quiet["id"], "first work")
+    start = bot.activity_page(0, channels=[quiet["id"]])["next_cursor"]
+    assert start == first["id"]
+    unrelated = env.op.post(busy["id"], "unrelated latest message")
+    if deletion == "thread":
+        env.op.post(busy["id"], "latest reply", reply_to=unrelated["id"])
+    page = bot.activity_page(start, channels=[quiet["id"]])
+    assert page["messages"] == []
+
+    if deletion == "channel":
+        env.op.delete_channel(busy["id"], "busy")
+    else:
+        env.op.delete_message(busy["id"], unrelated["id"])
+    if restart:
+        env.restart()
+        bot = env.client(token)
+    work = env.op.post(quiet["id"], "new work after deletion")
+    resumed = bot.activity_page(page["next_cursor"], channels=[quiet["id"]])
+    assert [m["id"] for m in resumed["messages"]] == [work["id"]]
+
+
+def test_activity_cursor_preserves_pagination(env):
+    busy = env.op.create_channel("busy")
+    quiet = env.op.create_channel("quiet")
+    _, _, bot = env.agent("bot", channels=["quiet"])
+    first = env.op.post(quiet["id"], "first")
+    second = env.op.post(quiet["id"], "second")
+    tail = env.op.post(busy["id"], "unrelated tail")
+
+    page = bot.activity_page(0, limit=1, channels=[quiet["id"]])
+    assert [m["id"] for m in page["messages"]] == [first["id"]]
+    assert page["has_more"] is True
+    assert page["next_cursor"] == first["id"]            # do not skip the next matching message
+    last = bot.activity_page(page["next_cursor"], limit=1, channels=[quiet["id"]])
+    assert [m["id"] for m in last["messages"]] == [second["id"]]
+    assert last["has_more"] is False
+    assert last["next_cursor"] == tail["id"]
+    ahead = tail["id"] + 100
+    assert bot.activity_page(ahead, channels=[quiet["id"]])["next_cursor"] == ahead
+
+
+@pytest.mark.parametrize("after", [None, 0])
+def test_activity_cursor_does_not_skip_concurrent_posts(env, monkeypatch, after):
+    from msgboard import store
+
+    quiet = env.op.create_channel("quiet")
+    _, _, bot = env.agent("bot", channels=["quiet"])
+    attach_mentions = store._attach_mentions
+    posted = {}
+
+    def post_after_query(conn, messages):
+        attach_mentions(conn, messages)
+        if not posted:
+            posted["started"] = True
+            posted.update(env.op.post(quiet["id"], "arrived after the activity query"))
+
+    monkeypatch.setattr(store, "_attach_mentions", post_after_query)
+    page = bot.activity_page(after, channels=[quiet["id"]])
+    assert page["messages"] == []
+    assert page["next_cursor"] == 0                     # the new post was not in this query's results
+    resumed = bot.activity_page(page["next_cursor"], channels=[quiet["id"]])
+    assert [m["id"] for m in resumed["messages"]] == [posted["id"]]
+
+
 def test_activity_long_poll_wakes_only_for_me(env):
     gen = env.op.create_channel("general")
     _, _, ana = env.human("ana")

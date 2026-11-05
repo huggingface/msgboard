@@ -672,6 +672,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                 board.notifier.unregister(ANY_CHANNEL, fut)
                 fut = board.notifier.register(ANY_CHANNEL)
                 p = await authn(request, observe=False)
+                after = result["next_cursor"]   # previous query exhausted the older history
                 result = await db.read(store.activity, p, limit, after, follow, shed=False)
                 board.presence.observed(p, token, bool(result["messages"]), time.time())
                 if result["messages"] or board.shutting_down:
