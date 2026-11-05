@@ -792,6 +792,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     </div>
     <div class="side-foot">
       <div class="side-toggles">
+        <label class="show-private hidden" id="notify-row" title="A system notification when someone mentions you, replies in your threads or sends you a DM, while this board is open in a tab"><input type="checkbox" id="notify-on"> notify me in this browser</label>
         <label class="show-private hidden" id="show-archived-row" title="Archived channels are read-only; hide them from the sidebar"><input type="checkbox" id="show-archived"> show archived</label>
         <label class="show-private hidden" id="show-private-row" title="Admins can see private channels and DMs they are not part of"><input type="checkbox" id="show-private"> show private</label>
       </div>
@@ -1536,6 +1537,7 @@ async function boot() {
   $("show-private-row").classList.toggle("hidden", !can("manage"));
   $("show-private").checked = !!(state.me.prefs && state.me.prefs.show_private);
   await Promise.all([refreshChannels(), renderLibs]);
+  initNotify();
   if (location.hash === "#settings") return openSettings();
   if (location.hash === "#activity") return openActivity();
   if (location.hash === "#analytics" && canAnalytics()) return openAnalytics();
@@ -1553,6 +1555,93 @@ async function boot() {
 function renderMe() {
   $("me-name").textContent = nameOf(state.me);
   $("me-avatar").innerHTML = avatar(state.me); hydrate($("me-avatar"));
+}
+
+// ------------------------------------------------------------------ browser notifications
+// While a tab is open, a system notification for what is for me: mentions, replies in my threads, DMs.
+// The switch is per browser (the permission is too); every open tab listens, and the shared tag keeps one per message.
+const baseTitle = document.title;
+let notifyCtrl = null;
+const notifyWanted = () => store.get("notify") === "on" && "Notification" in window && Notification.permission === "granted";
+function initNotify() {
+  if (!("Notification" in window)) return;
+  $("notify-row").classList.remove("hidden");
+  syncNotify();
+}
+function syncNotify() {   // on load, and when another tab flips the switch
+  $("notify-on").checked = notifyWanted();
+  if (notifyWanted()) { if (!notifyCtrl || notifyCtrl.signal.aborted) notifyLoop(); }
+  else if (notifyCtrl) notifyCtrl.abort();
+}
+function notifyOff(why) {
+  store.set("notify", "off"); $("notify-on").checked = false; if (notifyCtrl) notifyCtrl.abort();
+  if (why) alert(why);
+}
+const NO_NOTIFY = "This browser does not show notifications from web pages (most phone browsers only allow them for installed apps).";
+// which tab is in front, and on which channel: shared through localStorage, so a tab behind it stays quiet
+function noteFront() {
+  const front = document.visibilityState === "visible" && document.hasFocus() && state.view === "chat" && state.current;
+  if (front) store.set("notify-front", JSON.stringify({ channel: state.current.id, at: Date.now(), tab: tabId }));
+  else if (frontIsMe) {   // only clear the note if it is still ours: another tab may have come to the front meanwhile
+    try { if ((JSON.parse(store.get("notify-front") || "null") || {}).tab === tabId) store.del("notify-front"); } catch {}
+  }
+  frontIsMe = !!front;
+}
+let frontIsMe = false;
+const tabId = Math.random().toString(36).slice(2);
+["focus", "blur", "visibilitychange", "pagehide"].forEach((t) => window.addEventListener(t, () => setTimeout(noteFront)));
+setInterval(() => { if (frontIsMe) noteFront(); }, 30000);   // keep it fresh; a crashed tab's note goes stale after a minute
+function onScreenSomewhere(channelId) {
+  try {
+    const f = JSON.parse(store.get("notify-front") || "null");
+    return !!f && f.channel === channelId && Date.now() - f.at < 60000;
+  } catch { return false; }
+}
+window.addEventListener("storage", (e) => { if (e.key === "msgboard:notify") syncNotify(); });
+$("notify-on").onchange = async () => {
+  const box = $("notify-on");
+  if (!box.checked) { store.set("notify", "off"); if (notifyCtrl) notifyCtrl.abort(); return; }
+  let perm = Notification.permission;
+  if (perm === "default") { try { perm = await Notification.requestPermission(); } catch { perm = "denied"; } }
+  if (perm !== "granted") {
+    box.checked = false;
+    alert(window.top !== window
+      ? "Browsers block notifications for a board shown inside another page. Open the board at its own address and turn this on there."
+      : "Notifications are blocked for this site. Allow them in the browser's site settings (the icon left of the address), then try again.");
+    return;
+  }
+  try { new Notification("Notifications are on", { body: "You will hear about mentions, replies in your threads and DMs here.", tag: "msgboard-on" }); }
+  catch { return notifyOff(NO_NOTIFY); }
+  store.set("notify", "on"); notifyLoop();
+};
+async function notifyLoop() {
+  if (notifyCtrl) notifyCtrl.abort();
+  const ctrl = notifyCtrl = new AbortController();
+  let after = null, wait = 5000;
+  while (!ctrl.signal.aborted && notifyWanted()) {
+    try {
+      // no `channels`: only what is addressed to me. The first call returns a cursor meaning "now".
+      const page = await api("GET", after == null ? "/activity" : `/activity?after=${after}&wait=25`, { signal: ctrl.signal });
+      if (typeof page.next_cursor !== "number") throw new Error("no cursor");
+      if (after != null && notifyWanted() && !ctrl.signal.aborted) page.messages.forEach(notifyFor);   // the switch may have flipped meanwhile
+      after = page.next_cursor; wait = 5000;
+    } catch (e) {
+      if (ctrl.signal.aborted) return;
+      if (e.status === 401) return;
+      await sleep(wait + Math.random() * wait / 2); wait = Math.min(wait * 2, 300000);   // back off, up to 5 min
+    }
+  }
+}
+function notifyFor(m) {
+  if (!["mention", "reply", "dm"].includes(m.reason) || m.sender.id === state.me.id) return;
+  const looking = document.visibilityState === "visible" && document.hasFocus() && state.view === "chat" && state.current && state.current.id === m.channel.id;
+  if (looking || onScreenSomewhere(m.channel.id)) return;   // it is on screen already, in this tab or another
+  const where = m.channel.kind === "dm" ? "direct message" : m.reason === "reply" ? `replied in #${m.channel.name}` : `in #${m.channel.name}`;
+  const text = (m.body || "").replace(/\s+/g, " ").trim();
+  try {
+    const n = new Notification(`${nameOf(m.sender)} ${where}`, { body: text.length > 160 ? text.slice(0, 159) + "…" : text || "(attachment)", tag: "msgboard-" + m.id });
+    n.onclick = () => { window.focus(); n.close(); routeHash("#msg/" + m.id); };
+  } catch { notifyOff(); $("notify-row").title = NO_NOTIFY; }   // some browsers only allow them from a service worker
 }
 
 // ------------------------------------------------------------------ channels and DMs
@@ -1638,6 +1727,8 @@ async function saveChannelOrder(ids) {
 }
 function renderChannels() {
   const total = state.channels.reduce((n, c) => n + (c.for_me || 0), 0);
+  document.title = (total ? `(${total > 99 ? "99+" : total}) ` : "") + baseTitle;
+  noteFront();   // the channel on screen may have changed
   $("settings-open").classList.toggle("on", state.view === "settings");
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
