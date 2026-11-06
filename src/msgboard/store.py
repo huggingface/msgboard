@@ -690,14 +690,11 @@ def list_channels(conn, p: Principal, name: str | None = None) -> list[dict]:
     rows = conn.execute(sql + " ORDER BY kind = 'dm', id", args).fetchall()
     if not rows:
         return []
-    reads = {r["channel_id"]: r for r in conn.execute(
-        "SELECT channel_id, last_read_seq, thread_floor FROM channel_reads WHERE principal_id = ?", (p.id,))}
-    baseline = _reads_baseline(conn, p)
+    counts = _channel_unread_counts(conn, p, rows)
     for r in rows:
         item = _channel_json(conn, r)
         item["member"] = r["id"] in mine
-        item.update(_unread_counts(conn, p, r, reads.get(r["id"]), baseline,
-                                   r["kind"] == "dm" and item["member"]))
+        item.update(counts.get(r["id"], {"last_read": 0, "unread": 0, "for_me": 0, "threads_for_me": 0}))
         out.append(item)
     return out
 
@@ -1881,9 +1878,17 @@ MY_THREADS = """(SELECT id FROM messages WHERE sender_id = :me AND thread_id IS 
                  UNION SELECT thread_id FROM messages WHERE sender_id = :me AND thread_id IS NOT NULL)"""
 
 
-FOR_ME = f"""(:dm = 1 OR mm.principal_id IS NOT NULL OR m.thread_id IN {MY_THREADS})"""
+def _for_me(dm: str) -> str:
+    return f"({dm} = 1 OR mm.principal_id IS NOT NULL OR m.thread_id IN {MY_THREADS})"
+
+
+def _thread_unread(floor: str) -> str:
+    return f"m.seq > max(COALESCE(tr.last_read_seq, 0), {floor})"
+
+
+FOR_ME = _for_me(":dm")
 # thread replies are read when their thread is opened; top-level messages when the channel is
-THREAD_UNREAD = "m.seq > max(COALESCE(tr.last_read_seq, 0), :floor)"
+THREAD_UNREAD = _thread_unread(":floor")
 
 
 def unread_counts(conn, p: Principal, channel) -> dict:
@@ -1896,7 +1901,7 @@ def unread_counts(conn, p: Principal, channel) -> dict:
 
 
 def _unread_counts(conn, p: Principal, channel, row, baseline: float, dm: bool) -> dict:
-    """Count using caller-provided read state, shared across a channel listing."""
+    """Count one channel using its read position, baseline and DM membership."""
     params = {"me": p.id, "c": channel["id"], "lr": row["last_read_seq"] if row else 0,
               "floor": row["thread_floor"] if row else 0,
               "has_row": 1 if row else 0, "baseline": baseline, "dm": int(dm)}
@@ -1910,6 +1915,35 @@ def _unread_counts(conn, p: Principal, channel, row, baseline: float, dm: bool) 
         WHERE m.imported = 0 AND m.channel_id = :c AND m.sender_id != :me AND (m.seq > :lr OR (m.thread_id IS NOT NULL AND m.seq > :floor))
           AND (:has_row = 1 OR m.created_at > :baseline)""", params).fetchone()
     return {"last_read": params["lr"], "unread": r[0], "for_me": r[1], "threads_for_me": r[2]}
+
+
+def _channel_unread_counts(conn, p: Principal, channels: list) -> dict[int, dict]:
+    """Count all listed channels in one query, sharing read state and thread membership."""
+    ids = ",".join(str(int(c["id"])) for c in channels)
+    for_me, thread_unread = _for_me("s.dm"), _thread_unread("s.floor")
+    rows = conn.execute(f"""
+        WITH state AS (
+            SELECT c.id AS channel_id, COALESCE(cr.last_read_seq, 0) AS lr,
+                   COALESCE(cr.thread_floor, 0) AS floor, cr.principal_id IS NOT NULL AS has_row,
+                   (c.kind = 'dm' AND cm.principal_id IS NOT NULL) AS dm
+            FROM channels c
+            LEFT JOIN channel_reads cr ON cr.principal_id = :me AND cr.channel_id = c.id
+            LEFT JOIN channel_members cm ON cm.principal_id = :me AND cm.channel_id = c.id
+            WHERE c.id IN ({ids})
+        )
+        SELECT s.channel_id, s.lr,
+               COALESCE(SUM(CASE WHEN m.thread_id IS NULL AND m.seq > s.lr THEN 1 ELSE 0 END), 0),
+               COALESCE(SUM(CASE WHEN {for_me} AND ((m.thread_id IS NULL AND m.seq > s.lr)
+                                                 OR (m.thread_id IS NOT NULL AND {thread_unread})) THEN 1 ELSE 0 END), 0),
+               COUNT(DISTINCT CASE WHEN m.thread_id IS NOT NULL AND {for_me} AND {thread_unread} THEN m.thread_id END)
+        FROM state s
+        LEFT JOIN messages m ON m.channel_id = s.channel_id AND m.sender_id != :me
+             AND (m.seq > s.lr OR (m.thread_id IS NOT NULL AND m.seq > s.floor))
+             AND (s.has_row = 1 OR m.created_at > :baseline)
+        LEFT JOIN message_mentions mm ON mm.message_id = m.id AND mm.principal_id = :me
+        LEFT JOIN thread_reads tr ON tr.principal_id = :me AND tr.thread_id = m.thread_id
+        GROUP BY s.channel_id""", {"me": p.id, "baseline": _reads_baseline(conn, p)})
+    return {r[0]: {"last_read": r[1], "unread": r[2], "for_me": r[3], "threads_for_me": r[4]} for r in rows}
 
 
 def mark_thread_read(conn, p: Principal, channel_id: int, thread_id: int, seq, now: float) -> dict:
