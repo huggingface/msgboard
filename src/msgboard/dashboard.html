@@ -378,6 +378,10 @@ button.fchip:hover { border-color: var(--ink); }
 .cbox .files { margin: 8px 8px 0; max-width: none; }
 .cbox.dropping { border-color: var(--ink); border-style: dashed; }
 /* drag a file anywhere over the open channel or thread: it goes to that message box */
+.fchip[draggable] { cursor: grab; }
+.fchip.placed { border-style: dashed; opacity: .6; }
+.body a[data-board-file] { display: inline-block; border: 1px solid var(--rule-2); padding: 0 6px; font: 12.5px var(--mono); text-decoration: none; background: var(--bg); line-height: 1.6; }
+.body a[data-board-file]:hover { border-color: var(--ink); }
 .drop-overlay { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; pointer-events: none;
   background: color-mix(in srgb, var(--bg) 88%, transparent); border: 2px dashed var(--ink); }
 .drop-overlay span { font-weight: 600; font-size: 15px; background: var(--bg); padding: 8px 14px; border: 1px solid var(--ink); }
@@ -2575,17 +2579,26 @@ document.addEventListener("click", (e) => {
 });
 
 // ------------------------------------------------------------------ composer
-const MAX_FILES = 16, MAX_FILE_BYTES = 50 * 1024 * 1024;
-function uploadWithProgress(channelId, item, onProgress) {
+const MAX_FILES = 16;
+// A person's files go to their storage folder (storage limits, readable by everyone who can read storage),
+// under files/<date>/<random>/ so two files with the same name never overwrite each other.
+const storagePathURL = (handle, path) => `v1/storage/${encodeURIComponent(handle)}/${path.split("/").map(encodeURIComponent).join("/")}`;
+let storageLimits = null;   // {max_file_bytes, quota_bytes} of my folder, fetched once
+async function myStorageLimits() {
+  if (!storageLimits) storageLimits = api("GET", `/storage/${encodeURIComponent(handleOf(state.me))}?prefix=files/.limits`)
+    .then((r) => ({ max: r.max_file_bytes, quota: r.quota_bytes }), () => { storageLimits = null; return null; });
+  return storageLimits;
+}
+function uploadToStorage(item, onProgress) {
   return new Promise((resolve, reject) => {
+    const handle = handleOf(state.me), path = `files/${new Date().toISOString().slice(0, 10)}/${uid().slice(0, 8)}/${item.file.name}`;
     const x = new XMLHttpRequest(); item.xhr = x;
-    x.open("PUT", `v1/channels/${channelId}/attachments/${item.uid}`);
+    x.open("PUT", storagePathURL(handle, path));
     x.setRequestHeader("X-Msgboard-Token", state.token);
     x.setRequestHeader("Content-Type", item.file.type || "application/octet-stream");
-    x.setRequestHeader("X-Filename", encodeURIComponent(item.file.name).slice(0, 255));
     x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded); };
     x.onload = () => {
-      if (x.status < 300) return resolve(JSON.parse(x.responseText));
+      if (x.status < 300) return resolve({ url: "/" + storagePathURL(handle, path) });
       let msg = x.statusText || "upload failed";
       try { msg = JSON.parse(x.responseText).error.message; } catch {}
       const err = new Error(msg); err.status = x.status; err.retryAfter = Number(x.getResponseHeader("Retry-After")) || 1;
@@ -2595,6 +2608,12 @@ function uploadWithProgress(channelId, item, onProgress) {
     x.onabort = () => reject(new Error("cancelled"));
     x.send(item.file);
   });
+}
+// the short mark a placed file leaves in the text; send() swaps it for the real link
+const fileToken = (it) => `[📎 ${it.label}]`;
+function fileLink(it) {
+  const name = it.label.replace(/[[\]\\]/g, "\\$&");
+  return kindOf(it.file.name, it.file.type) === "image" ? `![${name}](${it.url})` : `[📎 ${name}](${it.url})`;
 }
 function mountComposer(host, { placeholder, replyTo }) {
   host.classList.remove("hidden");
@@ -2617,6 +2636,16 @@ function mountComposer(host, { placeholder, replyTo }) {
   input.value = draftOf(draftKey);
   input.addEventListener("input", () => setDraft(draftKey, input.value));
   let items = [], sending = false;
+  // uploaded files stay with the draft, so leaving and coming back keeps them (and their marks) working
+  const filesKey = "draft-files:" + draftKey;
+  try { items = JSON.parse(store.get(filesKey) || "[]").map((f) => ({ file: { name: f.name, type: f.type, size: f.size }, label: f.label, url: f.url, uid: uid(), loaded: f.size, status: "done", thumb: null })); } catch {}
+  const saveFiles = () => {
+    if (sending) return;   // in flight: the draft gives them up, so a box opened meanwhile cannot remove them
+    if (!input.isConnected) return;   // this box was replaced: the draft now belongs to the new one
+    const done = items.filter((it) => it.status === "done").map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }));
+    if (done.length) store.set(filesKey, JSON.stringify(done)); else store.del(filesKey);
+  };
+  const composerId = uid();   // a mark dragged from another box would point at that box's file
   const autosize = () => {
     // A2: one line with the buttons beside it; once the text needs more, the buttons move to a row below
     box.classList.remove("multi"); input.style.height = "auto";
@@ -2626,18 +2655,20 @@ function mountComposer(host, { placeholder, replyTo }) {
   const UPLOADS_AT_ONCE = 3;   // the server accepts a few concurrent uploads; the rest wait their turn
   const uploading = () => items.some((it) => it.status === "uploading" || it.status === "queued");
   function renderChips() {
+    saveFiles();
     chips.classList.toggle("hidden", !items.length);
     chips.innerHTML = items.map((it, i) => {
       const kind = kindOf(it.file.name, it.file.type);
       const pct = it.file.size ? Math.round(100 * it.loaded / it.file.size) : 100;
+      const placed = it.status === "done" && input.value.includes(fileToken(it));
       const meta = it.status === "queued" ? `waiting · ${fmtSize(it.file.size)}`
         : it.status === "uploading" ? `${pct}% · ${fmtSize(it.loaded)} of ${fmtSize(it.file.size)}`
-        : it.status === "error" ? `not uploaded: ${esc(it.error)}` : `${fmtSize(it.file.size)} · ${esc(typeLabel(it.file.name, kind))}`;
-      return `<div class="fchip ${it.status}"><span class="fprev">${it.thumb ? `<img alt="" src="${it.thumb}">` : esc(typeLabel(it.file.name, kind))}</span>` +
-        `<span class="fcopy"><span class="fname">${esc(it.file.name)}</span><span class="fmeta">${meta}</span>` +
+        : it.status === "error" ? `not uploaded: ${esc(it.error)}` : placed ? "placed in the text" : `${fmtSize(it.file.size)} · drag into the text to place`;
+      return `<div class="fchip ${it.status}${placed ? " placed" : ""}" data-i="${i}" ${it.status === "done" ? 'draggable="true" title="Drag into the text to place it there"' : ""}><span class="fprev">${it.thumb ? `<img alt="" src="${it.thumb}">` : esc(typeLabel(it.file.name, kind))}</span>` +
+        `<span class="fcopy"><span class="fname">${esc(it.label)}</span><span class="fmeta">${meta}</span>` +
         (it.status === "uploading" || it.status === "queued" ? `<span class="fbar"><span style="width:${it.status === "queued" ? 0 : pct}%"></span></span>` : "") + `</span>` +
         (it.status === "error" ? `<button class="retry" data-retry="${i}">retry</button>` : "") +
-        `<button data-remove="${i}" aria-label="Remove ${esc(it.file.name)}">×</button></div>`;
+        `<button data-remove="${i}" aria-label="Remove ${esc(it.file.name)}" ${sending ? "disabled" : ""}>×</button></div>`;
     }).join("");
     sendBtn.disabled = sending || uploading();
   }
@@ -2651,9 +2682,16 @@ function mountComposer(host, { placeholder, replyTo }) {
   }
   async function start(it) {
     it.status = "uploading"; it.loaded = 0; it.error = null; renderChips();
+    const limits = await myStorageLimits();   // the file is registered already, so Send waits for it
+    if (!items.includes(it)) return pump();    // removed while the limits loaded: never upload it
+    if (limits && it.file.size > limits.max) {
+      items = items.filter((x) => x !== it); if (it.thumb) URL.revokeObjectURL(it.thumb);
+      pending.textContent = `${it.file.name} is larger than ${fmtSize(limits.max)}, this board's limit per file.`;
+      return pump();
+    }
     for (let attempt = 0; ; attempt++) {
       try {
-        it.att = await uploadWithProgress(channel.id, it, (loaded) => { it.loaded = loaded; renderChips(); });
+        it.url = (await uploadToStorage(it, (loaded) => { it.loaded = loaded; renderChips(); })).url;
         it.status = "done";
         break;
       } catch (e) {
@@ -2671,12 +2709,14 @@ function mountComposer(host, { placeholder, replyTo }) {
     pending.textContent = "";
     for (let file of files) {
       if (items.length >= MAX_FILES) { pending.textContent = `At most ${MAX_FILES} files per message.`; break; }
-      if (file.size > MAX_FILE_BYTES) { pending.textContent = `${file.name} is larger than ${fmtSize(MAX_FILE_BYTES)}.`; continue; }
       if (!file.name || file.name === "image.png") {   // pasted screenshots
         const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
         file = new File([file], `pasted-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${ext}`, { type: file.type });
       }
-      const it = { file, uid: uid(), loaded: 0, status: "queued",
+      // a unique label per message, so each placed mark points at one file
+      let label = file.name, n = 1;
+      while (items.some((x) => x.label === label)) label = `${file.name} (${++n})`;
+      const it = { file, label, uid: uid(), loaded: 0, status: "queued",
         thumb: kindOf(file.name, file.type) === "image" ? URL.createObjectURL(file) : null };
       items.push(it);
     }
@@ -2685,13 +2725,32 @@ function mountComposer(host, { placeholder, replyTo }) {
   chips.addEventListener("click", (e) => {
     const r = e.target.closest("[data-remove]"), t = e.target.closest("[data-retry]");
     if (r) {
+      if (sending) return;   // the message may already hold this file's link
       const it = items[Number(r.dataset.remove)];
       items = items.filter((x) => x !== it);
+      if (input.value.includes(fileToken(it))) { input.value = input.value.split(fileToken(it)).join(""); autosize(); }
       if (it.xhr && it.status === "uploading") it.xhr.abort();
+      if (it.url) api("DELETE", it.url.replace(/^\/v1/, "")).catch(() => {});   // removed before sending: don't keep it in storage
       if (it.thumb) URL.revokeObjectURL(it.thumb);
       pump();
     } else if (t) { items[Number(t.dataset.retry)].status = "queued"; pump(); }
   });
+  // drag a finished chip into the text: the browser drops its mark where the caret lands
+  chips.addEventListener("dragstart", (e) => {
+    const c = e.target.closest(".fchip[draggable]"); if (!c) return;
+    const it = items[Number(c.dataset.i)];
+    if (input.value.includes(fileToken(it))) input.value = input.value.split(fileToken(it)).join("");   // moving it
+    e.dataTransfer.setData("text/plain", fileToken(it)); e.dataTransfer.setData("application/x-msgboard-composer", composerId);
+    e.dataTransfer.effectAllowed = "copyMove";
+  });
+  input.addEventListener("drop", (e) => {   // a chip from the other box (feed vs thread) has no file here: refuse it
+    const from = [...e.dataTransfer.types].includes("application/x-msgboard-composer");
+    if (from && e.dataTransfer.getData("application/x-msgboard-composer") !== composerId) {
+      e.preventDefault(); pending.textContent = "That file belongs to the other message box. Attach it here too.";
+    }
+  });
+  chips.addEventListener("dragend", () => { autosize(); renderChips(); input.dispatchEvent(new Event("input")); });
+  input.addEventListener("input", () => renderChips());
   host.querySelector(".attach").onclick = () => fileInput.click();
   fileInput.onchange = () => { addFiles([...fileInput.files]); fileInput.value = ""; };
   input.addEventListener("paste", (e) => {
@@ -2700,7 +2759,11 @@ function mountComposer(host, { placeholder, replyTo }) {
   });
   box.addEventListener("dragover", (e) => { if ([...e.dataTransfer.types].includes("Files")) { e.preventDefault(); box.classList.add("dropping"); } });
   box.addEventListener("dragleave", (e) => { if (!box.contains(e.relatedTarget)) box.classList.remove("dropping"); });
-  box.addEventListener("drop", (e) => { e.preventDefault(); box.classList.remove("dropping"); addFiles([...e.dataTransfer.files]); });
+  box.addEventListener("drop", (e) => {   // only files: a dragged chip's text drops into the box the normal way
+    box.classList.remove("dropping");
+    if (!hasFiles(e)) return;
+    e.preventDefault(); addFiles([...e.dataTransfer.files]);
+  });
   host.addFiles = (files) => { addFiles(files); input.focus(); };   // drops anywhere over the channel or thread land here
   input.addEventListener("input", autosize);
   const assist = attachAssist(host, input, autosize);
@@ -2716,21 +2779,26 @@ function mountComposer(host, { placeholder, replyTo }) {
   });
   sendBtn.onclick = send;
   async function send() {
-    const c = state.current, text = input.value.trim();
-    const ready = items.filter((it) => it.status === "done");
+    const c = state.current, ready = items.filter((it) => it.status === "done");
+    let text = input.value;
+    const rest = [];
+    for (const it of ready) {
+      if (text.includes(fileToken(it))) text = text.split(fileToken(it)).join(fileLink(it));
+      else rest.push(fileLink(it));   // not placed: at the end, like attachments
+    }
+    text = [text.trim(), ...rest].filter(Boolean).join("\n");
     if (sending || !c || uploading() || (!text && !ready.length)) return;
     if (items.some((it) => it.status === "error")) { pending.textContent = "Remove or retry the files that did not upload."; return; }
     sending = true; renderChips();
+    store.del(filesKey); setDraft(draftKey, "");   // taken out of the draft while sending; put back if it fails
     const key = uid();  // reused on every retry, so a resend never duplicates
     try {
       const payload = { body: text };
       const parent = replyTo();
       if (parent) payload.reply_to = parent;
-      if (ready.length) payload.attachments = ready.map((it) => it.att.id);
       for (let attempt = 0; ; attempt++) {
         try {
           const m = await api("POST", `/channels/${c.id}/messages`, { body: payload, headers: { "Idempotency-Key": key } });
-          ready.forEach((it) => fileInfo.set(it.att.id, Promise.resolve(it.att)));
           if (state.current === c && ingest(m)) renderFeed(!parent);
           break;
         } catch (e) {
@@ -2738,11 +2806,21 @@ function mountComposer(host, { placeholder, replyTo }) {
           await sleep(Math.min(500 * 2 ** attempt, 4000));
         }
       }
-      input.value = ""; autosize(); pending.textContent = ""; setDraft(draftKey, "");
+      input.value = ""; autosize(); pending.textContent = "";
+      if (input.isConnected) { setDraft(draftKey, ""); store.del(filesKey); }   // a newer box may own the draft by now
       items.forEach((it) => it.thumb && URL.revokeObjectURL(it.thumb)); items = [];
-    } catch (e) { pending.textContent = "Not sent: " + e.message; }
+    } catch (e) {
+      pending.textContent = "Not sent: " + e.message;
+      // put the message back in its draft; if the box was replaced, only when the new one has not started another
+      if (input.isConnected || (!draftOf(draftKey) && !store.get(filesKey))) {
+        setDraft(draftKey, input.value);
+        if (!input.isConnected) store.set(filesKey, JSON.stringify(items.filter((it) => it.status === "done")
+          .map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }))));
+      }
+    }
     finally { sending = false; renderChips(); input.focus(); }
   }
+  if (items.length) renderChips();   // files kept with the draft
   if (input.value) { autosize(); input.setSelectionRange(input.value.length, input.value.length); }
   if (window.matchMedia("(min-width: 721px)").matches) input.focus();
 }
