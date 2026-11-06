@@ -722,6 +722,30 @@ details.small table { margin-top: 8px; }
 .form input[type=number] { width: 100px; }
 .form input[type=text] { width: 200px; }
 .created { margin-top: 14px; }
+.invite .inv-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.invite .inv-top h3 { margin: 0; }
+.invite .seg { display: inline-flex; border: 1px solid var(--ink); }
+.invite .seg button { border: 0; background: none; padding: 5px 16px; font-size: 13px; }
+.invite .seg button.on { background: var(--ink); color: var(--bg); }
+.invite .inv-top { align-items: center; }
+.invite .inv-name { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.invite .inv-name input { height: 32px; width: 240px; max-width: 60vw; }
+.invite .inv-chan { position: relative; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--ink-2); }
+.invite .inv-sel { height: 34px; min-width: 220px; max-width: 320px; text-align: left; border: 1px solid var(--rule-2); background: var(--bg); padding: 0 28px 0 10px;
+  font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+.invite .inv-sel::after { content: "▾"; position: absolute; right: 10px; color: var(--ink-3); font-size: 11px; }
+.invite .inv-help { margin-top: 12px; font-size: 12.5px; color: var(--ink-2); border-left: 2px solid var(--ink); padding-left: 8px; }
+.invite .inv-more { margin-top: 12px; }
+.invite .inv-more summary { font: 11.5px var(--mono); color: var(--ink-3); cursor: pointer; text-decoration: underline; width: max-content; }
+.invite .inv-more .form { margin-top: 10px; }
+.inv-pop { position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px; width: 320px; background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
+.inv-pop input[type=search] { width: 100%; border: 0; border-bottom: 1px solid var(--rule); padding: 8px 10px; outline: none; background: transparent; }
+.inv-pop .list { max-height: 260px; overflow-y: auto; padding: 4px 0; }
+.inv-pop .o { display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 5px 10px; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.inv-pop .o:hover { background: var(--hover); }
+.inv-pop .o small { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); }
+.inv-pop .o.fixed { cursor: default; }
+.inv-pop .o .lock { width: 9px; height: 10px; stroke: currentColor; }
 .chanpick { margin-top: 14px; }
 .chanpick .label { display: block; margin-bottom: 8px; }
 .chanpick .opts { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -3766,9 +3790,9 @@ function openSettings(tab) {
 store.del("look");   // the look toggle is gone; A2 is the only look
 $("settings-open").onclick = () => { $("app").classList.remove("nav"); openSettings(); };
 $("add-agents").onclick = async () => {
-  $("app").classList.remove("nav"); openSettings("invites");
-  for (let i = 0; i < 40 && !$("ai-role"); i++) await new Promise((r) => setTimeout(r, 50));
-  const card = $("ai-role") && $("ai-role").closest(".card"); if (!card) return;
+  $("app").classList.remove("nav"); state.inviteKind = "agent"; openSettings("invites");
+  for (let i = 0; i < 40 && !$("ai-name"); i++) await new Promise((r) => setTimeout(r, 50));
+  const card = $("ai-name") && $("ai-name").closest(".card"); if (!card) return;
   let box = card.parentElement; while (box && box.scrollHeight <= box.clientHeight) box = box.parentElement;
   if (box) box.scrollTop += card.getBoundingClientRect().top - box.getBoundingClientRect().top - 12;
 };
@@ -3791,39 +3815,40 @@ async function settingsInvites() {
   // a guest can only hand out channels they are in, and only to guest agents
   const guest = state.me.role === "guest";
   const pickable = state.channels.filter((c) => c.kind !== "dm" && !c.archived && (!guest || c.member));
-  const chanOpts = (id) => `<div class="opts" id="${id}">${pickable.length
-    ? pickable.map((c) => `<label><input type="checkbox" value="${c.id}"><span class="glyph">${c.kind === "private" ? LOCK : "#"}</span>${esc(c.name)}</label>`).join("")
-    : '<span class="small">No channels to choose from yet.</span>'}</div>`;
   const linkFor = (code) => `${location.origin}/?invite=${code}`;
+  // one form: person or agent, then role and channels; the rest folds away under "More options"
+  const kind = can("invite_people") ? (state.inviteKind || "person") : "agent";
+  state.inviteKind = kind;
+  const general = pickable.find((c) => c.name === "general" && c.kind === "public");
+  const roles = kind === "person"
+    ? [["member", "member"], ["guest", "guest"], ["viewer", "viewer"], ["admin", "admin"]]
+    : guest ? [["guest", "guest"]]
+    : [["member", "member"], ["guest", "guest"], ...(can("invite_admin_agents") ? [["reader", "reader"], ["admin", "admin"]] : [])];
+  const pick = { ids: new Set(), all: kind === "agent" && !guest };   // all = join every open channel (agents)
   $("sbody").innerHTML = `
-    ${can("invite_people") ? `<div class="card"><h3>Invite people</h3>
-      <p class="lead">Anyone with the link can join as the role you pick. Viewers can read everything public but cannot post. Guests see only the channels you pick (and any they are added to later); their agents are guests limited to the same channels.</p>
-      <div class="form">
-        <label>Role<select id="hi-role"><option value="member">member</option><option value="guest">guest (only the channels you pick)</option><option value="viewer">viewer</option><option value="admin">admin</option></select></label>
-        <label>Uses<input type="number" id="hi-uses" min="1" placeholder="unlimited"></label>
-        <label>Expires${expirySelect("hi-exp")}</label>
-        <label>Label<input type="text" id="hi-label" maxlength="80" placeholder="e.g. research team"></label>
-        <button class="btn" id="hi-create">Create link</button>
+    <div class="card invite">
+      <div class="inv-top">
+        ${can("invite_people") ? `<div class="seg" role="radiogroup" aria-label="Invite">
+          <button type="button" data-kind="person" class="${kind === "person" ? "on" : ""}" role="radio" aria-checked="${kind === "person"}">Person</button>
+          <button type="button" data-kind="agent" class="${kind === "agent" ? "on" : ""}" role="radio" aria-checked="${kind === "agent"}">Agent</button></div>`
+          : `<h3>Invite an agent</h3>`}
+        ${kind === "agent" ? `<label class="inv-name">Agent name:<input type="text" id="ai-name" maxlength="128" placeholder="optional, e.g. Eval Runner"></label>` : ""}
       </div>
-      <div class="chanpick"><span class="label">Add to channels</span>${chanOpts("hi-channels")}</div>
-      <div class="created" id="hi-out"></div></div>` : ""}
-    <div class="card"><h3>Invite agents</h3>
-      <p class="lead">Agents and service accounts that join with this link belong to you. They stop working if you leave the board.</p>
       <div class="form">
-        <label>Type<select id="ai-type"><option value="agent">agent</option><option value="system">service account</option></select></label>
-        <label>Access<select id="ai-role">${guest ? `<option value="guest">guest (only channels you add it to)</option>`
-          : `<option value="member">member (all public channels)</option><option value="guest">guest (only channels it is added to)</option>`}${can("invite_admin_agents") ? `<option value="reader">reader (reads everything, never posts)</option><option value="admin">admin (same rights as an admin)</option>` : ""}</select></label>
-        ${guest ? "" : `<label class="check"><input type="checkbox" id="ai-create"> can create channels</label>
-        <label class="check" title="Adds the agent to every public, non-archived channel when it joins (guests too)"><input type="checkbox" id="ai-open" checked> join all open channels</label>`}
-        <label>Uses<input type="number" id="ai-uses" min="1" placeholder="unlimited"></label>
-        <label>Expires${expirySelect("ai-exp")}</label>
-        <label>Agent name<input type="text" id="ai-name" maxlength="128" placeholder="optional, e.g. Eval Runner"></label>
-        <label>Label<input type="text" id="ai-label" maxlength="80" placeholder="e.g. eval runners"></label>
-        <button class="btn" id="ai-create-btn">Create link</button>
+        <label>Role<select id="inv-role">${roles.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
+        <div class="inv-chan"><span class="inv-chan-label" id="inv-chan-label">Also join</span>
+          <button type="button" class="inv-sel" id="inv-chan" aria-haspopup="dialog" aria-expanded="false"></button></div>
+        <button class="btn" id="inv-create">Create link</button>
       </div>
-      <div class="chanpick"><span class="label">Add to channels</span>${chanOpts("ai-channels")}
-        <div class="small hint" id="ai-hint"></div></div>
-      <div class="created" id="ai-out"></div></div>
+      <div class="inv-help" id="inv-help"></div>
+      <details class="inv-more"><summary>More options</summary><div class="form">
+        ${kind === "agent" ? `<label>Type<select id="ai-type"><option value="agent">agent</option><option value="system">service account</option></select></label>
+          ${guest ? "" : `<label class="check"><input type="checkbox" id="ai-create"> can create channels</label>`}` : ""}
+        <label>Uses<input type="number" id="inv-uses" min="1" placeholder="unlimited"></label>
+        <label>Expires${expirySelect("inv-exp")}</label>
+        <label>Label<input type="text" id="inv-label" maxlength="80" placeholder="${kind === "agent" ? "e.g. eval runners" : "e.g. research team"}"></label>
+      </div></details>
+      <div class="created" id="inv-out"></div></div>
     <h3>${can("manage") ? "All invite links" : "Your invite links"}</h3>
     <div class="tablewrap"><table class="list"><thead><tr><th>Label</th><th>For</th>${can("manage") ? "<th>By</th>" : ""}<th>Uses</th><th>Expires</th><th>Status</th><th>Joined</th><th></th></tr></thead>
     <tbody>${invites.length ? invites.map((i) => `<tr>
@@ -3838,44 +3863,99 @@ async function settingsInvites() {
       <td>${i.status === "active" ? `<button class="linkish" data-revoke="${i.id}">invalidate</button>` : ""}</td></tr>`).join("")
       : `<tr><td colspan="8" class="small">No invite links yet.</td></tr>`}</tbody></table></div>`;
   hydrate($("sbody"));
-  const chosen = () => [...$("ai-channels").querySelectorAll("input:checked")].map((x) => Number(x.value));
-  const hint = () => {
-    const role = $("ai-role").value, n = chosen().length;
-    $("ai-hint").textContent = role === "guest"
-      ? (n ? `Guests see only these ${n === 1 ? "channel" : n + " channels"} (plus any they are added to later).` : "A guest with no channels sees nothing until someone adds it to one.")
-      : role === "reader" || role === "admin" ? "This role already sees every channel; picking channels only makes them members."
-      : n ? "Members see all public channels anyway; this also puts them into the private channels you picked." : "Members see all public channels. Pick private channels to add them there too.";
+  const role = () => $("inv-role").value;
+  const auto = () => kind === "person" && role() !== "guest" && general;   // #20: these roles join #general on their own
+  const HELP = {
+    person: { member: "Reads and posts in every public channel. Joins #general automatically; pick more channels to get their @all.",
+              guest: "Sees only the channels you pick (and ones they are added to later). Their agents get the same limit.",
+              viewer: "Reads every public channel but cannot post. Joins #general automatically.",
+              admin: "Can do everything, including settings. Joins #general automatically." },
+    agent: { member: "Reads and posts in every public channel. Belongs to you and stops working if you leave the board.",
+             guest: "Sees only the channels you pick (and ones it is added to later).",
+             reader: "Reads every channel, never posts. Picking channels only makes it a member there.",
+             admin: "Same rights as an admin." },
   };
-  $("ai-channels").onchange = hint;
-  $("ai-role").onchange = () => {
+  const summary = () => {
+    const names = pickable.filter((c) => pick.ids.has(c.id)).map((c) => (c.kind === "private" ? "🔒 " : "#") + c.name);
+    if (pick.all) names.unshift("all open channels");
+    if (auto() && !pick.ids.has(general.id)) names.unshift("#general");
+    return names.length ? names.slice(0, 2).join(", ") + (names.length > 2 ? ` +${names.length - 2}` : "") : "none";
+  };
+  const render = () => {
+    const r = role(), needs = r === "guest";
+    $("inv-chan-label").textContent = needs ? (kind === "person" ? "Channels (required)" : "Channels") : "Also join";
+    $("inv-chan").textContent = summary();
+    $("inv-help").textContent = HELP[kind][r] || "";
     if ($("ai-create")) {   // admins always may create channels; members only when ticked; guests and readers never
-      const r = $("ai-role").value;
       $("ai-create").disabled = r !== "member";
       $("ai-create").checked = r === "admin" || (r === "member" && $("ai-create").checked);
-      $("ai-create").parentElement.title = r === "admin" ? "Admin agents can always create channels" : "";
     }
-    hint();
   };
-  hint();
-  if ($("hi-create")) $("hi-create").onclick = async () => {
-    try {
-      const inv = await api("POST", "/invites", { body: { kind: "human", role: $("hi-role").value, max_uses: intOrNull($("hi-uses").value),
-        channels: [...$("hi-channels").querySelectorAll("input:checked")].map((x) => Number(x.value)),
-        expires_in_seconds: intOrNull($("hi-exp").value), label: $("hi-label").value.trim() || null } });
-      showValue("Invite link", `Send this to the people you want to invite as <b>${esc(inv.role)}</b>. It is shown only once.`, linkFor(inv.code));
-      settingsInvites();
-    } catch (e) { $("hi-out").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  $("inv-role").onchange = () => {
+    if (role() === "guest") pick.all = false;
+    render();
+    if (pop) drawList(pop.querySelector("input[type=search]").value);   // "included automatically" depends on the role
   };
-  $("ai-create-btn").onclick = async () => {
+  $("sbody").querySelectorAll("[data-kind]").forEach((b) => b.onclick = () => { state.inviteKind = b.dataset.kind; settingsInvites(); });
+  // the channel picker: a searchable list instead of a wall of chips
+  let pop = null;
+  const trigger = $("inv-chan");   // kept: the form may be re-rendered (another tab, a new link) while the list is open
+  const closePick = () => {
+    document.removeEventListener("mousedown", outside, true);
+    if (!pop) return;
+    pop.remove(); pop = null;
+    if (trigger.isConnected) trigger.setAttribute("aria-expanded", "false");
+  };
+  const outside = (e) => { if (pop && (!trigger.isConnected || (!pop.contains(e.target) && e.target !== trigger))) closePick(); };
+  const drawList = (q) => {
+    q = q.trim().toLowerCase();
+    const rows = [];
+    if (kind === "agent" && role() !== "guest" && !q) rows.push(`<label class="o"><input type="checkbox" data-all ${pick.all ? "checked" : ""}><span>All open channels</span><small>every public channel, now</small></label>`);
+    for (const c of pickable.filter((c) => !q || c.name.toLowerCase().includes(q))) {
+      const fixed = auto() && c.id === general.id;
+      rows.push(`<label class="o${fixed ? " fixed" : ""}"><input type="checkbox" value="${c.id}" ${fixed || pick.ids.has(c.id) ? "checked" : ""} ${fixed ? "disabled" : ""}>` +
+        `<span>${c.kind === "private" ? LOCK + " " : "#"}${esc(c.name)}</span><small>${fixed ? "included automatically" : c.kind}</small></label>`);
+    }
+    pop.querySelector(".list").innerHTML = rows.join("") || `<div class="small" style="padding:8px 10px">No channels match.</div>`;
+  };
+  $("inv-chan").onclick = () => {
+    if (pop) return closePick();
+    pop = document.createElement("div"); pop.className = "inv-pop"; pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", "Channels");
+    pop.innerHTML = `<input type="search" placeholder="Search channels" aria-label="Search channels"><div class="list"></div>`;
+    $("inv-chan").after(pop); $("inv-chan").setAttribute("aria-expanded", "true");
+    const search = pop.querySelector("input");
+    search.oninput = () => drawList(search.value);
+    pop.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closePick(); trigger.focus(); } });
+    pop.onchange = (e) => {
+      const box = e.target;
+      if (box.hasAttribute("data-all")) pick.all = box.checked;
+      else if (box.checked) pick.ids.add(Number(box.value)); else pick.ids.delete(Number(box.value));
+      render();
+    };
+    drawList(""); search.focus();
+    document.addEventListener("mousedown", outside, true);
+  };
+  render();
+  $("inv-create").onclick = async () => {
+    const r = role(), channels = [...pick.ids];
+    if (kind === "person" && r === "guest" && !channels.length) {
+      $("inv-out").innerHTML = `<span class="err">Pick at least one channel: a guest sees nothing else.</span>`; return;
+    }
+    const common = { role: r, channels, max_uses: intOrNull($("inv-uses").value), expires_in_seconds: intOrNull($("inv-exp").value),
+      label: $("inv-label").value.trim() || null };
     try {
-      const inv = await api("POST", "/invites", { body: { kind: "agent", identity_type: $("ai-type").value, role: $("ai-role").value,
-        can_create_channels: $("ai-role").value === "member" && !!($("ai-create") && $("ai-create").checked), join_open_channels: !!($("ai-open") && $("ai-open").checked), max_uses: intOrNull($("ai-uses").value), channels: chosen(),
-        expires_in_seconds: intOrNull($("ai-exp").value), label: $("ai-label").value.trim() || null,
-        ...($("ai-name").value.trim() ? { agent_name: $("ai-name").value.trim() } : {}) } });
-      showValue("Agent invite", `Paste this into your agent's prompt. Each agent joins with its own name and keeps the token it gets back (tokens do not expire). The code is shown only once.`,
-        agentPrompt(inv.code, inv.agent_name ? { handle: inv.agent_name, display: inv.agent_display } : null));
+      if (kind === "person") {
+        const inv = await api("POST", "/invites", { body: { kind: "human", ...common } });
+        showValue("Invite link", `Send this to the people you want to invite as <b>${esc(inv.role)}</b>. It is shown only once.`, linkFor(inv.code));
+      } else {
+        const inv = await api("POST", "/invites", { body: { kind: "agent", identity_type: $("ai-type").value, ...common,
+          can_create_channels: r === "member" && !!($("ai-create") && $("ai-create").checked), join_open_channels: pick.all && r !== "guest",
+          ...($("ai-name").value.trim() ? { agent_name: $("ai-name").value.trim() } : {}) } });
+        showValue("Agent invite", `Paste this into your agent's prompt. Each agent joins with its own name and keeps the token it gets back (tokens do not expire). The code is shown only once.`,
+          agentPrompt(inv.code, inv.agent_name ? { handle: inv.agent_name, display: inv.agent_display } : null));
+      }
       settingsInvites();
-    } catch (e) { $("ai-out").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+    } catch (e) { $("inv-out").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
   };
   $("sbody").querySelectorAll("[data-revoke]").forEach((b) => b.onclick = async () => {
     await api("DELETE", `/invites/${b.dataset.revoke}`); settingsInvites();
