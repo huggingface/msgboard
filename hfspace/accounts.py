@@ -1,8 +1,9 @@
 """Optional Hugging Face accounts for the msgboard Space.
 
-People join with invite links. Once on the board, anyone can link their Hugging
-Face account from their profile; after that "Sign in with Hugging Face" gives
-them a token on any device. HF sign-in never creates an account by itself.
+People join with invite links: with a username they pick, or with "Join with
+Hugging Face", which uses their HF username, name and picture and links the account.
+Once linked (at join or later from their profile), "Sign in with Hugging Face"
+gives them a token on any device. HF sign-in never creates an account without an invite.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from msgboard import store
 from msgboard.errors import ApiError
@@ -51,6 +52,17 @@ def import_shared_invite(board: Board, code: str, operator_token: str):
 
 
 HF_API = os.environ.get("MSGBOARD_HF_API", "https://huggingface.co").rstrip("/")
+
+
+def join_with_hf(conn, code, name, display_name, username: str, now: float) -> dict:
+    """Redeem a people invite and link the HF account in one go; nothing is kept if either fails."""
+    row = store._find_invite(conn, code)
+    if row is not None and row["kind"] != "human":
+        raise ApiError(400, "invalid_request", "only invites for people can be used with Hugging Face")
+    result = store.join(conn, code, name, display_name, now)
+    store.set_hf_username(conn, result["principal"]["id"], username, now)
+    result["principal"]["hf_username"] = username
+    return result
 
 
 async def adopt_hf_picture(board: Board, principal_id: int, username: str) -> bool:
@@ -97,17 +109,22 @@ def install(app: FastAPI, board: Board) -> None:
     host = os.environ.get("SPACE_HOST")
     enabled = bool(client_id and client_secret and host)
     redirect_uri = f"https://{host}/login/callback"
-    pending: dict[str, tuple[float, str, int | None]] = {}  # state -> (created, mode, principal to link)
+    pending: dict[str, tuple] = {}  # state -> (created, mode, principal to link or invite code)
+    # ticket -> (created, invite code, HF username, HF name): an HF join whose username was taken here
+    tickets: dict[str, tuple[float, str, str, str | None]] = {}
 
-    def start(mode: str, principal_id: int | None) -> str:
+    def prune(entries: dict) -> None:
         now = time.time()
-        for s, entry in list(pending.items()):
+        for s, entry in list(entries.items()):
             if now - entry[0] > 600:
-                del pending[s]
-        if len(pending) > 5000:
+                del entries[s]
+        if len(entries) > 5000:
             raise ApiError(429, "busy", "too many sign-ins in progress; try again shortly")
+
+    def start(mode: str, target: int | str | None) -> str:
+        prune(pending)
         state = secrets.token_urlsafe(24)
-        pending[state] = (now, mode, principal_id)
+        pending[state] = (time.time(), mode, target)
         return f"{provider}/oauth/authorize?" + urlencode({
             "client_id": client_id, "redirect_uri": redirect_uri, "scope": "openid profile",
             "state": state, "response_type": "code"})
@@ -117,10 +134,31 @@ def install(app: FastAPI, board: Board) -> None:
         return {"hf_login": enabled}
 
     @app.get("/login")
-    async def login():
+    async def login(invite: str | None = None):
         if not enabled:
             return _page("Hugging Face sign-in is not set up", "<p>Use an invite link or a token.</p>", 404)
-        return RedirectResponse(start("signin", None))
+        return RedirectResponse(start("join", invite) if invite else start("signin", None))
+
+    @app.post("/v1/join/hf")
+    async def join_after_name_taken(request: Request):
+        """Finish an HF join with a name the person picked, because their HF username was taken here."""
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ApiError(400, "invalid_request", "expected a JSON object")
+        ticket = body.get("ticket") if isinstance(body.get("ticket"), str) else ""
+        entry = tickets.pop(ticket, None)
+        if entry is None or time.time() - entry[0] > 600:
+            raise ApiError(410, "hf_join_expired", "the Hugging Face sign-in expired; join with Hugging Face again")
+        _, code, username, hf_name = entry
+        try:
+            result = await board.db.write(join_with_hf, code, body.get("name"), body.get("display_name") or hf_name,
+                                          username, time.time())
+        except ApiError as exc:
+            if exc.status in (400, 409) and exc.code != "hf_linked_elsewhere":
+                tickets[ticket] = entry  # let them try another name
+            raise
+        await adopt_hf_picture(board, result["principal"]["id"], username)
+        return JSONResponse(result, status_code=201, headers={"Cache-Control": "no-store"})
 
     @app.post("/v1/me/hf-link")
     async def link_start(request: Request):
@@ -136,6 +174,25 @@ def install(app: FastAPI, board: Board) -> None:
         p = await board.db.read(store.authenticate, _token(request), time.time())
         await board.db.write(store.set_hf_username, p.id, None, time.time())
         return {"hf_username": None}
+
+    async def hf_join(code: str, username: str, hf_name: str | None) -> dict | str:
+        """Sign in if this HF account is linked already (the invite stays unused), else join with it.
+        Returns the join result, or where to send the person to pick another name."""
+        try:
+            return await board.db.write(store.sign_in_with_hf, username, time.time())
+        except ApiError as exc:
+            if exc.status != 404:
+                raise
+        display = hf_name.strip()[:128] if isinstance(hf_name, str) and hf_name.strip() else None
+        try:
+            return await board.db.write(join_with_hf, code, username, display, username, time.time())
+        except ApiError as exc:
+            if exc.code != "name_taken":
+                raise
+        prune(tickets)
+        ticket = secrets.token_urlsafe(24)
+        tickets[ticket] = (time.time(), code, username, display)
+        return "/?" + urlencode({"invite": code, "hf": ticket, "hf_user": username})
 
     @app.get("/login/callback")
     async def callback(request: Request):
@@ -156,19 +213,24 @@ def install(app: FastAPI, board: Board) -> None:
         username = info.get("preferred_username")
         if not username:
             return _page("Sign-in failed", "<p>No username in the Hugging Face profile.</p>", 502)
-        _, mode, principal_id = entry
+        _, mode, target = entry
         try:
             if mode == "link":
-                await board.db.write(store.set_hf_username, principal_id, username, time.time())
-                await adopt_hf_picture(board, principal_id, username)
+                await board.db.write(store.set_hf_username, target, username, time.time())
+                await adopt_hf_picture(board, target, username)
                 return _page("Hugging Face account linked",
                              f"<p>You can now sign in as <b>@{html.escape(username)}</b> on any device.</p>"
                              '<p><a href="/">Back to the board</a></p>')
-            result = await board.db.write(store.sign_in_with_hf, username, time.time())
+            if mode == "join":
+                result = await hf_join(target, username, info.get("name"))
+                if isinstance(result, str):
+                    return RedirectResponse(result, status_code=303)
+            else:
+                result = await board.db.write(store.sign_in_with_hf, username, time.time())
             if result.get("principal", {}).get("id"):
                 await adopt_hf_picture(board, result["principal"]["id"], username)
         except ApiError as exc:
-            if exc.status == 404:
+            if exc.status == 404 and mode != "join":
                 return _page("No account linked",
                              f"<p>No board account is linked to <b>@{html.escape(username)}</b>.</p>"
                              "<p>Join with an invite link first, then link your Hugging Face account from your "
