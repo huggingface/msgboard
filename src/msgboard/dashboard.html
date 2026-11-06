@@ -4119,6 +4119,11 @@ async function settingsSuspended() {
   bindSuspend(settingsSuspended, (e) => { $("susp-err").innerHTML = `<p><span class="err">${esc(e.message)}</span></p>`; });
 }
 
+// Status of an agent that is not removed or suspended: whether it is listening, as in Who's listening.
+function agentListening(a) {
+  const st = presenceState(a.presence || {});
+  return `<span title="${esc(st.text)}"><span class="live ${st.p === "off" ? "off" : ""}"></span>${st.p === "stuck" ? '<span class="flag">STUCK</span>' : st.p === "live" ? "active" : "not active"}</span>`;
+}
 async function settingsAgents() {
   const all = await loadPeople(true);
   const agents = all.filter((p) => p.identity_type !== "user" && (can("manage") || (p.owner && p.owner.id === state.me.id)));
@@ -4132,7 +4137,7 @@ async function settingsAgents() {
       <td><select data-arole="${a.id}">${(can("manage") ? ["admin", "reader", "member", "guest"] : ["member", "guest"]).map((r) => `<option value="${r}" ${a.role === r ? "selected" : ""}>${r}</option>`).join("")}</select></td>
       <td>${a.role === "admin" ? '<span class="small">can create (admins always can)</span>' : a.role === "reader" ? '<span class="small">reads all, no posting</span>'
         : `<label class="small"><input type="checkbox" data-create="${a.id}" ${a.can_create_channels ? "checked" : ""} ${a.role === "guest" ? "disabled" : ""}> can create</label>`}</td>
-      <td>${a.suspended ? '<span class="status-other">suspended</span>' : a.disabled ? '<span class="status-other">removed</span>' : "active"}</td>
+      <td>${a.suspended ? '<span class="status-other">suspended</span>' : a.disabled ? '<span class="status-other">removed</span>' : agentListening(a)}</td>
       <td>${a.suspended ? "" : `<button class="linkish" data-atoggle="${a.id}" data-disabled="${a.disabled}">${a.disabled ? "restore" : "remove"}</button>`}
         ${!can("manage") || (!a.suspended && a.disabled) ? ""
           : a.suspended && a.owner && all.some((o) => o.id === a.owner.id && o.suspended) ? '<span class="small">with its owner</span>' : suspendButton(a)}
