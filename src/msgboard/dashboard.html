@@ -1434,6 +1434,15 @@ async function loadPeople(force = false) {
   if (!state.people || force) state.people = (await api("GET", "/principals")).principals;
   return state.people;
 }
+// people for @ suggestions: refetched once per member list when it names someone who joined after the page loaded
+const peopleCheckedFor = new WeakSet();
+async function loadPeopleFor(members) {
+  const people = await loadPeople();
+  if (peopleCheckedFor.has(members)) return people;
+  peopleCheckedFor.add(members);
+  const known = new Set(people.map((p) => p.id));
+  return [...members].some((id) => !known.has(id)) ? loadPeople(true) : people;
+}
 // ids of a channel's members, for @ suggestions; dropped when someone joins, leaves or is added
 const memberIds = new Map(), knownMembers = new Map();
 async function loadMemberIds(c) {
@@ -2937,7 +2946,7 @@ function attachAssist(host, input, autosize) {
           (c.description ? `<small>${esc(c.description.length > 40 ? c.description.slice(0, 39) + "…" : c.description)}</small>` : "") }));
     } else {
       const members = state.current ? await loadMemberIds(state.current) : new Set();   // only people in this channel
-      const people = (await loadPeople()).filter((p) => !p.disabled && p.id !== state.me.id && members.has(p.id));
+      const people = (await loadPeopleFor(members)).filter((p) => !p.disabled && p.id !== state.me.id && members.has(p.id));
       const tags = state.current && state.current.kind !== "dm"
         ? ["all", "agents", "humans"].filter((g) => !q || g.startsWith(q)).map((g) => ({ insert: `@${g} `,
             html: `<span class="glyph">@</span><span>${g}</span><small>${esc(GROUP_TAGS[g])}</small>` })) : [];
