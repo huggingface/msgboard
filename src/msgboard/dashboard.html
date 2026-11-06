@@ -320,6 +320,9 @@ body.resizing iframe { pointer-events: none; }
 .head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .head .name { font-weight: 650; }
 .head .time, .head .seq { font: 11px var(--mono); color: var(--ink-3); }
+.head .imp { font: 10.5px var(--mono); color: var(--ink-3); border: 1px solid var(--rule-2); padding: 0 5px; text-decoration: none; letter-spacing: .02em; }
+.head .imp:hover { color: var(--ink); border-color: var(--ink); }
+.gutter .imp { display: block; font: 11px var(--mono); color: var(--ink-3); text-decoration: none; }
 .body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .body code { font: 12.5px var(--mono); background: var(--panel); border: 1px solid var(--rule); padding: 0 4px; }
 .body pre { font: 12.5px/1.45 var(--mono); background: var(--panel); border: 1px solid var(--rule); padding: 8px 10px; margin: 4px 0; overflow-x: auto; white-space: pre; }
@@ -1633,7 +1636,7 @@ async function notifyLoop() {
   }
 }
 function notifyFor(m) {
-  if (!["mention", "reply", "dm"].includes(m.reason) || m.sender.id === state.me.id) return;
+  if (!["mention", "reply", "dm"].includes(m.reason) || m.history || m.sender.id === state.me.id) return;   // imported history is never news
   const looking = document.visibilityState === "visible" && document.hasFocus() && state.view === "chat" && state.current && state.current.id === m.channel.id;
   if (looking || onScreenSomewhere(m.channel.id)) return;   // it is on screen already, in this tab or another
   const where = m.channel.kind === "dm" ? "direct message" : m.reason === "reply" ? `replied in #${m.channel.name}` : `in #${m.channel.name}`;
@@ -1840,7 +1843,7 @@ function ingest(m) {
     r.count += 1; r.last_at = m.created_at;
     const open = state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id;
     const inThread = root.sender.id === state.me.id || r.participants.some((p) => p.id === state.me.id);
-    if (!open && m.sender.id !== state.me.id && (inThread || (m.mentions || []).some((x) => x.id === state.me.id))) r.for_me_unread = (r.for_me_unread || 0) + 1;
+    if (!open && !m.history && m.sender.id !== state.me.id && (inThread || (m.mentions || []).some((x) => x.id === state.me.id))) r.for_me_unread = (r.for_me_unread || 0) + 1;
     r.participants = [m.sender].concat(r.participants.filter((p) => p.id !== m.sender.id)).slice(0, 5);
   }
   if (state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id) { state.thread.push(m); renderThread(nearBottom($("panel-scroll")) || m.sender.id === state.me.id); markThreadSeen(); }
@@ -1871,7 +1874,7 @@ async function pollLoop(c) {
       if (page.edits && page.edits.length && page.edits.map(applyEdit).some(Boolean) && !page.messages.length) rerenderAfterEdit();
       if (page.messages.length) {
         const sc = $("scroll"), atBottom = nearBottom(sc);
-        const fresh = page.messages.filter((m) => !state.byId.has(m.id) && !m.thread_id && m.sender.id !== state.me.id).length;
+        const fresh = page.messages.filter((m) => !state.byId.has(m.id) && !m.thread_id && !m.history && m.sender.id !== state.me.id).length;
         page.messages.forEach(ingest);
         state.cursor = page.next_cursor; c.last_seq = Math.max(c.last_seq, state.cursor);
         if (state.view === "chat") { renderFeed(atBottom); if (!atBottom && fresh) newBelow(unseenBelow + fresh); }
@@ -2159,10 +2162,18 @@ function canWriteHere() {
   if (c.kind === "dm") return !!dmPeer(c);
   return true;   // the server has the final say (guests, private channels)
 }
+// history copied in from another board: a quiet link back to the original message
+function importedHTML(m, short) {
+  const f = m.imported_from;
+  if (!f) return "";
+  let host = f.board_url; try { host = new URL(f.board_url).host.replace(/\.hf\.space$/, ""); } catch {}
+  const href = `${String(f.board_url).replace(/\/$/, "")}/#msg/${encodeURIComponent(f.message_id)}`;
+  return `<a class="imp" href="${esc(href)}" target="_blank" rel="noopener" title="Imported from ${esc(host)}, message ${esc(f.message_id)}">${short ? "↗" : `imported · ${esc(host)} #${esc(f.message_id)}`}</a>`;
+}
 function messageHTML(m, first, { inThread = false, rootId = null } = {}) {
-  let h = first ? avatar(m.sender) : `<div class="gutter">${fmtClock(m.created_at)}</div>`;
+  let h = first ? avatar(m.sender) : `<div class="gutter">${fmtClock(m.created_at)}${importedHTML(m, true)}</div>`;
   h += `<div class="content">`;
-  if (first) h += `<div class="head"><span class="name" data-profile="${m.sender.id}">${esc(nameOf(m.sender))}</span><span class="label">${kindLabel(m.sender)}</span><span class="time">${fmtTime(m.created_at)}</span><span class="seq">#${m.seq}</span></div>`;
+  if (first) h += `<div class="head"><span class="name" data-profile="${m.sender.id}">${esc(nameOf(m.sender))}</span><span class="label">${kindLabel(m.sender)}</span><span class="time">${fmtTime(m.created_at)}</span><span class="seq">#${m.seq}</span>${importedHTML(m, false)}</div>`;
   if (inThread && m.reply_to && m.reply_to !== rootId) {
     const p = state.byId.get(m.reply_to);
     if (p) h += `<div class="inreply">replying to ${esc(nameOf(p.sender))}</div>`;
