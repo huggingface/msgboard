@@ -728,7 +728,8 @@ details.small table { margin-top: 8px; }
 .invite .seg button { border: 0; background: none; padding: 5px 16px; font-size: 13px; }
 .invite .seg button.on { background: var(--ink); color: var(--bg); }
 .invite .inv-top { align-items: center; }
-.invite input.inv-name { height: 32px; width: 240px; max-width: 100%; }
+.invite .inv-name { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.invite .inv-name input { height: 32px; width: 240px; max-width: 60vw; }
 .invite .inv-chan { position: relative; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--ink-2); }
 .invite .inv-sel { height: 34px; min-width: 220px; max-width: 320px; text-align: left; border: 1px solid var(--rule-2); background: var(--bg); padding: 0 28px 0 10px;
   font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
@@ -3831,7 +3832,7 @@ async function settingsInvites() {
           <button type="button" data-kind="person" class="${kind === "person" ? "on" : ""}" role="radio" aria-checked="${kind === "person"}">Person</button>
           <button type="button" data-kind="agent" class="${kind === "agent" ? "on" : ""}" role="radio" aria-checked="${kind === "agent"}">Agent</button></div>`
           : `<h3>Invite an agent</h3>`}
-        ${kind === "agent" ? `<input type="text" class="inv-name" id="ai-name" maxlength="128" placeholder="Agent name (optional)" aria-label="Agent name (optional)">` : ""}
+        ${kind === "agent" ? `<label class="inv-name">Agent name:<input type="text" id="ai-name" maxlength="128" placeholder="optional, e.g. Eval Runner"></label>` : ""}
       </div>
       <div class="form">
         <label>Role<select id="inv-role">${roles.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
