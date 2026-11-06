@@ -30,6 +30,14 @@ MAX_ATTACHMENTS = 1_000
 HASH = re.compile(r"^[0-9a-f]{64}$")
 ATT_LINK = re.compile(r"(?:/v1/attachments/|#file/)(att_[A-Za-z0-9_-]+)")
 STORAGE_LINK = re.compile(r"(?:https?://[^\s<>\"'\[\]]+)?/v1/storage/[^/\s<>\"'()\[\]]+/[^\s<>\"'\[\]]+")
+CODE_SPAN = re.compile(r"(`+)([\s\S]*?)\1|(?m:^ {0,3}(~{3,})[^\n]*\n[\s\S]*?^ {0,3}\3[ \t]*$)")
+
+
+def storage_links(body):
+    # Preserve offsets so the same matches can drive capture and rewriting.
+    # Paths shown as code are examples, not rendered file links.
+    masked = CODE_SPAN.sub(lambda match: " " * len(match.group()), body)
+    return STORAGE_LINK.finditer(masked)
 
 
 def storage_reference(text, source_url):
@@ -37,8 +45,15 @@ def storage_reference(text, source_url):
     suffix = ""
     # Keep balanced filename parentheses, but leave Markdown's closing delimiter
     # outside the URL when a rewritten link is put back into the body.
-    while text.endswith(")") and text.count(")") > text.count("("):
-        text, suffix = text[:-1], ")" + suffix
+    depth = 0
+    for i, char in enumerate(text):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            if not depth:
+                text, suffix = text[:i], text[i:]
+                break
+            depth -= 1
     url, source = urlsplit(text), urlsplit(source_url)
     prefix = "/v1/storage/"
     path = url.path
@@ -108,7 +123,7 @@ def export_manifest(conn, p, channel_id: int, board_url: str):
             attachments.append(dict(row))
         storage_files = {}
         for body in [m["body"] for m in messages] + ([doc["body"]] if doc else []):
-            for match in STORAGE_LINK.finditer(body):
+            for match in storage_links(body):
                 ref = storage_reference(match.group(), board_url)
                 if ref is None:
                     continue
@@ -310,7 +325,7 @@ def validate_manifest(m):
         _text(doc.get("body"), "channel doc", store.MAX_DOC_BYTES)
         _time(doc.get("created_at"), "doc timestamp")
     for body in [msg["body"] for msg in m["messages"]] + ([doc["body"]] if doc else []):
-        for match in STORAGE_LINK.finditer(body):
+        for match in storage_links(body):
             ref = storage_reference(match.group(), source["board_url"])
             if ref is not None and (ref[0], ref[1]) not in aliases:
                 raise bad_request("bundle omits a linked same-board storage file")
@@ -448,7 +463,12 @@ def _rewrite_storage(body, source_url, files, handles):
         if not url.netloc and target == handle:
             return match.group()
         return urlunsplit(("", "", "/v1/storage/" + quote(target, safe="") + "/" + quote(path, safe="/"), url.query, url.fragment)) + suffix
-    return STORAGE_LINK.sub(replace, body)
+    parts, start = [], 0
+    for match in storage_links(body):
+        parts.extend((body[start:match.start()], replace(match)))
+        start = match.end()
+    parts.append(body[start:])
+    return "".join(parts)
 
 
 def _rewrite_attachments(body, source_url, ids):
