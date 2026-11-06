@@ -397,7 +397,7 @@ def test_v28_migrates_real_v27_and_preserves_messages_and_board_id(tmp_path, mon
     ch, _ = store.create_channel(conn, p, "legacy", None, False, 1)
     mid = conn.execute("""INSERT INTO messages (channel_id, seq, sender_id, body, request_id, payload_hash, created_at)
         VALUES (?, 1, ?, 'old live message', 'old', '', 123)""", (ch["id"], p.id)).lastrowid
-    assert db.migrate(conn, path) == 28
+    assert db.migrate(conn, path) == db.SCHEMA_VERSION
     row = conn.execute("SELECT * FROM messages WHERE id = ?", (mid,)).fetchone()
     assert row["body"] == "old live message" and row["created_at"] == 123
     assert row["imported"] == 0 and row["import_source"] is None
