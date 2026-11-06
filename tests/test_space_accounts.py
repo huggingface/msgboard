@@ -155,3 +155,56 @@ def test_hf_signin_does_not_rejoin_general_after_leaving(space):
     signed_in = oauth(space, space.get("/login").headers["location"], "code-alice")
     assert signed_in.status_code == 200
     assert pid not in {p["id"] for p in space.get(f"/v1/channels/{general}/members", headers=operator).json()["members"]}
+
+
+def person_invite(client, **extra):
+    return client.post("/v1/invites", headers={"X-Msgboard-Token": client.operator},
+                       json={"kind": "human", **extra}).json()["code"]
+
+
+def test_join_with_hf_from_the_invite_link(space):
+    code = person_invite(space)
+    page = oauth(space, space.get("/login", params={"invite": code}).headers["location"], "code-alice")
+    assert page.status_code == 200 and page.headers["cache-control"] == "no-store"
+    h = {"X-Msgboard-Token": token_from(page)}
+    me = space.get("/v1/me", headers=h).json()
+    assert (me["external_id"], me["display_name"], me["hf_username"]) == ("alice-hf", "Alice A", "alice-hf")
+    assert space.get(f"/v1/principals/{me['id']}/avatar", headers=h).content == PNG        # the HF picture
+    again = oauth(space, space.get("/login").headers["location"], "code-alice")            # sign in elsewhere
+    assert space.get("/v1/me", headers={"X-Msgboard-Token": token_from(again)}).json()["id"] == me["id"]
+
+
+def test_join_with_hf_when_already_linked_signs_in_and_keeps_the_invite(space):
+    alice = join_person(space, "alice")
+    oauth(space, space.post("/v1/me/hf-link", headers={"X-Msgboard-Token": alice["token"]}).json()["url"], "code-alice")
+    code = person_invite(space, max_uses=1)
+    page = oauth(space, space.get("/login", params={"invite": code}).headers["location"], "code-alice")
+    assert space.get("/v1/me", headers={"X-Msgboard-Token": token_from(page)}).json()["external_id"] == "alice"
+    assert space.get(f"/v1/join/{code}").json()["status"] == "active"                       # not used up
+
+
+def test_join_with_hf_when_the_name_is_taken_asks_for_another(space):
+    join_person(space, "alice-hf")
+    code = person_invite(space)
+    page = oauth(space, space.get("/login", params={"invite": code}).headers["location"], "code-alice")
+    assert page.status_code == 303
+    q = parse_qs(urlparse(page.headers["location"]).query)
+    assert q["invite"] == [code] and q["hf_user"] == ["alice-hf"]
+    ticket = q["hf"][0]
+    taken = space.post("/v1/join/hf", json={"ticket": ticket, "code": code, "name": "alice-hf"})
+    assert taken.status_code == 409                                                        # the ticket survives
+    joined = space.post("/v1/join/hf", json={"ticket": ticket, "name": "alice2"})
+    assert joined.status_code == 201
+    me = space.get("/v1/me", headers={"X-Msgboard-Token": joined.json()["token"]}).json()
+    assert (me["external_id"], me["display_name"], me["hf_username"]) == ("alice2", "Alice A", "alice-hf")
+    assert space.post("/v1/join/hf", json={"ticket": ticket, "name": "alice3"}).status_code == 410   # single use
+    assert space.post("/v1/join/hf", json={"ticket": "forged", "name": "alice3"}).status_code == 410
+
+
+def test_join_with_hf_needs_a_valid_people_invite(space):
+    page = oauth(space, space.get("/login", params={"invite": "not-a-real-code"}).headers["location"], "code-alice")
+    assert page.status_code == 404 and "No account linked" not in page.text
+    agent_code = space.post("/v1/invites", headers={"X-Msgboard-Token": space.operator}, json={"kind": "agent"}).json()["code"]
+    page = oauth(space, space.get("/login", params={"invite": agent_code}).headers["location"], "code-bob")
+    assert page.status_code == 400
+    assert oauth(space, space.get("/login").headers["location"], "code-bob").status_code == 404   # nothing was created

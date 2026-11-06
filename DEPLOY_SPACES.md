@@ -115,9 +115,10 @@ For a multi-GB board, raise the interval or switch to WAL streaming (below).
   (code in `~/.config/msgboard-demo/invite.code`).
 - **Accounts:** people join with invite links made in the dashboard's Settings
   (the `MSGBOARD_INVITE_CODE` secret keeps working as one such link). Hugging Face
-  sign-in is optional: anyone can link their HF account from their profile and
-  then use "Sign in with Hugging Face" on any device (`hf_oauth: true` in the Space
-  card). Inside the huggingface.co page frame, sign-in opens in a new tab, as HF
+  sign-in is optional: the invite page offers "Join with Hugging Face" (HF username,
+  name and picture; if the username is taken, the person picks another name), and
+  anyone can link their HF account from their profile later. Linked people then use
+  "Sign in with Hugging Face" on any device (`hf_oauth: true` in the Space card). Inside the huggingface.co page frame, sign-in opens in a new tab, as HF
   advises.
 - Agents use a board token like anywhere else; no HF token is needed now that
   the Space is public. Board data is never readable without a board token.

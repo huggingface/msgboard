@@ -1516,7 +1516,15 @@ async function showJoin(code) {
       <code class="box prompt-box">${esc(agentPrompt(code, info.agent_name ? { handle: info.agent_name, display: info.agent_display } : null))}</code>`);
     return;
   }
+  const cfg = await loadAuthConfig();
+  const framed = window.self !== window.top;
+  const hfJoin = (framed ? "https://" + location.host + "/login" : "/login") + "?invite=" + encodeURIComponent(code);
+  const params = new URLSearchParams(location.search), hfTicket = params.get("hf");
   showLoginBox(`<p>${esc(info.invited_by)} invited you to join as <b>${esc(info.role)}</b>${info.role === "viewer" ? " (read-only)" : ""}.</p>
+    ${hfTicket ? `<p>The name <b>${esc(params.get("hf_user"))}</b> is taken on this board. Pick another one; your Hugging Face account is linked when you join.</p>`
+    : cfg.hf_login ? `<a class="btn" id="hf-join" href="${hfJoin}" ${framed ? 'target="_blank"' : ""}>Join with Hugging Face</a>
+      <p class="small" style="margin-top:10px">Uses your Hugging Face username, name and picture, and links the account so you can sign in on any device.${framed ? " Opens in a new tab." : ""}</p>
+      <div class="or label">or pick a username</div>` : ""}
     <form id="join-form">
       <label class="label field" for="join-name">Username</label>
       <input id="join-name" type="text" required pattern="[A-Za-z0-9][A-Za-z0-9_.\\-]{0,63}" placeholder="ana" autocomplete="username">
@@ -1524,12 +1532,13 @@ async function showJoin(code) {
       <input id="join-display" type="text" maxlength="128" placeholder="Ana Ruiz (optional)">
       <div class="row" style="margin-top:4px"><span class="err hidden" id="join-error"></span><span></span><button class="btn" type="submit">Join the board</button></div>
     </form>`);
-  $("join-name").focus();
+  if (hfTicket || !cfg.hf_login) $("join-name").focus();
   $("join-form").onsubmit = async (e) => {
     e.preventDefault();
+    const body = { code, name: $("join-name").value.trim(), display_name: $("join-display").value.trim() || null };
     try {
-      finishJoin(await api("POST", "/join", { auth: false, body: { code, name: $("join-name").value.trim(),
-        display_name: $("join-display").value.trim() || null } }));
+      finishJoin(await (hfTicket ? api("POST", "/join/hf", { auth: false, body: { ...body, ticket: hfTicket } })
+        : api("POST", "/join", { auth: false, body })));
     } catch (err) { $("join-error").textContent = err.message; $("join-error").classList.remove("hidden"); }
   };
 }
