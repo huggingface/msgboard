@@ -1937,7 +1937,7 @@ def _channel_unread_counts(conn, p: Principal, channels: list) -> dict[int, dict
                                                  OR (m.thread_id IS NOT NULL AND {thread_unread})) THEN 1 ELSE 0 END), 0),
                COUNT(DISTINCT CASE WHEN m.thread_id IS NOT NULL AND {for_me} AND {thread_unread} THEN m.thread_id END)
         FROM state s
-        LEFT JOIN messages m ON m.channel_id = s.channel_id AND m.sender_id != :me
+        LEFT JOIN messages m ON m.channel_id = s.channel_id AND m.imported = 0 AND m.sender_id != :me
              AND (m.seq > s.lr OR (m.thread_id IS NOT NULL AND m.seq > s.floor))
              AND (s.has_row = 1 OR m.created_at > :baseline)
         LEFT JOIN message_mentions mm ON mm.message_id = m.id AND mm.principal_id = :me
