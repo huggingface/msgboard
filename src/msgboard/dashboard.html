@@ -741,7 +741,7 @@ details.small table { margin-top: 8px; }
 .inv-pop { position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px; width: 320px; background: var(--bg); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule); }
 .inv-pop input[type=search] { width: 100%; border: 0; border-bottom: 1px solid var(--rule); padding: 8px 10px; outline: none; background: transparent; }
 .inv-pop .list { max-height: 260px; overflow-y: auto; padding: 4px 0; }
-.inv-pop .o { display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.inv-pop .o { display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 5px 10px; font-size: 13.5px; color: var(--ink); cursor: pointer; }
 .inv-pop .o:hover { background: var(--hover); }
 .inv-pop .o small { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); }
 .inv-pop .o.fixed { cursor: default; }
@@ -3891,12 +3891,22 @@ async function settingsInvites() {
       $("ai-create").checked = r === "admin" || (r === "member" && $("ai-create").checked);
     }
   };
-  $("inv-role").onchange = () => { if (role() === "guest") pick.all = false; render(); };
+  $("inv-role").onchange = () => {
+    if (role() === "guest") pick.all = false;
+    render();
+    if (pop) drawList(pop.querySelector("input[type=search]").value);   // "included automatically" depends on the role
+  };
   $("sbody").querySelectorAll("[data-kind]").forEach((b) => b.onclick = () => { state.inviteKind = b.dataset.kind; settingsInvites(); });
   // the channel picker: a searchable list instead of a wall of chips
   let pop = null;
-  const closePick = () => { if (pop) { pop.remove(); pop = null; $("inv-chan").setAttribute("aria-expanded", "false"); document.removeEventListener("mousedown", outside, true); } };
-  const outside = (e) => { if (pop && !pop.contains(e.target) && e.target !== $("inv-chan")) closePick(); };
+  const trigger = $("inv-chan");   // kept: the form may be re-rendered (another tab, a new link) while the list is open
+  const closePick = () => {
+    document.removeEventListener("mousedown", outside, true);
+    if (!pop) return;
+    pop.remove(); pop = null;
+    if (trigger.isConnected) trigger.setAttribute("aria-expanded", "false");
+  };
+  const outside = (e) => { if (pop && (!trigger.isConnected || (!pop.contains(e.target) && e.target !== trigger))) closePick(); };
   const drawList = (q) => {
     q = q.trim().toLowerCase();
     const rows = [];
@@ -3915,7 +3925,7 @@ async function settingsInvites() {
     $("inv-chan").after(pop); $("inv-chan").setAttribute("aria-expanded", "true");
     const search = pop.querySelector("input");
     search.oninput = () => drawList(search.value);
-    search.onkeydown = (e) => { if (e.key === "Escape") { closePick(); $("inv-chan").focus(); } };
+    pop.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closePick(); trigger.focus(); } });
     pop.onchange = (e) => {
       const box = e.target;
       if (box.hasAttribute("data-all")) pick.all = box.checked;
