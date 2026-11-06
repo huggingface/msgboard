@@ -1168,6 +1168,14 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                         ok = await anyio.to_thread.run_sync(board.storage.get, key, tmp)
                         if not ok:
                             raise ApiError(503, "storage_unavailable", "the file is listed but could not be fetched from storage; try again")
+                        # the cache is named by the recorded hash, so only bytes with that hash may go in it:
+                        # a storage object overwritten behind the database (e.g. a mismatched restore) is never served
+                        h = new_hasher()
+                        with tmp.open("rb") as fh:
+                            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                                h.update(chunk)
+                        if h.hexdigest() != meta["sha256"]:
+                            raise ApiError(409, "storage_mismatch", "the stored bytes do not match this file's recorded checksum")
                         os.replace(tmp, cached)
                     finally:
                         tmp.unlink(missing_ok=True)

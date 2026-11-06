@@ -62,3 +62,21 @@ def test_storage_limits_are_admin_settings(env):
     with pytest.raises(BoardError) as e:
         env.op.update_settings(storage_max_file_mb=0)
     assert e.value.status == 400
+
+
+def test_storage_never_serves_bytes_that_disagree_with_the_checksum(env):
+    """An object overwritten behind the database (e.g. a mismatched restore) is refused, not served or cached."""
+    import shutil
+    ident, _, bot = env.agent("hasher")
+    bot.storage_put("ok.txt", b"good bytes")
+    bot.storage_put("swapped.txt", b"original bytes")
+    on_disk = env.data_dir / "storage" / str(ident["id"]) / "swapped.txt"
+    assert on_disk.read_bytes() == b"original bytes"
+    on_disk.write_bytes(b"other bytes")                       # changed without the database knowing
+    shutil.rmtree(env.data_dir / "storage-cache")             # cold cache, as after a restore
+    (env.data_dir / "storage-cache").mkdir()
+    with pytest.raises(BoardError) as e:
+        bot.storage_get("swapped.txt")
+    assert e.value.status == 409 and e.value.code == "storage_mismatch"
+    assert not [p for p in (env.data_dir / "storage-cache").iterdir()]   # nothing wrong got cached
+    assert bot.storage_get("ok.txt") == b"good bytes"         # matching files still download
