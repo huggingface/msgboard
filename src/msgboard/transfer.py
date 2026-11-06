@@ -12,6 +12,7 @@ import json
 import math
 import re
 import shutil
+import sqlite3
 import tempfile
 import zipfile
 from itertools import pairwise
@@ -28,11 +29,16 @@ MAX_MESSAGES = 10_000
 MAX_ATTACHMENTS = 1_000
 HASH = re.compile(r"^[0-9a-f]{64}$")
 ATT_LINK = re.compile(r"(?:/v1/attachments/|#file/)(att_[A-Za-z0-9_-]+)")
-STORAGE_LINK = re.compile(r"(?:https?://[^\s<>\"'()\[\]]+)?/v1/storage/[^/\s<>\"'()\[\]]+/[^\s<>\"'()\[\]]+")
+STORAGE_LINK = re.compile(r"(?:https?://[^\s<>\"'\[\]]+)?/v1/storage/[^/\s<>\"'()\[\]]+/[^\s<>\"'\[\]]+")
 
 
 def storage_reference(text, source_url):
     """Resolve only this board's file links; never fetch arbitrary URLs."""
+    suffix = ""
+    # Keep balanced filename parentheses, but leave Markdown's closing delimiter
+    # outside the URL when a rewritten link is put back into the body.
+    while text.endswith(")") and text.count(")") > text.count("("):
+        text, suffix = text[:-1], ")" + suffix
     url, source = urlsplit(text), urlsplit(source_url)
     prefix = "/v1/storage/"
     path = url.path
@@ -45,7 +51,7 @@ def storage_reference(text, source_url):
     handle, _, rest = path[len(prefix):].partition("/")
     if not handle or not rest or rest.endswith("/"):
         return None
-    return unquote(handle), store.storage_path(unquote(rest)), url
+    return unquote(handle), store.storage_path(unquote(rest)), url, suffix
 
 
 def require_admin(p):
@@ -106,7 +112,7 @@ def export_manifest(conn, p, channel_id: int, board_url: str):
                 ref = storage_reference(match.group(), board_url)
                 if ref is None:
                     continue
-                handle, path, _ = ref
+                handle, path, _, _ = ref
                 owner = conn.execute("SELECT id FROM principals WHERE external_id = ? OR hf_username = ?", (handle, handle)).fetchone()
                 row = conn.execute("SELECT * FROM storage_files WHERE owner_id = ? AND path = ?",
                                    (owner["id"], path)).fetchone() if owner else None
@@ -437,11 +443,11 @@ def _rewrite_storage(body, source_url, files, handles):
         ref = storage_reference(match.group(), source_url)
         if ref is None or (ref[0], ref[1]) not in aliases:
             return match.group()
-        handle, path, url = ref
+        handle, path, url, suffix = ref
         target = aliases[(handle, path)]
         if not url.netloc and target == handle:
             return match.group()
-        return urlunsplit(("", "", "/v1/storage/" + quote(target, safe="") + "/" + quote(path, safe="/"), url.query, url.fragment))
+        return urlunsplit(("", "", "/v1/storage/" + quote(target, safe="") + "/" + quote(path, safe="/"), url.query, url.fragment)) + suffix
     return STORAGE_LINK.sub(replace, body)
 
 
@@ -456,13 +462,11 @@ def _rewrite_attachments(body, source_url, ids):
     return body
 
 
-def import_channel(conn, p, channel_id, m, digest, files, blobs, now, storage):
-    report = verify_reused_storage(plan_import(conn, p, channel_id, m, digest), storage)
+def prepare_import(conn, p, channel_id, m, digest, now):
+    report = plan_import(conn, p, channel_id, m, digest)
     if not report["can_import"]:
         raise ApiError(409, "import_blocked", "channel import is blocked", details=report)
-    if report["already_imported"]:
-        return report
-    people = {}
+    people, created = {}, []
     for mapping in report["authors"]:
         if mapping["target_id"] is None:
             author = next(a for a in m["principals"] if a["id"] == mapping["source_id"])
@@ -472,7 +476,92 @@ def import_channel(conn, p, channel_id, m, digest, files, blobs, now, storage):
                 (author["external_id"], author["identity_type"], "viewer" if author["identity_type"] == "user" else "guest",
                  author["display_name"], now, p.id))
             mapping["target_id"] = cursor.lastrowid
+            created.append((cursor.lastrowid, author["external_id"], now))
         people[mapping["source_id"]] = mapping["target_id"]
+    return {"report": report, "people": people, "created_ghosts": created}
+
+
+def checked_import_plan(conn, p, channel_id, m, digest, prepared):
+    report = plan_import(conn, p, channel_id, m, digest)
+    if any(a["target_id"] != prepared["people"].get(a["source_id"]) for a in report["authors"]):
+        report["blockers"].append("author mappings changed during preparation; retry the import")
+        report["can_import"] = False
+    created = {row[0] for row in prepared["created_ghosts"]}
+    report["counts"]["ghosts"] = len(created)
+    report["would_create"]["ghosts"] = 0 if report["already_imported"] else len(created)
+    for author in report["authors"]:
+        if author["target_id"] in created:
+            author["action"] = "ghost"
+    return report
+
+
+def cleanup_ghosts(conn, prepared):
+    for pid, handle, created_at in prepared["created_ghosts"]:
+        try:
+            # Never remove an identity another operation has adopted or changed.
+            # Foreign keys leave a referenced ghost intact.
+            conn.execute("""DELETE FROM principals WHERE id = ? AND external_id = ? AND created_at = ?
+                AND joined_via = 'import' AND disabled = 1 AND owner_id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM credentials WHERE principal_id = principals.id)
+                AND NOT EXISTS (SELECT 1 FROM audit_log WHERE target = 'principal:' || principals.id)""",
+                (pid, handle, created_at))
+        except sqlite3.IntegrityError:
+            pass
+
+
+def attachment_id(channel_id, source, old_id):
+    return "att_" + hashlib.sha256(canonical([channel_id, source["board_id"], source["channel_id"], old_id])).hexdigest()[:32]
+
+
+def stage_import(channel_id, m, files, prepared, blobs, storage, uploaded_storage, uploaded_attachments):
+    """All network reads/uploads and local blob I/O run before the writer transaction."""
+    report = prepared["report"]
+    if not report["can_import"]:
+        raise ApiError(409, "import_blocked", "channel import is blocked", details=report)
+    report = verify_reused_storage(report, storage)
+    if not report["can_import"]:
+        raise ApiError(409, "import_blocked", "channel import is blocked", details=report)
+    if report["already_imported"]:
+        return
+    for f, planned in zip(m["storage_files"], report["storage_files"]):
+        if planned["action"] == "reuse":
+            continue
+        key = store.storage_key(prepared["people"][f["owner_id"]], f["path"])
+        uploaded_storage.append(key)  # also clean up a backend that writes, then raises
+        storage.put([(files[f["sha256"]], key)])
+    for a in m["attachments"]:
+        aid = attachment_id(channel_id, m["source"], a["id"])
+        key = f"{aid[4:6]}/{aid}"
+        dest = blobs.path_for(key)
+        if dest.exists():
+            digest = hashlib.sha256()
+            with dest.open("rb") as src:
+                while chunk := src.read(1024 * 1024):
+                    digest.update(chunk)
+            if digest.hexdigest() != a["sha256"] or dest.stat().st_size != a["size"]:
+                raise conflict("import_blob_conflict", "an existing attachment blob has different bytes")
+            continue
+        temp, fh = blobs.open_temp()
+        uploaded_attachments.append(key)
+        try:
+            with files[a["sha256"]].open("rb") as src:
+                shutil.copyfileobj(src, fh)
+            blobs.finish_temp(fh)
+            blobs.commit(temp, key)
+        finally:
+            if not fh.closed:
+                fh.close()
+            blobs.discard(temp)
+
+
+def import_channel(conn, p, channel_id, m, digest, prepared, now):
+    """Publish metadata only. Bucket and local file I/O has already finished."""
+    report = checked_import_plan(conn, p, channel_id, m, digest, prepared)
+    if not report["can_import"]:
+        raise ApiError(409, "import_blocked", "channel import is blocked", details=report)
+    if report["already_imported"]:
+        return report
+    people = prepared["people"]
     source = m["source"]
     handles = {sid: conn.execute("SELECT external_id FROM principals WHERE id = ?", (pid,)).fetchone()[0] for sid, pid in people.items()}
     for f in m["storage_files"]:
@@ -480,24 +569,12 @@ def import_channel(conn, p, channel_id, m, digest, files, blobs, now, storage):
         old = conn.execute("SELECT sha256, size FROM storage_files WHERE owner_id = ? AND path = ?", (owner_id, f["path"])).fetchone()
         if old:
             continue  # plan and byte verification established that it is identical
-        storage.put([(files[f["sha256"]], store.storage_key(owner_id, f["path"]))])
         store.storage_record(conn, p, owner_id, f["path"], f["size"], f["sha256"], f["content_type"], f["updated_at"])
     aid_map = {}
     for a in m["attachments"]:
-        key = canonical([channel_id, source["board_id"], source["channel_id"], a["id"]])
-        aid = "att_" + hashlib.sha256(key).hexdigest()[:32]
+        aid = attachment_id(channel_id, source, a["id"])
         aid_map[a["id"]] = aid
         storage_key = f"{aid[4:6]}/{aid}"
-        temp, fh = blobs.open_temp()
-        try:
-            with files[a["sha256"]].open("rb") as src:
-                shutil.copyfileobj(src, fh)
-            blobs.finish_temp(fh)
-            blobs.commit(temp, storage_key)
-        finally:
-            if not fh.closed:
-                fh.close()
-            blobs.discard(temp)
         conn.execute("""INSERT INTO attachments (id, channel_id, uploader_id, upload_id, storage_key,
             filename, content_type, size, sha256, state, published, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ready', 1, ?)""",
             (aid, channel_id, people[a["uploader_id"]], "import:" + aid, storage_key, a["filename"],

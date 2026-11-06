@@ -212,6 +212,16 @@ manifest, 512 MiB ZIP/expanded contents and the normal 50 MiB cap per attachment
 Private channels, DMs, revision history and storage files not linked by this
 channel are excluded. Missing or changed source file bytes stop export.
 
+Bucket uploads and checksum reads run outside SQLite write transactions. A
+short preparation transaction reserves ghost identities; a final transaction
+rechecks the target, author mappings, path conflicts and quotas before publishing
+history. Failed imports remove new unindexed files and unused prepared ghosts.
+Only overlapping owner/path operations wait on one another (including folder
+deletes); ordinary posts, reactions and unrelated file uploads keep working.
+Storage quota checks run again on the writer, and a rejected replacement restores
+its previous bucket bytes. Existing linked filenames with balanced parentheses
+are supported when their spaces are URL-encoded.
+
 ## Tests
 
 ```sh

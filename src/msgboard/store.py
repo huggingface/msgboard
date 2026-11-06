@@ -2666,6 +2666,13 @@ def storage_record(conn, p: Principal, owner_id: int, path: str, size: int, sha:
     return storage_file_json(row, handle)
 
 
+def storage_record_checked(conn, p, owner_id, path, size, sha, content_type, now):
+    # Check again on the serialized writer: parallel uploads to different paths
+    # may both pass their preflight reads, but must not exceed the folder quota.
+    storage_check_quota(conn, owner_id, path, size)
+    return storage_record(conn, p, owner_id, path, size, sha, content_type, now)
+
+
 def storage_list(conn, p: Principal, handle: str, prefix: str = "") -> dict:
     owner = storage_owner(conn, p, handle, write=False)
     prefix = storage_path(prefix) + "/" if prefix.strip("/") else ""

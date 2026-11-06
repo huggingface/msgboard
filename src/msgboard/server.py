@@ -31,6 +31,7 @@ from .config import DB_NAME, LIMITS
 from .errors import ApiError, bad_request, forbidden
 from .presence import PRESENCE_FLUSH_SECONDS, Presence
 from . import transfer
+from .reservations import Reservations
 
 
 class NotInitialized(RuntimeError):
@@ -238,6 +239,8 @@ class Board:
         self.open_polls = 0
         self.open_uploads = 0
         self.commit_lock: asyncio.Lock | None = None
+        self.storage_reservations = Reservations(paths=True)
+        self.import_reservations = Reservations()
         self.started = time.time()
         self.counters = {"posts": 0, "posts_replayed": 0, "edits": 0, "polls": 0, "errors_5xx": 0}
         self.replicator = replicator
@@ -592,10 +595,45 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                 report = await db.read(transfer.plan_import, p, channel_id, manifest, digest)
                 report = await anyio.to_thread.run_sync(transfer.verify_reused_storage, report, board.storage)
             else:
-                async with board.commit_lock:
-                    report = await db.write(transfer.import_channel, p, channel_id, manifest, digest,
-                                            files, board.blobs, time.time(), board.storage)
+                # A disconnected caller must not remove staged local files while
+                # its publication task is still using them. Retries are idempotent.
+                task = asyncio.create_task(apply_history(p, channel_id, manifest, digest, files))
+                try:
+                    report = await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    with suppress(Exception):
+                        await task
+                    raise
             return {**report, "dry_run": dry_run}
+
+    async def apply_history(p, channel_id, manifest, digest, files):
+        keys = [("channel", str(channel_id))] + [("author", a["external_id"].lower()) for a in manifest["principals"]]
+        async with board.import_reservations.hold(keys):
+            prepared = await db.write(transfer.prepare_import, p, channel_id, manifest, digest, time.time())
+            paths = [(prepared["people"][f["owner_id"]], f["path"]) for f in manifest["storage_files"]]
+            published = False
+            uploaded_storage, uploaded_attachments = [], []
+            try:
+                async with board.storage_reservations.hold(paths):
+                    try:
+                        prepared["report"] = await db.read(transfer.checked_import_plan, p, channel_id, manifest, digest, prepared)
+                        await anyio.to_thread.run_sync(transfer.stage_import, channel_id, manifest, files, prepared,
+                                                      board.blobs, board.storage, uploaded_storage, uploaded_attachments)
+                        report = await db.write(transfer.import_channel, p, channel_id, manifest, digest, prepared, time.time())
+                        published = True
+                        return report
+                    finally:
+                        if not published:
+                            if uploaded_storage:
+                                try:
+                                    await anyio.to_thread.run_sync(board.storage.delete, uploaded_storage)
+                                except Exception:
+                                    logging.getLogger(__name__).exception("could not remove unindexed import files")
+                            for key in uploaded_attachments:
+                                board.blobs.discard(board.blobs.path_for(key))
+            finally:
+                if not published:
+                    await db.write(transfer.cleanup_ghosts, prepared)
 
     @app.get("/v1/channels/{channel_id}/doc")
     async def get_doc(channel_id: int, request: Request):
@@ -1056,19 +1094,50 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             expected = request.headers.get("x-checksum-sha256")
             if expected and expected.lower() != digest:
                 raise bad_request("X-Checksum-Sha256 does not match the uploaded content")
-            # Serialize publication with imports/deletes: a collision check must
-            # remain true until the bytes and their index have been committed.
-            async with board.commit_lock:
-                await db.read(store.storage_check_quota, owner["id"], path, size)
-                key = store.storage_key(owner["id"], path)
-                await anyio.to_thread.run_sync(lambda: board.storage.put([(tmp_path, key)]))
-                await anyio.to_thread.run_sync(_cache_put, tmp_path, digest)
-                tmp_path = None
-                result = await db.write(store.storage_record, p, owner["id"], path, size, digest, content_type, time.time())
+            task = asyncio.create_task(publish_storage(p, owner, path, size, digest, content_type, tmp_path))
+            try:
+                result = await asyncio.shield(task)
+            except asyncio.CancelledError:
+                with suppress(Exception):
+                    await task
+                raise
+            tmp_path = None
             return JSONResponse(result, status_code=201)
         finally:
             if tmp_path is not None:
                 board.blobs.discard(tmp_path)
+
+    async def publish_storage(p, owner, path, size, digest, content_type, tmp_path):
+        async with board.storage_reservations.hold([(owner["id"], path)]):
+            await db.read(store.storage_check_quota, owner["id"], path, size)
+            key = store.storage_key(owner["id"], path)
+            # Replacing a file needs a rollback copy in case the final quota
+            # check loses to an unrelated upload. This I/O holds only its path.
+            try:
+                await db.read(store.storage_lookup, p, owner["external_id"], path)
+                replacing = True
+            except ApiError as exc:
+                if exc.status != 404:
+                    raise
+                replacing = False
+            with tempfile.TemporaryDirectory(prefix="msgboard-replace-") as scratch:
+                backup = Path(scratch) / "old"
+                backed_up = replacing and await anyio.to_thread.run_sync(board.storage.get, key, backup)
+                changed = recorded = False
+                try:
+                    changed = True
+                    await anyio.to_thread.run_sync(lambda: board.storage.put([(tmp_path, key)]))
+                    await anyio.to_thread.run_sync(_cache_put, tmp_path, digest)
+                    result = await db.write(store.storage_record_checked, p, owner["id"], path, size,
+                                            digest, content_type, time.time())
+                    recorded = True
+                    return result
+                finally:
+                    if changed and not recorded:
+                        if backed_up:
+                            await anyio.to_thread.run_sync(lambda: board.storage.put([(backup, key)]))
+                        else:
+                            await anyio.to_thread.run_sync(board.storage.delete, [key])
 
     @app.get("/v1/storage/{handle}")
     async def storage_root(handle: str, request: Request, prefix: str = ""):
@@ -1085,11 +1154,23 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             return meta
         cached = board.storage_cache / meta["sha256"]
         if not cached.exists():
-            tmp = board.storage_cache / f".{meta['sha256']}.{os.getpid()}.part"
-            ok = await anyio.to_thread.run_sync(board.storage.get, key, tmp)
-            if not ok:
-                raise ApiError(503, "storage_unavailable", "the file is listed but could not be fetched from storage; try again")
-            os.replace(tmp, cached)
+            owner = await db.read(store.storage_owner, p, handle, False)
+            async with board.storage_reservations.hold([(owner["id"], store.storage_path(path))]):
+                # A replacement may have completed while we waited. Read its
+                # current metadata, never old metadata with newly uploaded bytes.
+                meta, key = await db.read(store.storage_lookup, p, handle, path)
+                cached = board.storage_cache / meta["sha256"]
+                if not cached.exists():
+                    fd, name = tempfile.mkstemp(prefix=".storage-", suffix=".part", dir=board.storage_cache)
+                    os.close(fd)
+                    tmp = Path(name)
+                    try:
+                        ok = await anyio.to_thread.run_sync(board.storage.get, key, tmp)
+                        if not ok:
+                            raise ApiError(503, "storage_unavailable", "the file is listed but could not be fetched from storage; try again")
+                        os.replace(tmp, cached)
+                    finally:
+                        tmp.unlink(missing_ok=True)
         # always a download: never let stored HTML or SVG run on the board's own origin
         return FileResponse(cached, media_type="application/octet-stream", filename=os.path.basename(meta["path"]),
                             headers={"X-Checksum-Sha256": meta["sha256"], "X-Content-Type-Options": "nosniff",
@@ -1099,7 +1180,9 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.delete("/v1/storage/{handle}/{path:path}")
     async def storage_delete(handle: str, path: str, request: Request):
         p = await authn(request)
-        async with board.commit_lock:
+        owner = await db.read(store.storage_owner, p, handle, True)
+        path = store.storage_path(path)
+        async with board.storage_reservations.hold([(owner["id"], path)]):
             out = await db.write(store.storage_remove, p, handle, path, time.time())
             keys = out.pop("keys")
             await anyio.to_thread.run_sync(lambda: board.storage.delete(keys))
