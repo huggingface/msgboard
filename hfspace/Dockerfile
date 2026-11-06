@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 RUN useradd -m -u 1000 user
 WORKDIR /app
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 RUN pip install --no-cache-dir ".[hf]"
 COPY hfspace/app.py hfspace/demo_bots.py hfspace/accounts.py src/msgboard/dashboard.html ./
