@@ -575,7 +575,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                             background=BackgroundTask(scratch.cleanup))
 
     @app.post("/v1/channels/{channel_id}/import")
-    async def import_channel(channel_id: int, request: Request, dry_run: bool = False):
+    async def import_channel(channel_id: int, request: Request, dry_run: bool = False, keep_target_doc: bool = False):
         p = await authn(request, observe=not dry_run)
         await db.read(transfer.public_channel, p, channel_id)
         declared = request.headers.get("content-length", "")
@@ -592,12 +592,12 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                     await anyio.to_thread.run_sync(fh.write, chunk)
             manifest, digest, files = await anyio.to_thread.run_sync(transfer.read_bundle, path, Path(scratch))
             if dry_run:
-                report = await db.read(transfer.plan_import, p, channel_id, manifest, digest)
+                report = await db.read(transfer.plan_import, p, channel_id, manifest, digest, keep_target_doc)
                 report = await anyio.to_thread.run_sync(transfer.verify_reused_storage, report, board.storage)
             else:
                 # A disconnected caller must not remove staged local files while
                 # its publication task is still using them. Retries are idempotent.
-                task = asyncio.create_task(apply_history(p, channel_id, manifest, digest, files))
+                task = asyncio.create_task(apply_history(p, channel_id, manifest, digest, files, keep_target_doc))
                 try:
                     report = await asyncio.shield(task)
                 except asyncio.CancelledError:
@@ -606,10 +606,10 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                     raise
             return {**report, "dry_run": dry_run}
 
-    async def apply_history(p, channel_id, manifest, digest, files):
+    async def apply_history(p, channel_id, manifest, digest, files, keep_target_doc):
         keys = [("channel", str(channel_id))] + [("author", a["external_id"].lower()) for a in manifest["principals"]]
         async with board.import_reservations.hold(keys):
-            prepared = await db.write(transfer.prepare_import, p, channel_id, manifest, digest, time.time())
+            prepared = await db.write(transfer.prepare_import, p, channel_id, manifest, digest, time.time(), keep_target_doc)
             paths = [(prepared["people"][f["owner_id"]], f["path"]) for f in manifest["storage_files"]]
             published = False
             uploaded_storage, uploaded_attachments = [], []

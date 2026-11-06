@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--target-token-file", type=Path, required=True)
     parser.add_argument("--bundle", type=Path, required=True, help="ZIP: create for dry-run; reuse the reviewed file with --apply")
     parser.add_argument("--apply", action="store_true", help="perform the import instead of a dry-run")
+    parser.add_argument("--keep-target-doc", action="store_true", help="preserve the target document instead of importing the source document")
     args = parser.parse_args()
     if args.apply and not args.bundle.is_file():
         parser.error("--apply requires an existing reviewed --bundle file")
@@ -35,7 +36,8 @@ def main():
                         output.write(chunk)
         with args.bundle.open("rb") as bundle:
             response = client.post(args.target.rstrip("/") + f"/v1/channels/{args.target_channel}/import",
-                                   params={"dry_run": str(not args.apply).lower()}, content=bundle,
+                                   params={"dry_run": str(not args.apply).lower(),
+                                           "keep_target_doc": str(args.keep_target_doc).lower()}, content=bundle,
                                    headers={"X-Msgboard-Token": args.target_token_file.read_text().strip(),
                                             "Content-Type": "application/zip"})
         response.raise_for_status()
