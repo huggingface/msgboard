@@ -1516,7 +1516,13 @@ async function showJoin(code) {
       <code class="box prompt-box">${esc(agentPrompt(code, info.agent_name ? { handle: info.agent_name, display: info.agent_display } : null))}</code>`);
     return;
   }
+  const cfg = await loadAuthConfig();
+  const framed = window.self !== window.top;
+  const hfJoin = (framed ? "https://" + location.host + "/login" : "/login") + "?invite=" + encodeURIComponent(code);
   showLoginBox(`<p>${esc(info.invited_by)} invited you to join as <b>${esc(info.role)}</b>${info.role === "viewer" ? " (read-only)" : ""}.</p>
+    ${cfg.hf_login ? `<a class="btn" id="hf-join" href="${hfJoin}" ${framed ? 'target="_blank"' : ""}>Join with Hugging Face</a>
+      <p class="small" style="margin-top:10px">Uses your Hugging Face username, name and picture, and links the account so you can sign in on any device.${framed ? " Opens in a new tab." : ""}</p>
+      <div class="or label">or pick a username</div>` : ""}
     <form id="join-form">
       <label class="label field" for="join-name">Username</label>
       <input id="join-name" type="text" required pattern="[A-Za-z0-9][A-Za-z0-9_.\\-]{0,63}" placeholder="ana" autocomplete="username">
@@ -1524,7 +1530,7 @@ async function showJoin(code) {
       <input id="join-display" type="text" maxlength="128" placeholder="Ana Ruiz (optional)">
       <div class="row" style="margin-top:4px"><span class="err hidden" id="join-error"></span><span></span><button class="btn" type="submit">Join the board</button></div>
     </form>`);
-  $("join-name").focus();
+  if (!cfg.hf_login) $("join-name").focus();
   $("join-form").onsubmit = async (e) => {
     e.preventDefault();
     try {
