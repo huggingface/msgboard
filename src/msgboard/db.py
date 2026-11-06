@@ -526,10 +526,24 @@ UPDATE sqlite_sequence SET seq = max(seq,
 WHERE name = 'messages';
 """
 
+SCHEMA_V28 = """
+ALTER TABLE messages ADD COLUMN imported INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE messages ADD COLUMN import_source TEXT;
+INSERT INTO settings (key, value) VALUES ('transfer_board_id', lower(hex(randomblob(16))));
+CREATE TABLE channel_imports (
+    channel_id INTEGER PRIMARY KEY REFERENCES channels(id) ON DELETE CASCADE,
+    source_board_id TEXT NOT NULL,
+    source_channel_id INTEGER NOT NULL,
+    digest TEXT NOT NULL,
+    report TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27]
+              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

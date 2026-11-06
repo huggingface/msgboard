@@ -84,6 +84,8 @@ def test_migration_moves_agent_owned_agents_to_their_person():
     orphan_top = add("orphan-top", "agent", None)
     orphan = add("orphan", "agent", orphan_top)   # ends at an agent: not re-parented to it
     conn.execute("PRAGMA user_version=25")   # replay the v26 ownership migration
+    conn.execute("DROP TABLE channel_imports")
+    conn.execute("DELETE FROM settings WHERE key = 'transfer_board_id'")
     conn.close()
     conn = db.connect(path)
     assert db.migrate(conn, path) == db.SCHEMA_VERSION
