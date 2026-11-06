@@ -181,3 +181,23 @@ def test_uncached_read_waits_only_for_its_replacement_path(pair, monkeypatch):
             release.set()
         replacing.result(timeout=10)
         assert reading.result(timeout=10) == b"new bytes"
+
+
+@pytest.mark.parametrize("punctuation", [".", ",", ":"])
+def test_storage_link_markdown_boundary_and_code_examples(pair, punctuation):
+    source, target = pair
+    ch = source.op.create_channel("history")["id"]
+    source.op.storage_put("report (2).txt", b"report bytes")
+    code = (f"\n`{source.url}/v1/storage/operator/example.txt`\n"
+            "```text\n/v1/storage/nobody/not-a-file.txt\n```\n"
+            "~~~text\n/v1/storage/nobody/another-example.txt\n~~~")
+    source.op.post(ch, f"See [report]({source.url}/v1/storage/operator/report%20(2).txt){punctuation}" + code)
+    exported = export(source, ch)
+    assert exported.status_code == 200, exported.text
+    dest = target.op.create_channel("imported")["id"]
+    response = load(target, dest, exported.content)
+    assert response.status_code == 200, response.text
+    assert response.json()["counts"]["storage_files"] == 1
+    assert target.op.read(dest)["messages"][0]["body"] == (
+        "See [report](/v1/storage/operator/report%20%282%29.txt)" + punctuation + code)
+    assert target.op.storage_get("report (2).txt") == b"report bytes"
