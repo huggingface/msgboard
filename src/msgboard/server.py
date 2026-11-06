@@ -12,6 +12,7 @@ import shutil
 import sqlite3
 import threading
 import time
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -20,6 +21,7 @@ from urllib.parse import unquote
 import anyio
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from starlette.background import BackgroundTask
 
 from . import db as dbmod
 from . import guide
@@ -28,6 +30,7 @@ from .blobs import LocalBlobStore, new_hasher
 from .config import DB_NAME, LIMITS
 from .errors import ApiError, bad_request, forbidden
 from .presence import PRESENCE_FLUSH_SECONDS, Presence
+from . import transfer
 
 
 class NotInitialized(RuntimeError):
@@ -552,6 +555,46 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     async def get_message(message_id: int, request: Request):
         p = await authn(request)
         return await db.read(store.get_message, p, message_id)
+
+    @app.get("/v1/channels/{channel_id}/export")
+    async def export_channel(channel_id: int, request: Request):
+        p = await authn(request)
+        transfer.require_admin(p)
+        manifest, keys = await db.read(transfer.export_manifest, p, channel_id, _origin(request))
+        scratch = tempfile.TemporaryDirectory(prefix="msgboard-export-")
+        path = Path(scratch.name) / "channel.zip"
+        try:
+            await anyio.to_thread.run_sync(transfer.build_bundle, manifest, keys, board.blobs, path)
+        except BaseException:
+            scratch.cleanup()
+            raise
+        return FileResponse(path, media_type="application/zip", filename=f"channel-{channel_id}.zip",
+                            background=BackgroundTask(scratch.cleanup))
+
+    @app.post("/v1/channels/{channel_id}/import")
+    async def import_channel(channel_id: int, request: Request, dry_run: bool = False):
+        p = await authn(request, observe=not dry_run)
+        await db.read(transfer.public_channel, p, channel_id)
+        declared = request.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > transfer.MAX_BUNDLE_BYTES:
+            raise ApiError(413, "too_large", "channel bundle exceeds 512 MiB")
+        with tempfile.TemporaryDirectory(prefix="msgboard-import-") as scratch:
+            path = Path(scratch) / "bundle.zip"
+            with path.open("xb") as fh:
+                size = 0
+                async for chunk in request.stream():
+                    size += len(chunk)
+                    if size > transfer.MAX_BUNDLE_BYTES:
+                        raise ApiError(413, "too_large", "channel bundle exceeds 512 MiB")
+                    await anyio.to_thread.run_sync(fh.write, chunk)
+            manifest, digest, files = await anyio.to_thread.run_sync(transfer.read_bundle, path, Path(scratch))
+            if dry_run:
+                report = await db.read(transfer.plan_import, p, channel_id, manifest, digest)
+            else:
+                async with board.commit_lock:
+                    report = await db.write(transfer.import_channel, p, channel_id, manifest, digest,
+                                            files, board.blobs, time.time())
+            return {**report, "dry_run": dry_run}
 
     @app.get("/v1/channels/{channel_id}/doc")
     async def get_doc(channel_id: int, request: Request):

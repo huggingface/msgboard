@@ -1195,6 +1195,8 @@ def _message_json(row) -> dict:
         "request_id": row["request_id"],
         "created_at": row["created_at"],
         "edited_at": row["edited_at"],
+        "history": bool(row["imported"]),
+        "imported_from": json.loads(row["import_source"]) if row["import_source"] else None,
     }
 
 
@@ -1308,7 +1310,8 @@ def edit_message(conn, p: Principal, channel_id: int, message_id: int, payload: 
                      (message_id, version, row["body"], row["edited_at"] or row["created_at"], now))
         conn.execute("UPDATE messages SET body = ?, edited_at = ?, edit_rev = ? WHERE id = ?", (body, now, rev, message_id))
         conn.execute("DELETE FROM message_mentions WHERE message_id = ?", (message_id,))
-        _record_mentions(conn, channel, message_id, body, p.id)
+        if not row["imported"]:
+            _record_mentions(conn, channel, message_id, body, p.id)
         audit(conn, p.id, "message.edit", f"message:{message_id}", {"version": version + 1}, now)
         row = conn.execute(MESSAGE_SELECT + " WHERE m.id = ?", (message_id,)).fetchone()
     out = _message_json(row)
@@ -1437,7 +1440,7 @@ def _threads_for_me(conn, p: Principal, roots: list[int], messages: list[dict]) 
                 SELECT m.thread_id, COUNT(*) FROM messages m
                 LEFT JOIN message_mentions mm ON mm.message_id = m.id AND mm.principal_id = :me
                 LEFT JOIN thread_reads tr ON tr.principal_id = :me AND tr.thread_id = m.thread_id
-                WHERE m.thread_id IN ({marks}) AND m.sender_id != :me AND {FOR_ME} AND {THREAD_UNREAD}
+                WHERE m.imported = 0 AND m.thread_id IN ({marks}) AND m.sender_id != :me AND {FOR_ME} AND {THREAD_UNREAD}
                   AND (:has_row = 1 OR m.created_at > :baseline)
                 GROUP BY m.thread_id""", params):
             out[tid] = n
@@ -1744,7 +1747,7 @@ def backfill_mentions(conn) -> int:
     if conn.execute("SELECT 1 FROM settings WHERE key = 'mentions_v2'").fetchone():
         return 0
     n = 0
-    for m in conn.execute("SELECT id, channel_id, sender_id, body FROM messages WHERE body LIKE '%@%'").fetchall():
+    for m in conn.execute("SELECT id, channel_id, sender_id, body FROM messages WHERE imported = 0 AND body LIKE '%@%'").fetchall():
         ch = conn.execute("SELECT * FROM channels WHERE id = ?", (m["channel_id"],)).fetchone()
         before = conn.execute("SELECT COUNT(*) FROM message_mentions WHERE message_id = ?", (m["id"],)).fetchone()[0]
         _record_mentions(conn, ch, m["id"], m["body"], m["sender_id"])
@@ -1891,7 +1894,7 @@ def _unread_counts(conn, p: Principal, channel, row, baseline: float, dm: bool) 
                COUNT(DISTINCT CASE WHEN m.thread_id IS NOT NULL AND {FOR_ME} AND {THREAD_UNREAD} THEN m.thread_id END)
         FROM messages m LEFT JOIN message_mentions mm ON mm.message_id = m.id AND mm.principal_id = :me
         LEFT JOIN thread_reads tr ON tr.principal_id = :me AND tr.thread_id = m.thread_id
-        WHERE m.channel_id = :c AND m.sender_id != :me AND (m.seq > :lr OR (m.thread_id IS NOT NULL AND m.seq > :floor))
+        WHERE m.imported = 0 AND m.channel_id = :c AND m.sender_id != :me AND (m.seq > :lr OR (m.thread_id IS NOT NULL AND m.seq > :floor))
           AND (:has_row = 1 OR m.created_at > :baseline)""", params).fetchone()
     return {"last_read": params["lr"], "unread": r[0], "for_me": r[1], "threads_for_me": r[2]}
 
@@ -1964,7 +1967,7 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     # Capture the boundary before reading: a later post must remain available to the next poll.
     through = conn.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
     rows = conn.execute(MESSAGE_SELECT + f"""
-        WHERE m.sender_id != :me AND m.id > :after AND m.id <= :through{scope} AND (
+        WHERE m.imported = 0 AND m.sender_id != :me AND m.id > :after AND m.id <= :through{scope} AND (
             m.id IN (SELECT message_id FROM message_mentions WHERE principal_id = :me)
             OR m.thread_id IN {MY_THREADS}
             OR m.channel_id IN (SELECT c.id FROM channels c JOIN channel_members cm ON cm.channel_id = c.id
@@ -2018,7 +2021,7 @@ def _reactions_to_me(conn, p: Principal, scope: str, limit: int) -> list[dict]:
     """Reactions others left on my messages, one entry per message (newest reaction first)."""
     rows = conn.execute(f"""SELECT r.message_id, r.emoji, r.created_at, r.principal_id FROM message_reactions r
                             JOIN messages m ON m.id = r.message_id
-                            WHERE m.sender_id = :me AND r.principal_id != :me{scope}
+                            WHERE m.imported = 0 AND m.sender_id = :me AND r.principal_id != :me{scope}
                             ORDER BY r.created_at DESC LIMIT 500""", {"me": p.id}).fetchall()
     groups: dict[int, dict] = {}
     people: dict[int, dict] = {}                     # the same few people react a lot: look each up once

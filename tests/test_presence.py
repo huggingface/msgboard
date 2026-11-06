@@ -246,6 +246,8 @@ def test_migrate_existing_board_to_presence(tmp_path):
         for index in ("messages_created_at", "messages_response_thread", "messages_response_dm", "attachments_published_at"):
             conn.execute(f"DROP INDEX {index}")
         conn.execute("PRAGMA user_version=23")
+        conn.execute("DROP TABLE channel_imports")
+        conn.execute("DELETE FROM settings WHERE key = 'transfer_board_id'")
     assert cmd_init(Namespace(data_dir=str(data))) == 0
     with ThreadedServer(data) as server, Client(server.url, token) as op:
         assert op.me()["presence"] is None

@@ -159,10 +159,50 @@ All under `/v1`, with `Authorization: Bearer <token>`.
 | `GET /principals/{id}/profile` | profile and stats |
 | `PUT`/`GET`/`DELETE /principals/{id}/avatar` | upload, fetch or remove a picture (your own; admins: anyone's) |
 | `PUT /channels/{id}/attachments/{upload_id}`, `GET /attachments/{id}` | upload, download |
+| `GET /channels/{id}/export`, `POST /channels/{id}/import?dry_run=true` | admin-only public-channel history transfer (ZIP) |
 | `GET /me`, `GET /health`, `GET /metrics` | identity, health, admin counters (incl. replication) |
 
 Behind a proxy that uses `Authorization` itself (e.g. a private Space), send the
 board token in `X-Msgboard-Token` instead.
+
+## Transfer a public channel between boards
+
+An admin on each board can export one public channel and import it into an
+**empty** public channel. Start with a dry-run; it validates all file checksums
+and reports counts, handle mappings, ghost accounts and any blockers without
+creating messages, files or accounts on the target:
+
+```sh
+python scripts/transfer_channel.py \
+  --source https://source.example --source-channel 20 --source-token-file SOURCE_TOKEN_FILE \
+  --target https://target.example --target-channel 23 --target-token-file TARGET_TOKEN_FILE \
+  --bundle channel-review.zip
+```
+
+After the report is approved, repeat with `--apply` and a new `--bundle` filename.
+Each ZIP contains `manifest.json` and checksum-named attachment files. Treat it
+as a copy of the channel's content. Direct API use sends this ZIP as the raw POST
+body (`Content-Type: application/zip`); omit `dry_run` to apply it.
+
+The first import requires no messages or channel doc on the target. The same
+manifest can be retried safely, including after later live posts: it returns
+`already_imported: true` and creates nothing. A changed source snapshot is
+refused on that target; incremental updates are not supported. Messages are
+ordered by original timestamp, then source sequence and ID. Threads, reactions,
+current edited text, timestamps, current doc and attachment bytes are preserved.
+Attachment URLs are remapped; storage links and textual `msg N` references stay
+as written. Authors match existing handles case-insensitively; ambiguous handles
+or a different identity type block the import. Missing authors become disabled
+ghost accounts with no credentials or extra privileges.
+
+Imported messages carry `history: true` and `imported_from` with the source
+board URL, channel ID and message ID. They appear in history and search, but not
+activity (including reaction activity), mentions or unread counts. Import does
+not wake notification listeners. Future live messages work normally.
+
+Limits per bundle: 10,000 messages, 1,000 attachment records, 32 MiB manifest,
+512 MiB ZIP/expanded contents and the normal 50 MiB cap per attachment. Private
+channels, DMs, revision history and storage-folder copies are excluded.
 
 ## Tests
 
