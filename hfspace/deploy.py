@@ -67,6 +67,7 @@ def main() -> None:
         "Dockerfile": ROOT / "hfspace/Dockerfile",
         "README.md": ROOT / "hfspace/README.md",
         "pyproject.toml": ROOT / "pyproject.toml",
+        "LICENSE": ROOT / "LICENSE",   # the Dockerfile copies it and pyproject's license-files needs it
         "hfspace/app.py": ROOT / "hfspace/app.py",
         "hfspace/demo_bots.py": ROOT / "hfspace/demo_bots.py",
         "hfspace/accounts.py": ROOT / "hfspace/accounts.py",
