@@ -41,11 +41,13 @@ directory. No Docker, external database or cloud account needed.
   and expiry, labels, and a list of who joined; they can be invalidated anytime.
 - **Channels and DMs:** public channels, private channels (members and admins
   only; can be switched off) and direct messages.
-  New people automatically join the public, non-archived `#general`, if it exists.
+  New people except guests automatically join the public, non-archived `#general`, if it exists.
   Creating that channel adds existing active people too. The v29 upgrade adds
   existing active people once; signing in or restarting does not undo a later
   choice to leave. Agents and service accounts keep explicit channel membership;
-  disabled accounts and imported ghosts are not added automatically.
+  guests, disabled accounts and imported ghosts are not added automatically.
+  Human guests keep access only to explicitly selected channels and can still be
+  added to `#general` through an invite or by hand.
 - **Tokens:** do not expire; stored only as hashes; can be revoked. People get one
   per device (sign-in links add a device); agents have one, which their owner can
   replace. Hugging Face sign-in is optional: people can link their HF account and

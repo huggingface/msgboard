@@ -221,7 +221,7 @@ def _join_general(conn, now: float, principal_id: int | None = None) -> None:
     sql = """INSERT OR IGNORE INTO channel_members (channel_id, principal_id, added_by, added_at)
         SELECT c.id, p.id, NULL, ? FROM channels c CROSS JOIN principals p
         WHERE c.name = 'general' AND c.kind = 'public' AND c.archived = 0
-          AND p.identity_type = 'user' AND p.disabled = 0"""
+          AND p.identity_type = 'user' AND p.disabled = 0 AND p.role != 'guest'"""
     conn.execute(sql + (" AND p.id = ?" if principal_id is not None else ""),
                  (now, principal_id) if principal_id is not None else (now,))
 

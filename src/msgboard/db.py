@@ -546,7 +546,7 @@ INSERT OR IGNORE INTO channel_members (channel_id, principal_id, added_by, added
     SELECT c.id, p.id, NULL, CAST(strftime('%s', 'now') AS REAL)
     FROM channels c CROSS JOIN principals p
     WHERE c.name = 'general' AND c.kind = 'public' AND c.archived = 0
-      AND p.identity_type = 'user' AND p.disabled = 0;
+      AND p.identity_type = 'user' AND p.disabled = 0 AND p.role != 'guest';
 """
 
 # Index i holds the SQL that moves the schema from version i to i + 1.
