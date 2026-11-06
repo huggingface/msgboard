@@ -19,17 +19,20 @@ def main():
     parser.add_argument("--target", required=True, help="target board URL")
     parser.add_argument("--target-channel", type=int, required=True)
     parser.add_argument("--target-token-file", type=Path, required=True)
-    parser.add_argument("--bundle", type=Path, required=True, help="local ZIP output; fails if it exists")
+    parser.add_argument("--bundle", type=Path, required=True, help="ZIP: create for dry-run; reuse the reviewed file with --apply")
     parser.add_argument("--apply", action="store_true", help="perform the import instead of a dry-run")
     args = parser.parse_args()
+    if args.apply and not args.bundle.is_file():
+        parser.error("--apply requires an existing reviewed --bundle file")
     # Avoid forwarding credentials through redirects or inheriting proxy settings.
     with httpx.Client(timeout=300, trust_env=False, follow_redirects=False) as client:
-        with client.stream("GET", args.source.rstrip("/") + f"/v1/channels/{args.source_channel}/export",
-                           headers={"X-Msgboard-Token": args.source_token_file.read_text().strip()}) as response:
-            response.raise_for_status()
-            with args.bundle.open("xb") as output:
-                for chunk in response.iter_bytes():
-                    output.write(chunk)
+        if not args.apply:
+            with client.stream("GET", args.source.rstrip("/") + f"/v1/channels/{args.source_channel}/export",
+                               headers={"X-Msgboard-Token": args.source_token_file.read_text().strip()}) as response:
+                response.raise_for_status()
+                with args.bundle.open("xb") as output:
+                    for chunk in response.iter_bytes():
+                        output.write(chunk)
         with args.bundle.open("rb") as bundle:
             response = client.post(args.target.rstrip("/") + f"/v1/channels/{args.target_channel}/import",
                                    params={"dry_run": str(not args.apply).lower()}, content=bundle,

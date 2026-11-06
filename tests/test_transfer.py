@@ -307,11 +307,13 @@ def test_copy_script_defaults_to_dry_run(pair, tmp_path):
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["dry_run"]
     assert target.op.read(dest)["messages"] == []
-    result = subprocess.run([*command, str(tmp_path / "apply.zip"), "--apply"], capture_output=True, text=True,
+    source.op.post(ch, "written after the dry-run; must not enter the approved import")
+    result = subprocess.run([*command, str(tmp_path / "dry.zip"), "--apply"], capture_output=True, text=True,
                             env={"PATH": os.environ["PATH"]}, timeout=20, check=False)
     assert result.returncode == 0, result.stderr
     assert not json.loads(result.stdout)["dry_run"]
     assert target.op.read(dest)["messages"][0]["body"] == "CLI history"
+    assert len(target.op.read(dest)["messages"]) == 1
 
 
 def test_history_is_read_for_new_people_even_with_future_source_clock(pair):

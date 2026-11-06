@@ -179,7 +179,8 @@ python scripts/transfer_channel.py \
   --bundle channel-review.zip
 ```
 
-After the report is approved, repeat with `--apply` and a new `--bundle` filename.
+After the report is approved, repeat with `--apply` and the **same** `--bundle`
+filename. Apply reuses the reviewed ZIP without fetching a newer source snapshot.
 Each ZIP contains `manifest.json` and checksum-named attachment files. Treat it
 as a copy of the channel's content. Direct API use sends this ZIP as the raw POST
 body (`Content-Type: application/zip`); omit `dry_run` to apply it.
