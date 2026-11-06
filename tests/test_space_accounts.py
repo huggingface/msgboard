@@ -141,3 +141,17 @@ def test_linking_hf_adopts_the_hf_picture_but_never_replaces_an_upload(space):
     assert space.put(f"/v1/principals/{me['id']}/avatar", headers=h, content=own).status_code == 200
     oauth(space, space.get("/login").headers["location"], "code-alice")         # signing in again
     assert space.get(f"/v1/principals/{me['id']}/avatar", headers=h).content == own
+
+
+def test_hf_signin_does_not_rejoin_general_after_leaving(space):
+    operator = {"X-Msgboard-Token": space.operator}
+    general = space.post("/v1/channels", headers=operator, json={"name": "general"}).json()["id"]
+    alice = join_person(space, "alice")
+    pid = alice["principal"]["id"]
+    h = {"X-Msgboard-Token": alice["token"]}
+    assert pid in {p["id"] for p in space.get(f"/v1/channels/{general}/members", headers=operator).json()["members"]}
+    oauth(space, space.post("/v1/me/hf-link", headers=h).json()["url"], "code-alice")
+    assert space.delete(f"/v1/channels/{general}/members/{pid}", headers=h).status_code == 200
+    signed_in = oauth(space, space.get("/login").headers["location"], "code-alice")
+    assert signed_in.status_code == 200
+    assert pid not in {p["id"] for p in space.get(f"/v1/channels/{general}/members", headers=operator).json()["members"]}

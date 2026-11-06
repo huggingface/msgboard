@@ -216,6 +216,16 @@ def visible_channel_ids(conn, p: Principal) -> list[int] | None:
 # --------------------------------------------------------------- bootstrap admin
 
 
+def _join_general(conn, now: float, principal_id: int | None = None) -> None:
+    """Initial membership only: never call on sign-in or server startup."""
+    sql = """INSERT OR IGNORE INTO channel_members (channel_id, principal_id, added_by, added_at)
+        SELECT c.id, p.id, NULL, ? FROM channels c CROSS JOIN principals p
+        WHERE c.name = 'general' AND c.kind = 'public' AND c.archived = 0
+          AND p.identity_type = 'user' AND p.disabled = 0 AND p.role != 'guest'"""
+    conn.execute(sql + (" AND p.id = ?" if principal_id is not None else ""),
+                 (now, principal_id) if principal_id is not None else (now,))
+
+
 def admin_exists(conn) -> bool:
     return conn.execute("SELECT 1 FROM principals WHERE issuer = 'local' AND external_id = 'operator'").fetchone() is not None
 
@@ -716,6 +726,8 @@ def create_channel(conn, p: Principal, name, description, private, now: float) -
     cid = cur.lastrowid
     conn.execute("INSERT INTO channel_members (channel_id, principal_id, added_by, added_at) VALUES (?, ?, ?, ?)",
                  (cid, p.id, p.id, now))
+    if name == "general" and not private:
+        _join_general(conn, now)
     audit(conn, p.id, "channel.create", f"channel:{cid}", {"name": name, "private": private}, now)
     return _channel_json(conn, conn.execute("SELECT * FROM channels WHERE id = ?", (cid,)).fetchone()), True
 
@@ -1118,6 +1130,7 @@ def join(conn, code, name, display_name, now: float) -> dict:
             (PEOPLE, name, row["role"], display_name, now, inviter["id"], row["id"])).lastrowid
         conn.execute("UPDATE invites SET uses = uses + 1 WHERE id = ?", (row["id"],))
         _join_channels(conn, row, pid, now)
+        _join_general(conn, now, pid)
         _, token = _new_credential(conn, pid, inviter["id"], now)
         audit(conn, pid, "join.human", f"principal:{pid}", {"invite": row["id"], "role": row["role"]}, now)
         return {"token": token, "principal": principal_json(conn, _principal_row(conn, pid)), "created": True, "next": JOIN_NEXT}

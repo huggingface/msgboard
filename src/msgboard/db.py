@@ -540,10 +540,19 @@ CREATE TABLE channel_imports (
 );
 """
 
+# v29: one-time membership backfill; subsequent sign-ins/restarts respect leaving.
+SCHEMA_V29 = """
+INSERT OR IGNORE INTO channel_members (channel_id, principal_id, added_by, added_at)
+    SELECT c.id, p.id, NULL, CAST(strftime('%s', 'now') AS REAL)
+    FROM channels c CROSS JOIN principals p
+    WHERE c.name = 'general' AND c.kind = 'public' AND c.archived = 0
+      AND p.identity_type = 'user' AND p.disabled = 0 AND p.role != 'guest';
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28]
+              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

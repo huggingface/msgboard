@@ -112,7 +112,8 @@ def test_group_mentions(env):
 
 def test_group_mentions_reach_only_channel_members(env):
     gen = env.op.create_channel("general")
-    _, _, ana = env.human("ana")                                 # can read #general but has not joined it
+    _, _, ana = env.human("ana")
+    ana.remove_member(gen["id"], ana.identity["id"])              # readable, but explicitly left
     _, _, bot = env.agent("bot", channels=["general"])
     _, _, other = env.agent("other-bot")                         # can read #general but has not joined it
     ids = lambda m: sorted(x["external_id"] for x in m["mentions"])
