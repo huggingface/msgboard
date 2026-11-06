@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from msgboard import db
+from msgboard.client import BoardError
 from tests.conftest import Env
 
 
@@ -59,6 +60,7 @@ def fixture_history(source):
     # nested replies, reactions by an otherwise absent account, and a doc.
     att = ghost.upload(ch, b"attachment bytes", filename="trace.log")
     image = alice.upload(ch, b"image bytes", filename="screen.png", content_type="image/png")
+    alice.storage_put("design.png", b"storage image", content_type="image/png")
     body = f"latest @all @operator msg 123 ![screen](/v1/attachments/{image['id']}) [storage](/v1/storage/alice/design.png)"
     alice.edit(ch, root["id"], body)
     reply = ghost.post(ch, "reply", reply_to=root["id"], attachments=[att["id"]])
@@ -84,7 +86,7 @@ def test_transfer_roundtrip_quiet_search_files_ghosts_and_replay(pair):
     dest = target.op.create_channel("imported")["id"]
     data = export(source, ch).content
     manifest, blobs = unpack(data)
-    assert len(blobs) == 2
+    assert len(blobs) == 3
     before = target.op.people()
     dry = load(target, dest, data, dry=True)
     assert dry.status_code == 200, dry.text
@@ -110,6 +112,7 @@ def test_transfer_roundtrip_quiet_search_files_ghosts_and_replay(pair):
     assert mapping[root["id"]]["edited_at"] is not None
     assert mapping[root["id"]]["reactions"][0]["by"][0]["external_id"] == "reactor"
     assert target.op.doc(dest)["body"] == "Current doc"
+    assert alice.storage_get("design.png") == b"storage image"
     new_att = mapping[reply["id"]]["attachments"][0]
     assert target.op.download(new_att) == b"attachment bytes"
     image_record = next(a for a in manifest["attachments"] if a["filename"] == "screen.png")
@@ -361,3 +364,115 @@ def test_v28_migrates_real_v27_and_preserves_messages_and_board_id(tmp_path, mon
     assert conn.execute("SELECT value FROM settings WHERE key = 'transfer_board_id'").fetchone()[0] == board_id
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     conn.close()
+
+
+def test_storage_links_copy_ghost_owner_doc_absolute_and_encoded_paths(pair):
+    source, target = pair
+    ch = source.op.create_channel("history")["id"]
+    _, _, owner = source.agent("file-owner", display_name="File owner")
+    owner.storage_put("design/a b.png", b"image", content_type="image/png")
+    owner.storage_put("notes/doc.txt", b"doc file")
+    relative = "/v1/storage/file-owner/design/a%20b.png"
+    foreign = "https://other.example/v1/storage/file-owner/external.png"
+    source.op.post(ch, f"![relative]({relative}) [absolute]({source.url}{relative}) [external]({foreign})")
+    source.op.save_doc(ch, f"[doc]({source.url}/v1/storage/file-owner/notes/doc.txt)", base_version=0)
+    data = export(source, ch).content
+    manifest, files = unpack(data)
+    assert len(manifest["storage_files"]) == len(files) == 2
+    dest = target.op.create_channel("target")["id"]
+    dry = load(target, dest, data, dry=True).json()
+    assert dry["counts"]["ghosts"] == 1 and dry["would_create"]["storage_files"] == 2
+    assert not any(p["external_id"] == "file-owner" for p in target.op.people())
+    result = load(target, dest, data)
+    assert result.status_code == 200, result.text
+    assert target.op.storage_get("design/a b.png", handle="file-owner") == b"image"
+    assert target.op.storage_get("notes/doc.txt", handle="file-owner") == b"doc file"
+    body = target.op.read(dest)["messages"][0]["body"]
+    assert body.count(relative) == 2 and source.url not in body and foreign in body
+    assert target.op.doc(dest)["body"] == "[doc](/v1/storage/file-owner/notes/doc.txt)"
+    ghost = next(p for p in target.op.people() if p["external_id"] == "file-owner")
+    assert ghost["disabled"]
+    token = target.op.rotate_token(ghost["id"])["token"]
+    with pytest.raises(BoardError) as exc:
+        target.client(token).me()
+    assert exc.value.status == 401
+    assert load(target, dest, data).json()["already_imported"]
+
+
+@pytest.mark.parametrize("existing", ["different", "identical", "corrupt"])
+def test_storage_collision_reuse_and_corrupt_target(pair, existing):
+    source, target = pair
+    ch = source.op.create_channel("history")["id"]
+    source.op.storage_put("shared.txt", b"source bytes")
+    source.op.post(ch, "[file](/v1/storage/operator/shared.txt)")
+    target.op.storage_put("shared.txt", b"other bytes" if existing == "different" else b"source bytes")
+    if existing == "corrupt":
+        (target.data_dir / "storage" / str(target.op.me()["id"]) / "shared.txt").write_bytes(b"bad bucket bytes")
+    dest = target.op.create_channel("target")["id"]
+    data = export(source, ch).content
+    dry = load(target, dest, data, dry=True).json()
+    assert dry["can_import"] == (existing == "identical")
+    applied = load(target, dest, data)
+    if existing == "identical":
+        assert applied.status_code == 200 and dry["would_create"]["storage_files"] == 0
+        assert dry["storage_files"][0]["action"] == "reuse"
+    else:
+        assert applied.status_code == 409
+        assert target.op.read(dest)["messages"] == []
+
+
+def test_storage_missing_source_and_changed_source_bytes_fail_export(pair):
+    source, _ = pair
+    ch = source.op.create_channel("history")["id"]
+    source.op.post(ch, "[missing](/v1/storage/operator/missing.txt)")
+    assert export(source, ch).status_code == 409
+    source.op.storage_put("missing.txt", b"original")
+    path = source.data_dir / "storage" / str(source.op.me()["id"]) / "missing.txt"
+    path.write_bytes(b"changed behind the index")
+    assert export(source, ch).status_code == 409
+
+
+def test_storage_aggregate_quota_blocks_import_and_parallel_uploads(pair):
+    source, target = pair
+    ch = source.op.create_channel("history")["id"]
+    for name in ["a.bin", "b.bin"]:
+        source.op.storage_put(name, b"x" * (600 * 1024))
+        source.op.post(ch, f"[file](/v1/storage/operator/{name})")
+    target.op.update_settings(storage_max_file_mb=1, storage_quota_mb=1)
+    dest = target.op.create_channel("target")["id"]
+    dry = load(target, dest, export(source, ch).content, dry=True).json()
+    assert not dry["can_import"] and any("quota" in b for b in dry["blockers"])
+    assert target.op.storage_list()["used_bytes"] == 0
+    def upload(name):
+        with target.http(target.operator_token) as client:
+            return client.put(f"/storage/operator/{name}", content=b"x" * (600 * 1024)).status_code
+    with concurrent.futures.ThreadPoolExecutor(2) as pool:
+        statuses = list(pool.map(upload, ["first.bin", "second.bin"]))
+    assert sorted(statuses) == [201, 413]
+    assert target.op.storage_list()["used_bytes"] == 600 * 1024
+
+
+def test_storage_links_follow_mapped_handle_case(pair):
+    source, target = pair
+    ch = source.op.create_channel("history")["id"]
+    _, _, owner = source.agent("Owner")
+    target.agent("owner")
+    owner.storage_put("file.txt", b"mapped owner bytes")
+    source.op.post(ch, "[file](/v1/storage/Owner/file.txt)")
+    data = export(source, ch).content
+    dest = target.op.create_channel("target")["id"]
+    assert load(target, dest, data).status_code == 200
+    assert target.op.read(dest)["messages"][0]["body"] == "[file](/v1/storage/owner/file.txt)"
+    assert target.op.storage_get("file.txt", handle="owner") == b"mapped owner bytes"
+
+
+def test_bundle_cannot_omit_linked_storage_data(pair):
+    source, target = pair
+    ch = source.op.create_channel("history")["id"]
+    source.op.storage_put("file.txt", b"bytes")
+    source.op.post(ch, "[file](/v1/storage/operator/file.txt)")
+    manifest, _ = unpack(export(source, ch).content)
+    manifest["storage_files"] = []
+    dest = target.op.create_channel("target")["id"]
+    assert load(target, dest, pack(manifest, {})).status_code == 400
+    assert target.op.read(dest)["messages"] == []

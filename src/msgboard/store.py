@@ -2613,7 +2613,7 @@ def storage_owner(conn, p: Principal, handle: str, write: bool) -> sqlite3.Row:
     agent, and admins can write; everyone except guests can read (guests read only their own folders)."""
     row = conn.execute("SELECT * FROM principals WHERE external_id = ? OR (hf_username IS NOT NULL AND hf_username = ?)",
                        (handle, handle)).fetchone()
-    if row is None or row["disabled"]:
+    if row is None or (row["disabled"] and row["joined_via"] != "import"):
         raise not_found("no such storage folder")
     mine = row["id"] == p.id or row["owner_id"] == p.id
     if write:

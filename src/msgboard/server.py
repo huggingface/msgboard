@@ -564,7 +564,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         scratch = tempfile.TemporaryDirectory(prefix="msgboard-export-")
         path = Path(scratch.name) / "channel.zip"
         try:
-            await anyio.to_thread.run_sync(transfer.build_bundle, manifest, keys, board.blobs, path)
+            await anyio.to_thread.run_sync(transfer.build_bundle, manifest, keys, board.blobs, path, board.storage)
         except BaseException:
             scratch.cleanup()
             raise
@@ -590,10 +590,11 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             manifest, digest, files = await anyio.to_thread.run_sync(transfer.read_bundle, path, Path(scratch))
             if dry_run:
                 report = await db.read(transfer.plan_import, p, channel_id, manifest, digest)
+                report = await anyio.to_thread.run_sync(transfer.verify_reused_storage, report, board.storage)
             else:
                 async with board.commit_lock:
                     report = await db.write(transfer.import_channel, p, channel_id, manifest, digest,
-                                            files, board.blobs, time.time())
+                                            files, board.blobs, time.time(), board.storage)
             return {**report, "dry_run": dry_run}
 
     @app.get("/v1/channels/{channel_id}/doc")
@@ -1055,12 +1056,15 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             expected = request.headers.get("x-checksum-sha256")
             if expected and expected.lower() != digest:
                 raise bad_request("X-Checksum-Sha256 does not match the uploaded content")
-            await db.read(store.storage_check_quota, owner["id"], path, size)
-            key = store.storage_key(owner["id"], path)
-            await anyio.to_thread.run_sync(lambda: board.storage.put([(tmp_path, key)]))   # in the bucket before it is listed
-            await anyio.to_thread.run_sync(_cache_put, tmp_path, digest)
-            tmp_path = None
-            result = await db.write(store.storage_record, p, owner["id"], path, size, digest, content_type, time.time())
+            # Serialize publication with imports/deletes: a collision check must
+            # remain true until the bytes and their index have been committed.
+            async with board.commit_lock:
+                await db.read(store.storage_check_quota, owner["id"], path, size)
+                key = store.storage_key(owner["id"], path)
+                await anyio.to_thread.run_sync(lambda: board.storage.put([(tmp_path, key)]))
+                await anyio.to_thread.run_sync(_cache_put, tmp_path, digest)
+                tmp_path = None
+                result = await db.write(store.storage_record, p, owner["id"], path, size, digest, content_type, time.time())
             return JSONResponse(result, status_code=201)
         finally:
             if tmp_path is not None:
@@ -1095,9 +1099,10 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.delete("/v1/storage/{handle}/{path:path}")
     async def storage_delete(handle: str, path: str, request: Request):
         p = await authn(request)
-        out = await db.write(store.storage_remove, p, handle, path, time.time())
-        keys = out.pop("keys")
-        await anyio.to_thread.run_sync(lambda: board.storage.delete(keys))
+        async with board.commit_lock:
+            out = await db.write(store.storage_remove, p, handle, path, time.time())
+            keys = out.pop("keys")
+            await anyio.to_thread.run_sync(lambda: board.storage.delete(keys))
         return out
 
     if dashboard:

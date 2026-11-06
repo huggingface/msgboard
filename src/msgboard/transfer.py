@@ -12,9 +12,11 @@ import json
 import math
 import re
 import shutil
+import tempfile
 import zipfile
+from itertools import pairwise
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from . import store
 from .config import LIMITS
@@ -26,6 +28,24 @@ MAX_MESSAGES = 10_000
 MAX_ATTACHMENTS = 1_000
 HASH = re.compile(r"^[0-9a-f]{64}$")
 ATT_LINK = re.compile(r"(?:/v1/attachments/|#file/)(att_[A-Za-z0-9_-]+)")
+STORAGE_LINK = re.compile(r"(?:https?://[^\s<>\"'()\[\]]+)?/v1/storage/[^/\s<>\"'()\[\]]+/[^\s<>\"'()\[\]]+")
+
+
+def storage_reference(text, source_url):
+    """Resolve only this board's file links; never fetch arbitrary URLs."""
+    url, source = urlsplit(text), urlsplit(source_url)
+    prefix = "/v1/storage/"
+    path = url.path
+    if url.netloc:
+        if (url.scheme, url.netloc) != (source.scheme, source.netloc):
+            return None
+        prefix = source.path.rstrip("/") + prefix
+    if not path.startswith(prefix):
+        return None
+    handle, _, rest = path[len(prefix):].partition("/")
+    if not handle or not rest or rest.endswith("/"):
+        return None
+    return unquote(handle), store.storage_path(unquote(rest)), url
 
 
 def require_admin(p):
@@ -80,8 +100,27 @@ def export_manifest(conn, p, channel_id: int, board_url: str):
             if not row:
                 raise conflict("export_changed", "an attachment is missing; export again after checking the channel")
             attachments.append(dict(row))
+        storage_files = {}
+        for body in [m["body"] for m in messages] + ([doc["body"]] if doc else []):
+            for match in STORAGE_LINK.finditer(body):
+                ref = storage_reference(match.group(), board_url)
+                if ref is None:
+                    continue
+                handle, path, _ = ref
+                owner = conn.execute("SELECT id FROM principals WHERE external_id = ? OR hf_username = ?", (handle, handle)).fetchone()
+                row = conn.execute("SELECT * FROM storage_files WHERE owner_id = ? AND path = ?",
+                                   (owner["id"], path)).fetchone() if owner else None
+                if row is None:
+                    raise conflict("export_missing_storage", f"linked storage file is missing: {handle}/{path}")
+                record = storage_files.setdefault((row["owner_id"], path),
+                    {k: row[k] for k in ("owner_id", "path", "size", "sha256", "content_type", "updated_at")} | {"handles": []})
+                if handle not in record["handles"]:
+                    record["handles"].append(handle)
+        if len(storage_files) + len(attachments) > MAX_ATTACHMENTS:
+            raise ApiError(413, "too_large", "too many attachment/storage files for one bundle")
         people = {m["sender_id"] for m in messages} | {r["principal_id"] for r in reactions}
         people |= {a["uploader_id"] for a in attachments}
+        people |= {f["owner_id"] for f in storage_files.values()}
         if doc:
             people.add(doc["author_id"])
         principals = [dict(conn.execute("SELECT id, external_id, display_name, identity_type FROM principals WHERE id = ?",
@@ -90,25 +129,31 @@ def export_manifest(conn, p, channel_id: int, board_url: str):
                     "source": {"board_id": conn.execute("SELECT value FROM settings WHERE key = 'transfer_board_id'").fetchone()[0],
                                "board_url": board_url.rstrip("/"), "channel_id": channel_id, "channel_name": ch["name"]},
                     "principals": principals, "messages": messages, "reactions": reactions,
-                    "doc": doc, "attachments": [{k: a[k] for k in ("id", "uploader_id", "filename", "content_type",
+                    "doc": doc, "storage_files": list(storage_files.values()), "attachments": [{k: a[k] for k in ("id", "uploader_id", "filename", "content_type",
                                                                  "size", "sha256", "created_at")} for a in attachments]}
-        return manifest, {a["sha256"]: a["storage_key"] for a in attachments}
+        keys = {a["sha256"]: ("attachment", a["storage_key"]) for a in attachments}
+        for f in storage_files.values():
+            keys.setdefault(f["sha256"], ("storage", store.storage_key(f["owner_id"], f["path"])))
+        return manifest, keys
     finally:
         conn.execute("ROLLBACK")
 
 
-def build_bundle(manifest, keys, blobs, path: Path):
+def build_bundle(manifest, keys, blobs, path: Path, storage=None):
     validate_manifest(manifest)
     data = canonical(manifest)
     if len(data) > MAX_MANIFEST_BYTES:
         raise ApiError(413, "too_large", "channel manifest is too large")
     total = len(data)
-    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as z:
+    with tempfile.TemporaryDirectory(prefix="msgboard-export-files-") as scratch, zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as z:
         z.writestr("manifest.json", data)
-        for sha, key in keys.items():
+        for sha, (kind, key) in keys.items():
             digest = hashlib.sha256()
             try:
-                with blobs.path_for(key).open("rb") as src, z.open("blobs/" + sha, "w") as dst:
+                src_path = blobs.path_for(key) if kind == "attachment" else Path(scratch) / sha
+                if kind == "storage" and not storage.get(key, src_path):
+                    raise conflict("export_changed", "linked storage bytes disappeared; retry export")
+                with src_path.open("rb") as src, z.open("blobs/" + sha, "w") as dst:
                     while chunk := src.read(1024 * 1024):
                         total += len(chunk)
                         if total > MAX_BUNDLE_BYTES:
@@ -119,6 +164,8 @@ def build_bundle(manifest, keys, blobs, path: Path):
                 raise conflict("export_changed", "attachment bytes disappeared; retry the export")
             if digest.hexdigest() != sha:
                 raise conflict("export_changed", "attachment bytes do not match their recorded checksum")
+    if path.stat().st_size > MAX_BUNDLE_BYTES:
+        raise ApiError(413, "too_large", "channel ZIP exceeds 512 MiB")
 
 
 def _int(value, what):
@@ -149,7 +196,9 @@ def validate_manifest(m):
     if url.scheme not in ("http", "https") or not url.netloc or url.username or url.password or url.query or url.fragment:
         raise bad_request("source URL must be an HTTP(S) board address")
     for field, limit in [("principals", MAX_MESSAGES + MAX_ATTACHMENTS), ("messages", MAX_MESSAGES),
-                         ("reactions", MAX_MESSAGES * 100), ("attachments", MAX_ATTACHMENTS)]:
+                         ("reactions", MAX_MESSAGES * 100), ("attachments", MAX_ATTACHMENTS), ("storage_files", MAX_ATTACHMENTS)]:
+        if field == "storage_files":
+            m.setdefault(field, [])
         if not isinstance(m.get(field), list) or len(m[field]) > limit or any(not isinstance(x, dict) for x in m[field]):
             raise bad_request(f"invalid or oversized {field} list")
     people = {}
@@ -182,6 +231,33 @@ def validate_manifest(m):
                 _text(a[field], field, limit)
         _time(a.get("created_at"), "attachment timestamp")
         attachments[aid] = a
+    paths = set()
+    aliases = set()
+    for f in m["storage_files"]:
+        if f.get("owner_id") not in people or not HASH.fullmatch(str(f.get("sha256", ""))):
+            raise bad_request("invalid storage owner or checksum")
+        f["path"] = store.storage_path(f.get("path"))
+        if type(f.get("size")) is not int or not 0 <= f["size"] <= MAX_BUNDLE_BYTES:
+            raise bad_request("invalid storage file size")
+        _time(f.get("updated_at"), "storage timestamp")
+        f.setdefault("content_type", None)
+        if f["content_type"] is not None:
+            _text(f["content_type"], "storage content type", 128)
+        if not isinstance(f.get("handles"), list) or not f["handles"]:
+            raise bad_request("storage handle aliases are required")
+        for handle in f["handles"]:
+            if not isinstance(handle, str) or not store.EXTERNAL_ID.fullmatch(handle) or (handle, f["path"]) in aliases:
+                raise bad_request("invalid or duplicate storage alias")
+            aliases.add((handle, f["path"]))
+        if (f["owner_id"], f["path"]) in paths:
+            raise bad_request("duplicate storage path")
+        paths.add((f["owner_id"], f["path"]))
+    ordered_paths = sorted(paths)
+    if any(owner == next_owner and child.startswith(path + "/")
+           for (owner, path), (next_owner, child) in pairwise(ordered_paths)):
+        raise bad_request("storage files have a file/folder collision")
+    if len(paths) + len(attachments) > MAX_ATTACHMENTS:
+        raise bad_request("too many attachment/storage files")
     messages = {}
     seqs = set()
     for msg in m["messages"]:
@@ -227,6 +303,11 @@ def validate_manifest(m):
             raise bad_request("invalid channel doc author")
         _text(doc.get("body"), "channel doc", store.MAX_DOC_BYTES)
         _time(doc.get("created_at"), "doc timestamp")
+    for body in [msg["body"] for msg in m["messages"]] + ([doc["body"]] if doc else []):
+        for match in STORAGE_LINK.finditer(body):
+            ref = storage_reference(match.group(), source["board_url"])
+            if ref is not None and (ref[0], ref[1]) not in aliases:
+                raise bad_request("bundle omits a linked same-board storage file")
     return m
 
 
@@ -242,12 +323,13 @@ def read_bundle(path: Path, stage: Path):
             if z.getinfo("manifest.json").file_size > MAX_MANIFEST_BYTES:
                 raise ApiError(413, "too_large", "manifest exceeds 32 MiB")
             m = validate_manifest(json.loads(z.read("manifest.json")))
-            hashes = {a["sha256"] for a in m["attachments"]}
+            all_files = m["attachments"] + m["storage_files"]
+            hashes = {a["sha256"] for a in all_files}
             if set(names) != {"manifest.json"} | {"blobs/" + sha for sha in hashes}:
                 raise bad_request("ZIP members must exactly match the manifest's blobs")
             files = {}
             for sha in hashes:
-                expected = {a["size"] for a in m["attachments"] if a["sha256"] == sha}
+                expected = {a["size"] for a in all_files if a["sha256"] == sha}
                 info = z.getinfo("blobs/" + sha)
                 if expected != {info.file_size}:
                     raise bad_request("attachment length does not match manifest")
@@ -286,12 +368,81 @@ def plan_import(conn, p, channel_id, m, digest):
         mappings.append({"source_id": author["id"], "handle": author["external_id"],
                          "display_name": author["display_name"], "target_id": rows[0]["id"] if len(rows) == 1 else None,
                          "action": "existing" if rows else "ghost"})
+    by_author = {a["source_id"]: a for a in mappings}
+    planned_files = []
+    additions = {}
+    max_file, quota = store.storage_limits(conn)
+    for f in m["storage_files"]:
+        mapping = by_author[f["owner_id"]]
+        owner_id = mapping["target_id"]
+        if owner_id:
+            owner = conn.execute("SELECT disabled, joined_via FROM principals WHERE id = ?", (owner_id,)).fetchone()
+            if owner["disabled"] and owner["joined_via"] != "import":
+                blockers.append(f"mapped storage owner is disabled: {mapping['handle']}")
+        old = conn.execute("SELECT size, sha256 FROM storage_files WHERE owner_id = ? AND path = ?",
+                           (owner_id, f["path"])).fetchone() if owner_id else None
+        action = "reuse" if old and old["sha256"] == f["sha256"] and old["size"] == f["size"] else "create"
+        if old and action != "reuse":
+            action = "conflict"
+            blockers.append(f"different target storage file: {mapping['handle']}/{f['path']}")
+        if f["size"] > max_file:
+            blockers.append(f"storage file exceeds target per-file limit: {mapping['handle']}/{f['path']}")
+        if owner_id:
+            occupied = [r[0] for r in conn.execute("SELECT path FROM storage_files WHERE owner_id = ?", (owner_id,))]
+            if any(path.startswith(f["path"] + "/") or f["path"].startswith(path + "/") for path in occupied):
+                blockers.append(f"file/folder collision: {mapping['handle']}/{f['path']}")
+        if not old:
+            additions[f["owner_id"]] = additions.get(f["owner_id"], 0) + f["size"]
+        planned_files.append({"handle": mapping["handle"], "target_id": owner_id, "path": f["path"],
+                              "size": f["size"], "sha256": f["sha256"], "action": action})
+    for source_id, size in additions.items():
+        mapping = by_author[source_id]
+        used = store.storage_usage(conn, mapping["target_id"]) if mapping["target_id"] else 0
+        if used + size > quota:
+            blockers.append(f"storage folder exceeds target quota: {mapping['handle']}")
     counts = {"messages": len(m["messages"]), "attachments": len(m["attachments"]),
-              "bytes": sum(a["size"] for a in m["attachments"]), "reactions": len(m["reactions"]),
+              "storage_files": len(planned_files),
+              "bytes": sum(a["size"] for a in m["attachments"] + m["storage_files"]), "reactions": len(m["reactions"]),
               "ghosts": sum(a["action"] == "ghost" for a in mappings), "doc": int(m["doc"] is not None)}
-    return {"source": m["source"], "target_channel_id": channel_id, "digest": digest,
+    report = {"source": m["source"], "target_channel_id": channel_id, "digest": digest,
             "already_imported": replay, "can_import": not blockers, "blockers": blockers,
-            "counts": counts, "would_create": {k: 0 if replay else v for k, v in counts.items()}, "authors": mappings}
+            "counts": counts, "would_create": {k: 0 if replay else v for k, v in counts.items()},
+            "authors": mappings, "storage_files": planned_files}
+    report["would_create"]["storage_files"] = 0 if replay else sum(f["action"] == "create" for f in planned_files)
+    return report
+
+
+def verify_reused_storage(report, storage):
+    """Metadata equality alone cannot prove a mutable bucket key still has its bytes."""
+    with tempfile.TemporaryDirectory(prefix="msgboard-reuse-") as scratch:
+        for f in report["storage_files"]:
+            if f["action"] != "reuse":
+                continue
+            path = Path(scratch) / "file"
+            ok = storage.get(store.storage_key(f["target_id"], f["path"]), path)
+            digest = hashlib.sha256()
+            if ok and path.stat().st_size == f["size"]:
+                with path.open("rb") as src:
+                    while chunk := src.read(1024 * 1024):
+                        digest.update(chunk)
+            if not ok or path.stat().st_size != f["size"] or digest.hexdigest() != f["sha256"]:
+                report["blockers"].append(f"target storage bytes unavailable or mismatched: {f['handle']}/{f['path']}")
+                report["can_import"] = False
+    return report
+
+
+def _rewrite_storage(body, source_url, files, handles):
+    aliases = {(alias, f["path"]): handles[f["owner_id"]] for f in files for alias in f["handles"]}
+    def replace(match):
+        ref = storage_reference(match.group(), source_url)
+        if ref is None or (ref[0], ref[1]) not in aliases:
+            return match.group()
+        handle, path, url = ref
+        target = aliases[(handle, path)]
+        if not url.netloc and target == handle:
+            return match.group()
+        return urlunsplit(("", "", "/v1/storage/" + quote(target, safe="") + "/" + quote(path, safe="/"), url.query, url.fragment))
+    return STORAGE_LINK.sub(replace, body)
 
 
 def _rewrite_attachments(body, source_url, ids):
@@ -305,8 +456,8 @@ def _rewrite_attachments(body, source_url, ids):
     return body
 
 
-def import_channel(conn, p, channel_id, m, digest, files, blobs, now):
-    report = plan_import(conn, p, channel_id, m, digest)
+def import_channel(conn, p, channel_id, m, digest, files, blobs, now, storage):
+    report = verify_reused_storage(plan_import(conn, p, channel_id, m, digest), storage)
     if not report["can_import"]:
         raise ApiError(409, "import_blocked", "channel import is blocked", details=report)
     if report["already_imported"]:
@@ -323,6 +474,14 @@ def import_channel(conn, p, channel_id, m, digest, files, blobs, now):
             mapping["target_id"] = cursor.lastrowid
         people[mapping["source_id"]] = mapping["target_id"]
     source = m["source"]
+    handles = {sid: conn.execute("SELECT external_id FROM principals WHERE id = ?", (pid,)).fetchone()[0] for sid, pid in people.items()}
+    for f in m["storage_files"]:
+        owner_id = people[f["owner_id"]]
+        old = conn.execute("SELECT sha256, size FROM storage_files WHERE owner_id = ? AND path = ?", (owner_id, f["path"])).fetchone()
+        if old:
+            continue  # plan and byte verification established that it is identical
+        storage.put([(files[f["sha256"]], store.storage_key(owner_id, f["path"]))])
+        store.storage_record(conn, p, owner_id, f["path"], f["size"], f["sha256"], f["content_type"], f["updated_at"])
     aid_map = {}
     for a in m["attachments"]:
         key = canonical([channel_id, source["board_id"], source["channel_id"], a["id"]])
@@ -351,7 +510,7 @@ def import_channel(conn, p, channel_id, m, digest, files, blobs, now):
         cursor = conn.execute("""INSERT INTO messages (channel_id, seq, sender_id, body, attachments,
             request_id, payload_hash, created_at, edited_at, imported, import_source)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
-            (channel_id, seq, people[msg["sender_id"]], _rewrite_attachments(msg["body"], source["board_url"], aid_map),
+            (channel_id, seq, people[msg["sender_id"]], _rewrite_storage(_rewrite_attachments(msg["body"], source["board_url"], aid_map), source["board_url"], m["storage_files"], handles),
              json.dumps([aid_map[a] for a in msg["attachments"]]),
              "import:" + hashlib.sha256(canonical([channel_id, source["board_id"], source["channel_id"], msg["id"]])).hexdigest(),
              digest, msg["created_at"], msg["edited_at"], json.dumps(origin)))
@@ -372,7 +531,7 @@ def import_channel(conn, p, channel_id, m, digest, files, blobs, now):
     if m["doc"] is not None:
         doc = m["doc"]
         conn.execute("INSERT INTO channel_doc_versions (channel_id, version, body, author_id, created_at) VALUES (?, 1, ?, ?, ?)",
-                     (channel_id, _rewrite_attachments(doc["body"], source["board_url"], aid_map), people[doc["author_id"]], doc["created_at"]))
+                     (channel_id, _rewrite_storage(_rewrite_attachments(doc["body"], source["board_url"], aid_map), source["board_url"], m["storage_files"], handles), people[doc["author_id"]], doc["created_at"]))
         conn.execute("UPDATE channels SET doc_version = 1 WHERE id = ?", (channel_id,))
     conn.execute("UPDATE channels SET next_seq = ? WHERE id = ?", (seq, channel_id))
     conn.execute("""INSERT INTO channel_reads (principal_id, channel_id, last_read_seq, thread_floor, updated_at)

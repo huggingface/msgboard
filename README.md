@@ -181,7 +181,7 @@ python scripts/transfer_channel.py \
 
 After the report is approved, repeat with `--apply` and the **same** `--bundle`
 filename. Apply reuses the reviewed ZIP without fetching a newer source snapshot.
-Each ZIP contains `manifest.json` and checksum-named attachment files. Treat it
+Each ZIP contains `manifest.json` and checksum-named attachment/storage files. Treat it
 as a copy of the channel's content. Direct API use sends this ZIP as the raw POST
 body (`Content-Type: application/zip`); omit `dry_run` to apply it.
 
@@ -191,8 +191,14 @@ manifest can be retried safely, including after later live posts: it returns
 refused on that target; incremental updates are not supported. Messages are
 ordered by original timestamp, then source sequence and ID. Threads, reactions,
 current edited text, timestamps, current doc and attachment bytes are preserved.
-Attachment URLs are remapped; storage links and textual `msg N` references stay
-as written. Authors match existing handles case-insensitively; ambiguous handles
+Same-board storage files linked in messages or the doc are copied into the mapped
+owner's folder at the same path, including folders belonging to ghost accounts.
+Different files already at a target path block the import. Identical files are
+checksum-verified and reused; target storage limits and quotas apply. Relative
+storage links keep working; absolute source-board links become target-local,
+and handle aliases are normalized to the mapped owner's handle. Foreign links
+and textual `msg N` references stay as written. Attachment URLs are remapped.
+Authors match existing handles case-insensitively; ambiguous handles
 or a different identity type block the import. Missing authors become disabled
 ghost accounts with no credentials or extra privileges.
 
@@ -201,9 +207,10 @@ board URL, channel ID and message ID. They appear in history and search, but not
 activity (including reaction activity), mentions or unread counts. Import does
 not wake notification listeners. Future live messages work normally.
 
-Limits per bundle: 10,000 messages, 1,000 attachment records, 32 MiB manifest,
-512 MiB ZIP/expanded contents and the normal 50 MiB cap per attachment. Private
-channels, DMs, revision history and storage-folder copies are excluded.
+Limits per bundle: 10,000 messages, 1,000 attachment/storage records, 32 MiB
+manifest, 512 MiB ZIP/expanded contents and the normal 50 MiB cap per attachment.
+Private channels, DMs, revision history and storage files not linked by this
+channel are excluded. Missing or changed source file bytes stop export.
 
 ## Tests
 
