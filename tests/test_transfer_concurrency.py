@@ -201,3 +201,25 @@ def test_storage_link_markdown_boundary_and_code_examples(pair, punctuation):
     assert target.op.read(dest)["messages"][0]["body"] == (
         "See [report](/v1/storage/operator/report%20%282%29.txt)" + punctuation + code)
     assert target.op.storage_get("report (2).txt") == b"report bytes"
+
+
+def test_keep_target_doc_keeps_concurrent_summary_edit(pair, monkeypatch):
+    source, target = pair
+    ch = source.op.create_channel("history")["id"]
+    source.op.storage_put("held.txt", b"source file")
+    source.op.post(ch, "[file](/v1/storage/operator/held.txt)")
+    source.op.save_doc(ch, "source doc", base_version=0)
+    dest = target.op.create_channel("target")["id"]
+    target.op.save_doc(dest, "target summary", base_version=0)
+    started, release = pause_backend(monkeypatch, target, "put")
+    with concurrent.futures.ThreadPoolExecutor(2) as pool:
+        importing = pool.submit(load, target, dest, export(source, ch).content, keep_target_doc=True)
+        try:
+            assert started.wait(3)
+            latest = target.op.save_doc(dest, "updated during upload", base_version=1)
+        finally:
+            release.set()
+        response = importing.result(timeout=10)
+    assert response.status_code == 200, response.text
+    assert response.json()["document"] == {"action": "keep_target", "target_version": 2}
+    assert target.op.doc(dest) == latest

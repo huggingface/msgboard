@@ -368,7 +368,7 @@ def read_bundle(path: Path, stage: Path):
         raise bad_request("invalid channel bundle") from exc
 
 
-def plan_import(conn, p, channel_id, m, digest):
+def plan_import(conn, p, channel_id, m, digest, keep_target_doc=False):
     ch = public_channel(conn, p, channel_id)
     existing = conn.execute("SELECT * FROM channel_imports WHERE channel_id = ?", (channel_id,)).fetchone()
     blockers, mappings = [], []
@@ -378,7 +378,7 @@ def plan_import(conn, p, channel_id, m, digest):
     if not existing:
         if conn.execute("SELECT 1 FROM messages WHERE channel_id = ? LIMIT 1", (channel_id,)).fetchone():
             blockers.append("initial import requires an empty target channel")
-        if ch["doc_version"]:
+        if ch["doc_version"] and not keep_target_doc:
             blockers.append("initial import requires a target with no channel doc")
     if ch["archived"]:
         blockers.append("target channel is archived")
@@ -430,6 +430,13 @@ def plan_import(conn, p, channel_id, m, digest):
             "counts": counts, "would_create": {k: 0 if replay else v for k, v in counts.items()},
             "authors": mappings, "storage_files": planned_files}
     report["would_create"]["storage_files"] = 0 if replay else sum(f["action"] == "create" for f in planned_files)
+    report["document"] = {"action": "keep_target" if keep_target_doc else "import_source" if m["doc"] else "none",
+                          "target_version": ch["doc_version"]}
+    if keep_target_doc:
+        report["would_create"]["doc"] = 0
+    if replay:
+        previous = json.loads(existing["report"])
+        report["document"] = previous.get("document", report["document"])
     return report
 
 
@@ -482,8 +489,8 @@ def _rewrite_attachments(body, source_url, ids):
     return body
 
 
-def prepare_import(conn, p, channel_id, m, digest, now):
-    report = plan_import(conn, p, channel_id, m, digest)
+def prepare_import(conn, p, channel_id, m, digest, now, keep_target_doc=False):
+    report = plan_import(conn, p, channel_id, m, digest, keep_target_doc)
     if not report["can_import"]:
         raise ApiError(409, "import_blocked", "channel import is blocked", details=report)
     people, created = {}, []
@@ -498,11 +505,11 @@ def prepare_import(conn, p, channel_id, m, digest, now):
             mapping["target_id"] = cursor.lastrowid
             created.append((cursor.lastrowid, author["external_id"], now))
         people[mapping["source_id"]] = mapping["target_id"]
-    return {"report": report, "people": people, "created_ghosts": created}
+    return {"report": report, "people": people, "created_ghosts": created, "keep_target_doc": keep_target_doc}
 
 
 def checked_import_plan(conn, p, channel_id, m, digest, prepared):
-    report = plan_import(conn, p, channel_id, m, digest)
+    report = plan_import(conn, p, channel_id, m, digest, prepared.get("keep_target_doc", False))
     if any(a["target_id"] != prepared["people"].get(a["source_id"]) for a in report["authors"]):
         report["blockers"].append("author mappings changed during preparation; retry the import")
         report["can_import"] = False
@@ -625,7 +632,7 @@ def import_channel(conn, p, channel_id, m, digest, prepared, now):
     for r in m["reactions"]:
         conn.execute("INSERT INTO message_reactions (message_id, principal_id, emoji, created_at) VALUES (?, ?, ?, ?)",
                      (ids[r["message_id"]], people[r["principal_id"]], r["emoji"], r["created_at"]))
-    if m["doc"] is not None:
+    if m["doc"] is not None and not prepared.get("keep_target_doc", False):
         doc = m["doc"]
         conn.execute("INSERT INTO channel_doc_versions (channel_id, version, body, author_id, created_at) VALUES (?, 1, ?, ?, ?)",
                      (channel_id, _rewrite_storage(_rewrite_attachments(doc["body"], source["board_url"], aid_map), source["board_url"], m["storage_files"], handles), people[doc["author_id"]], doc["created_at"]))

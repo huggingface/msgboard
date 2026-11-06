@@ -185,7 +185,13 @@ Each ZIP contains `manifest.json` and checksum-named attachment/storage files. T
 as a copy of the channel's content. Direct API use sends this ZIP as the raw POST
 body (`Content-Type: application/zip`); omit `dry_run` to apply it.
 
-The first import requires no messages or channel doc on the target. The same
+The first import requires no messages or channel doc on the target. To keep an
+existing target doc, use `--keep-target-doc` for both dry run and apply (API:
+`keep_target_doc=true`). This skips the source doc, including when the target has
+no doc, and leaves all target doc versions untouched. The report's `document`
+field states the action; `would_create.doc` is zero when keeping the target.
+Files referenced by the skipped source doc are still copied and verified.
+The same
 manifest can be retried safely, including after later live posts: it returns
 `already_imported: true` and creates nothing. A changed source snapshot is
 refused on that target; incremental updates are not supported. Messages are

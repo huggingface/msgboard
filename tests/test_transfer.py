@@ -31,9 +31,9 @@ def export(env, channel, token=None):
         return c.get(f"/channels/{channel}/export")
 
 
-def load(env, channel, data, dry=False, token=None):
+def load(env, channel, data, dry=False, token=None, keep_target_doc=False):
     with env.http(token or env.operator_token) as c:
-        return c.post(f"/channels/{channel}/import", params={"dry_run": str(dry).lower()},
+        return c.post(f"/channels/{channel}/import", params={"dry_run": str(dry).lower(), "keep_target_doc": str(keep_target_doc).lower()},
                       content=data, headers={"Content-Type": "application/zip"})
 
 
@@ -178,6 +178,8 @@ def test_blocked_nonempty_doc_changed_bundle_and_handle_conflict(pair):
     report = load(target, dest, data, dry=True).json()
     assert not report["can_import"] and "empty" in report["blockers"][0]
     assert load(target, dest, data).status_code == 409
+    assert not load(target, dest, data, dry=True, keep_target_doc=True).json()["can_import"]
+    assert load(target, dest, data, keep_target_doc=True).status_code == 409
     assert target.op.read(dest)["messages"][0]["body"] == "keep me"
     documented = target.op.create_channel("documented")["id"]
     target.op.save_doc(documented, "do not replace", base_version=0)
@@ -193,6 +195,41 @@ def test_blocked_nonempty_doc_changed_bundle_and_handle_conflict(pair):
     target.agent("collision")
     clean = target.op.create_channel("clean")["id"]
     assert not load(target, clean, export(source, other).content, dry=True).json()["can_import"]
+
+
+@pytest.mark.parametrize("has_target_doc", [False, True])
+def test_keep_target_doc_preserves_versions_and_replay(pair, has_target_doc):
+    source, target = pair
+    ch = source.op.create_channel("history")["id"]
+    source.op.post(ch, "history message")
+    source.op.storage_put("old-doc.txt", b"old document file")
+    source.op.save_doc(ch, "[old](/v1/storage/operator/old-doc.txt)", base_version=0)
+    data = export(source, ch).content
+    dest = target.op.create_channel("target")["id"]
+    if has_target_doc:
+        target.op.save_doc(dest, "earlier summary", base_version=0)
+        target.op.save_doc(dest, "new target summary", base_version=1)
+    before = target.op.doc(dest)
+    dry = load(target, dest, data, dry=True, keep_target_doc=True).json()
+    assert dry["can_import"], dry
+    assert dry["document"] == {"action": "keep_target", "target_version": before["version"]}
+    assert dry["counts"]["doc"] == 1 and dry["would_create"]["doc"] == 0
+    assert target.op.doc(dest) == before
+    assert target.op.read(dest)["messages"] == []
+    result = load(target, dest, data, keep_target_doc=True)
+    assert result.status_code == 200, result.text
+    assert target.op.doc(dest) == before
+    assert target.op.storage_get("old-doc.txt") == b"old document file"
+    assert len(target.op.read(dest)["messages"]) == 1
+    # A retry without the option must not import a previously skipped doc.
+    replay = load(target, dest, data).json()
+    assert replay["already_imported"] and replay["would_create"]["doc"] == 0
+    assert replay["document"]["action"] == "keep_target"
+    assert target.op.doc(dest) == before
+    if has_target_doc:
+        with target.http(target.operator_token) as client:
+            versions = client.get(f"/channels/{dest}/doc/versions").json()["versions"]
+        assert [v["version"] for v in versions] == [2, 1]
 
 
 def test_admin_public_only_and_restart_remains_quiet(pair):
@@ -295,16 +332,21 @@ def test_concurrent_imports_publish_once(pair):
     target.op.delete_channel(dest, "target")
 
 
-def test_copy_script_defaults_to_dry_run(pair, tmp_path):
+@pytest.mark.parametrize("keep_target_doc", [False, True])
+def test_copy_script_defaults_to_dry_run(pair, tmp_path, keep_target_doc):
     source, target = pair
     ch = source.op.create_channel("history")["id"]
     source.op.post(ch, "CLI history")
+    source.op.save_doc(ch, "source doc", base_version=0)
     dest = target.op.create_channel("target")["id"]
     command = [sys.executable, str(Path(__file__).parents[1] / "scripts/transfer_channel.py"),
                "--source", source.url, "--source-channel", str(ch),
                "--source-token-file", str(source.data_dir / "operator.token"),
                "--target", target.url, "--target-channel", str(dest),
                "--target-token-file", str(target.data_dir / "operator.token"), "--bundle"]
+    if keep_target_doc:
+        target.op.save_doc(dest, "target doc", base_version=0)
+        command.insert(-1, "--keep-target-doc")
     result = subprocess.run([*command, str(tmp_path / "dry.zip")], capture_output=True, text=True,
                             env={"PATH": os.environ["PATH"]}, timeout=20, check=False)
     assert result.returncode == 0, result.stderr
@@ -317,6 +359,7 @@ def test_copy_script_defaults_to_dry_run(pair, tmp_path):
     assert not json.loads(result.stdout)["dry_run"]
     assert target.op.read(dest)["messages"][0]["body"] == "CLI history"
     assert len(target.op.read(dest)["messages"]) == 1
+    assert target.op.doc(dest)["body"] == ("target doc" if keep_target_doc else "source doc")
 
 
 def test_history_is_read_for_new_people_even_with_future_source_clock(pair):
