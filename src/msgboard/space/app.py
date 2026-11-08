@@ -5,15 +5,21 @@ Environment (Space secrets/variables):
   HF_TOKEN                   secret; write access to the replica bucket
   MSGBOARD_REPLICA           hf://buckets/<ns>/<bucket>[/<prefix>]
   MSGBOARD_SNAPSHOT_INTERVAL seconds between snapshots (default 15)
+  MSGBOARD_LEASE_STALE_AFTER seconds without a lease renewal before the owner counts as dead (default 300)
   MSGBOARD_INVITE_CODE       optional secret; kept working as a standing member invite link
   MSGBOARD_DEMO_BOTS         "1" to run the demo's bots (hfspace/demo_bots.py, uploaded by hfspace/deploy.py)
 
 The Space runs `python -m msgboard.space.app`; msgboard.space.deploy() uploads this package to it.
 
-Restarts overlap on Spaces: the new container starts before the old one gets
-SIGTERM. So this app opens its port at once but answers 503 (Retry-After) until
-the old container has pushed its final snapshot and released the lease. Only
-then does it restore and serve. Clients retry with the same request IDs.
+Restarts overlap on Spaces: the new container starts while the old one serves, and
+the old one gets SIGTERM once the new one's port answers, then SIGKILL about 10 s
+later. A final snapshot in those 10 s fails when the bucket is slow (rate-limited
+uploads take minutes). So the new container asks the old one for the replica before
+it opens its port (replicate.request_handover): the old one stops taking writes
+(503, Retry-After), pushes its final snapshot and releases the lease, with no
+deadline. Then the new one opens its port, restores and serves. Clients retry with
+the same request IDs. An old container from before hand-over requests hands over
+on SIGTERM instead, so then the port opens at once and answers 503 meanwhile.
 """
 
 from __future__ import annotations
@@ -31,7 +37,7 @@ from pathlib import Path
 import uvicorn
 
 from msgboard import auth, db, store
-from msgboard.replicate import Replicator, restore, store_from_url, wait_for_release
+from msgboard.replicate import Replicator, request_handover, restore, store_from_url, wait_for_release
 from msgboard.server import Board, create_app
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -40,6 +46,7 @@ logging.getLogger("httpx2").setLevel(logging.WARNING)
 log = logging.getLogger("msgboard.space")
 
 DATA_DIR = Path(os.environ.get("MSGBOARD_DATA_DIR", "/home/user/board-data"))
+STALE_AFTER = float(os.environ.get("MSGBOARD_LEASE_STALE_AFTER", "300"))
 PAGE = Path(__file__).resolve().parents[1] / "dashboard.html"
 
 
@@ -79,27 +86,44 @@ class Dispatcher:
         self.error: str | None = None
         self.stop = threading.Event()
         self._inner_lifespan = None
+        self.replica = self.replicator = self.handover = None
+
+    def take_over(self) -> None:
+        """Before the port opens: get the replica from the container this one replaces (module docstring)."""
+        replica_url = os.environ.get("MSGBOARD_REPLICA")
+        if not replica_url:
+            return
+        self.replica = store_from_url(replica_url)
+        self.replicator = Replicator(self.replica, DATA_DIR, stop=self.stop,
+                                     interval=float(os.environ.get("MSGBOARD_SNAPSHOT_INTERVAL", "15")))
+        self.handover = request_handover(self.replica, self.replicator.instance, self.replicator.since,
+                                         stale_after=STALE_AFTER, stop=self.stop)
+        log.info("replica handover: %s", self.handover)
 
     def _prepare(self) -> Board:
         operator_token = os.environ["MSGBOARD_OPERATOR_TOKEN"].strip()
-        replica_url = os.environ.get("MSGBOARD_REPLICA")
-        replicator = None
-        if replica_url:
-            replica = store_from_url(replica_url)
-            why = wait_for_release(replica, stop=self.stop,
-                                   stale_after=float(os.environ.get("MSGBOARD_LEASE_STALE_AFTER", "120")))
-            log.info("replica handover: %s", why)
-            if why == "stopped":
-                raise RuntimeError("stopped before the replica was handed over")
-            if not (DATA_DIR / "board.db").exists():
-                manifest = restore(replica, DATA_DIR)
+        if self.replicator is not None:
+            if self.handover == "legacy":  # it hands over on SIGTERM, which comes now that the port answers
+                why = wait_for_release(self.replica, stop=self.stop, stale_after=STALE_AFTER)
+                log.info("replica handover: %s", why)
+                if why == "stopped":
+                    raise RuntimeError("stopped before the replica was handed over")
+            while not (DATA_DIR / "board.db").exists():
+                try:
+                    manifest = restore(self.replica, DATA_DIR)
+                except RuntimeError:  # a snapshot that is missing or corrupt: retrying will not help
+                    raise
+                except Exception as exc:  # a failed Hub call
+                    log.warning("restore failed, retrying: %s", exc)
+                    if self.stop.wait(5):
+                        raise
+                    continue
                 log.info("restored %s" % manifest["snapshot"] if manifest else "replica empty; starting a new board")
-            replicator = Replicator(replica, DATA_DIR,
-                                    interval=float(os.environ.get("MSGBOARD_SNAPSHOT_INTERVAL", "15")))
+                break
         else:
             log.warning("MSGBOARD_REPLICA not set: all data is lost when this Space restarts")
         ensure_board(DATA_DIR, operator_token)
-        return Board(DATA_DIR, replicator=replicator)
+        return Board(DATA_DIR, replicator=self.replicator)
 
     async def _start(self) -> None:
         try:
@@ -178,6 +202,7 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, _exit)
     signal.signal(signal.SIGINT, _exit)
+    dispatcher.take_over()  # with the port still closed, so the platform keeps the old container serving
     config = uvicorn.Config(dispatcher, host="0.0.0.0", port=int(os.environ.get("PORT", "7860")),
                             log_level="warning", timeout_graceful_shutdown=5, server_header=False)
     try:

@@ -99,45 +99,73 @@ backups). It is the wrong place for a live database.
                                │  SQLite on the container disk (fast, real fsync)
                                │
                                └─ every 15 s, if anything changed ──▶ HF bucket (Hub API)
-                                    1. new attachment files           blobs/<id>
-                                    2. consistent snapshot (backup API) snapshots/<time>.db
-                                    3. pointer to it                   LATEST.json
- on boot with an empty disk: download LATEST snapshot, check sha256 + integrity, start
+                                    1. new attachment files             blobs/<id>
+                                    2. in one upload: a consistent      snapshots/<time>.db
+                                       snapshot (backup API), the       LATEST.json
+                                       pointer to it and the lease      LEASE.json
+ on boot with an empty disk: download the newest snapshot, check integrity, start
 ```
 
 - Uploads go through the Hub API (`huggingface_hub.batch_bucket_files`), not the
-  mount, so the server knows when an upload has finished. `LATEST.json` only moves
-  after the snapshot and its attachment files are stored.
+  mount, so the server knows when an upload has finished. The snapshot, `LATEST.json`
+  and the lease go up together, after the snapshot's attachment files: one upload per
+  push, because bucket uploads are rate-limited (below).
 - A snapshot is one file made with SQLite's backup API, so it is always
   internally consistent.
+- On boot the newest snapshot is restored, by name, even if `LATEST.json` names an
+  older one.
 - The last 5 snapshots are kept; older ones are deleted.
 
 ### Restarts overlap: hand over the bucket
 
-Measured on the test Space: on a restart the platform starts the **new**
-container first and sends SIGTERM to the old one only once the new one answers
-(about 6 s later). A first version restored right away, so it missed whatever
-the old container accepted in those seconds, and a test message was lost. Now:
+Measured on test Spaces: on a restart the platform starts the **new** container
+while the old one keeps serving. Only once the new one's port answers does it switch
+traffic and send SIGTERM to the old one, and it kills the old one about **10 s** after
+that SIGTERM. A new container that kept its port closed for 60 s left the old one
+serving the whole time.
 
-1. The new container opens its port at once but answers `503` with
-   `Retry-After: 2` ("starting") and waits.
-2. The old container gets SIGTERM, stops accepting writes (`503`), pushes a final
-   snapshot and marks the lease file as released.
-3. The new container restores that snapshot and starts serving.
+Bucket uploads go through Xet, which rate-limits them. Under `429 Too Many Requests`
+one upload retried for 3.5 minutes before it failed. An earlier version pushed the
+final snapshot after SIGTERM, so on a slow bucket it didn't finish in those 10 s: the
+next container waited for the lease to go stale and restored older data, or none
+([#26](https://github.com/huggingface/msgboard/issues/26)). So the hand-over now
+happens before SIGTERM:
+
+1. The new container starts with its port closed and asks the lease owner for the
+   bucket by writing `HANDOVER.json`.
+2. The old container sees the request within 5 s. It stops accepting writes (`503`,
+   `Retry-After: 2`), waits for the writes it already accepted, pushes a final
+   snapshot and releases the lease to the new container. Nothing hurries it: it
+   still serves reads, and the platform has not stopped it.
+3. The new container opens its port, restores that snapshot and serves. The
+   platform then switches traffic and stops the old container.
 
 Clients retry with the same request IDs (the SDK and the dashboard both do), so
-writes during the switch are delayed, not lost or doubled. If the old container
-crashed and never releases, the new one gives up waiting once the lease
-heartbeat (refreshed every 30 s) is older than 120 s.
+writes during the switch are delayed, not lost or doubled.
 
-A lease also guards against two live writers: a container that lost the lease
-stops pushing, so it cannot overwrite newer snapshots with older data.
+- **Two quick restarts** (`deploy()` replaces two secrets, and each change restarts
+  the Space): the newest container to ask gets the bucket. A container that already
+  took it hands it on.
+- **A new container that asks and then dies:** the old one takes the bucket back
+  after 2 minutes and accepts writes again.
+- **An old container that crashed:** the new one stops waiting once the lease, renewed
+  every 30 s, is 5 minutes old (`MSGBOARD_LEASE_STALE_AFTER`), and restores the newest
+  snapshot.
+- **An old container from before hand-over requests** (its lease has no
+  `"protocol": 2`): the new one opens its port at once and answers `503` until the
+  old one, stopped by the platform, has pushed its final snapshot. That is the
+  previous behaviour, and it happens once, when a board is updated to this version.
+
+The newest container owns the lease. One that sees a newer owner stops pushing and
+stops accepting writes, and a late lease write from an older container does not
+displace a newer one.
 
 ### What you can lose
 
 | Event | Loss |
 | --- | --- |
-| Restart, rebuild, sleep, settings change (SIGTERM + handover) | nothing; writes pause for a few seconds |
+| Restart, rebuild, settings change (hand-over) | nothing; writes pause for a few seconds, longer if bucket uploads are rate-limited |
+| Sleep or pause (SIGTERM with no new container) | nothing if the final snapshot is stored within ~10 s; otherwise what was written since the last snapshot |
 | Container crash or out-of-memory kill | messages since the last snapshot (up to ~15 s plus upload time) |
 | Bucket deleted | everything; take occasional off-Hub backups with `msgboard backup` |
 

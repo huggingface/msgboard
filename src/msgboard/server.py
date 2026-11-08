@@ -245,7 +245,32 @@ class Board:
         self.counters = {"posts": 0, "posts_replayed": 0, "edits": 0, "polls": 0, "errors_5xx": 0}
         self.replicator = replicator
         if replicator is not None:
+            replicator.quiesce, replicator.resume = self._quiesce, self._resume
             replicator.start(lambda: self.db.generation)
+
+    def _quiesce(self) -> None:
+        """Stop taking writes; return once every write accepted so far is committed (any thread).
+        The replicator then hands the replica over with all acknowledged writes."""
+        drained = threading.Event()
+
+        def close_writes():
+            # On the event loop, so a write has either passed its `closing` check and been queued, or sees it.
+            self.db.closing = True
+            self.db._writer.submit(drained.set)  # the writer runs in order: after every queued write
+
+        loop = self.notifier.loop
+        if loop is not None and loop.is_running():
+            loop.call_soon_threadsafe(close_writes)
+            while not drained.wait(1):
+                if not loop.is_running():  # it stopped before running close_writes
+                    close_writes()
+        else:
+            close_writes()
+        drained.wait()
+
+    def _resume(self) -> None:
+        if not self.shutting_down:
+            self.db.closing = False
 
     def begin_shutdown(self) -> None:
         """Release held long-polls so a Ctrl-C does not wait for them to time out."""
@@ -280,6 +305,8 @@ class Board:
             if self.shutting_down:
                 return
             self.presence.sample(time.time())
+            if self.db.closing:  # the replica was handed over: keep observations until writes resume
+                continue
             try:
                 await self.flush_presence()
             except Exception:
