@@ -240,53 +240,12 @@ class Board:
         self.open_uploads = 0
         self.commit_lock: asyncio.Lock | None = None
         self.storage_reservations = Reservations(paths=True)
-        self.storage_writes = 0   # admitted operations that change storage objects in the bucket
         self.import_reservations = Reservations()
         self.started = time.time()
         self.counters = {"posts": 0, "posts_replayed": 0, "edits": 0, "polls": 0, "errors_5xx": 0}
         self.replicator = replicator
         if replicator is not None:
-            replicator.quiesce, replicator.resume = self._quiesce, self._resume
             replicator.start(lambda: self.db.generation)
-
-    def _quiesce(self) -> None:
-        """Stop taking writes; return once every write accepted so far is committed (any thread).
-        The replicator then hands the replica over with all acknowledged writes."""
-        drained = threading.Event()
-
-        def close_writes():
-            # On the event loop, so a write has either passed its `closing` check and been queued, or sees it.
-            self.db.closing = True
-            self.db._writer.submit(drained.set)  # the writer runs in order: after every queued write
-
-        loop = self.notifier.loop
-        if loop is not None and loop.is_running():
-            loop.call_soon_threadsafe(close_writes)
-            while not drained.wait(1):
-                if not loop.is_running():  # it stopped before running close_writes
-                    close_writes()
-        else:
-            close_writes()
-        drained.wait()
-        # Storage objects live in the shared bucket itself: an upload, a delete or a rollback that lands
-        # after the hand-over would overwrite the next owner's.
-        while self.storage_writes:
-            time.sleep(0.05)
-
-    @asynccontextmanager
-    async def storage_write(self):
-        """Admit an operation that changes storage objects, unless writes are closed (see _quiesce)."""
-        if self.db.closing:
-            raise ApiError(503, "shutting_down", "server is shutting down; retry shortly", {"Retry-After": "2"})
-        self.storage_writes += 1
-        try:
-            yield
-        finally:
-            self.storage_writes -= 1
-
-    def _resume(self) -> None:
-        if not self.shutting_down:
-            self.db.closing = False
 
     def begin_shutdown(self) -> None:
         """Release held long-polls so a Ctrl-C does not wait for them to time out."""
@@ -321,8 +280,6 @@ class Board:
             if self.shutting_down:
                 return
             self.presence.sample(time.time())
-            if self.db.closing:  # the replica was handed over: keep observations until writes resume
-                continue
             try:
                 await self.flush_presence()
             except Exception:
@@ -657,7 +614,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             published = False
             uploaded_storage, uploaded_attachments = [], []
             try:
-                async with board.storage_write(), board.storage_reservations.hold(paths):
+                async with board.storage_reservations.hold(paths):
                     try:
                         prepared["report"] = await db.read(transfer.checked_import_plan, p, channel_id, manifest, digest, prepared)
                         await anyio.to_thread.run_sync(transfer.stage_import, channel_id, manifest, files, prepared,
@@ -1151,7 +1108,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                 board.blobs.discard(tmp_path)
 
     async def publish_storage(p, owner, path, size, digest, content_type, tmp_path):
-        async with board.storage_write(), board.storage_reservations.hold([(owner["id"], path)]):
+        async with board.storage_reservations.hold([(owner["id"], path)]):
             await db.read(store.storage_check_quota, owner["id"], path, size)
             key = store.storage_key(owner["id"], path)
             # Replacing a file needs a rollback copy in case the final quota
@@ -1233,7 +1190,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         p = await authn(request)
         owner = await db.read(store.storage_owner, p, handle, True)
         path = store.storage_path(path)
-        async with board.storage_write(), board.storage_reservations.hold([(owner["id"], path)]):
+        async with board.storage_reservations.hold([(owner["id"], path)]):
             out = await db.write(store.storage_remove, p, handle, path, time.time())
             keys = out.pop("keys")
             await anyio.to_thread.run_sync(lambda: board.storage.delete(keys))
