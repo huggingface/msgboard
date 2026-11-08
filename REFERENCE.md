@@ -38,7 +38,7 @@ python -m msgboard backup --data-dir DIR --out snap.db    # consistent SQLite sn
 python -m msgboard rotate-operator-token --data-dir DIR   # if operator.token is lost or leaked
 python -m msgboard serve --data-dir DIR --replica hf://buckets/NS/BUCKET/PREFIX --snapshot-interval 10
 python -m msgboard restore --data-dir NEWDIR --replica hf://buckets/NS/BUCKET/PREFIX
-python -m msgboard deploy-space NS/NAME [--private|--public] [--bucket NS/BUCKET] [--wait [SECONDS]]
+python -m msgboard deploy-space NS/NAME [--private|--public] [--bucket NS/BUCKET] [--title T] [--wait [SECONDS]]
 ```
 
 `--replica` also accepts a plain directory. With it, `serve` restores an empty

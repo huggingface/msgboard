@@ -7,6 +7,7 @@ Hub API (DEPLOY_SPACES.md explains why it is not a bucket mount).
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -45,7 +46,7 @@ def _resolve_space_id(space_id: str, *, hf_token: str | None = None) -> str:
 
 
 def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
-           private: bool | None = None, hf_token: str | None = None) -> Deployment:
+           private: bool | None = None, hf_token: str | None = None, title: str | None = None) -> Deployment:
     """Create or update the board Space `space_id` and return a `Deployment`.
 
     `space_id` is "namespace/name" or a bare name for the logged-in account. A missing Space is
@@ -61,15 +62,15 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
     message, token hash and invite. An existing public bucket is refused. So is anything that would
     restart a reused board against an empty bucket: a different `bucket_id`, a MSGBOARD_REPLICA that
     names no bucket, a deployed board whose bucket is missing (deleted or not visible to this token),
-    and a tagged board without MSGBOARD_REPLICA unless `bucket_id` says where its snapshots are. All
+    and a tagged board without MSGBOARD_REPLICA unless `bucket_id` names an existing bucket. All
     checks run before the first write; a reused Space's bucket is in place before its secrets change.
 
     The Space gets the secrets MSGBOARD_OPERATOR_TOKEN (`operator_token`, from
     `msgboard.auth.new_token()`; the app makes it the admin credential on every boot) and HF_TOKEN
     (`hf_token`, default: the logged-in token, which also makes the Hub calls; the Space needs it to
     write to the bucket), and the variables MSGBOARD_REPLICA and MSGBOARD_SNAPSHOT_INTERVAL. Its files
-    become the installed msgboard package, LICENSE, requirements.txt, the Dockerfile and the card;
-    anything else in the Space repo is deleted.
+    become the installed msgboard package, LICENSE, requirements.txt, the Dockerfile and the card, whose
+    title is `title` (default: the Space's name); anything else in the Space repo is deleted.
 
     The Space then builds or restarts, which takes a few minutes: wait with `Client.wait_ready()`.
     A reused Space keeps answering with its previous container for a while; wait_ready() with the
@@ -115,17 +116,18 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
     if bucket_id != current:
         replica = None  # the Space had no bucket yet: snapshots go to the new one's root
     bucket = _bucket_info(api, bucket_id)
-    # A missing bucket is fine for a Space that was never deployed (a deploy() stopped after create_repo),
-    # but a deployed board (tagged, or an old-layout Space with a Dockerfile) would restart empty.
-    if bucket is None and current is not None and (
+    # A missing bucket is fine for a new Space or one never deployed (a deploy() stopped after create_repo),
+    # but a deployed board (tagged, or an old-layout Space with a Dockerfile) would restart empty: whether
+    # its bucket comes from MSGBOARD_REPLICA or, for a board without one, from `bucket_id`.
+    if bucket is None and info is not None and (
             tagged or "Dockerfile" in api.list_repo_files(space_id, repo_type="space")):
-        raise DeployError(f"{space_id} keeps its board in bucket {current}, which was not found (deleted, or not "
-                          "visible to this token); refusing to restart the board against an empty bucket")
+        raise DeployError(f"{space_id} is a deployed board, and its bucket {bucket_id} was not found (deleted, "
+                          "or not visible to this token); refusing to restart the board against an empty bucket")
     if bucket is not None and not bucket.private:
         raise DeployError(f"bucket {bucket_id} is public; a board's bucket must be private, because its "
                           "snapshots hold every message, token hash and invite")
     dist = _distribution()
-    files = _space_files(space_id, dist)
+    files = _space_files(space_id, dist, title)
 
     secrets = {"MSGBOARD_OPERATOR_TOKEN": operator_token, "HF_TOKEN": token}
     wanted = {"MSGBOARD_REPLICA": replica or f"hf://buckets/{bucket_id}",
@@ -222,9 +224,12 @@ def _distribution():
                           "(pip install 'msgboard[hf]', or pip install -e '.[hf]' in a checkout)") from None
 
 
-def _space_files(space_id: str, dist) -> dict[str, bytes]:
+def _space_files(space_id: str, dist, title: str | None = None) -> dict[str, bytes]:
     """The Space repo's files by path: card, Dockerfile, requirements.txt, LICENSE and the package."""
-    card = (_HERE / "README.md").read_text().replace("title: msgboard\n", f"title: {space_id.split('/')[1]}\n", 1)
+    title = title or space_id.split("/")[1]
+    if not re.fullmatch(r"[\w][\w .-]*", title):
+        title = json.dumps(title)  # a JSON string is a quoted YAML scalar: no ':' or '#' surprises in the card
+    card = (_HERE / "README.md").read_text().replace("title: msgboard\n", f"title: {title}\n", 1)
     files = {"README.md": card.encode(), "Dockerfile": (_HERE / "Dockerfile").read_bytes(),
              "requirements.txt": _requirements(dist).encode(), "LICENSE": _license(dist)}
     # An allowlist, so stray files in an editable install's src/msgboard (a test board's token, say)

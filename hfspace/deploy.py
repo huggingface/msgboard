@@ -5,7 +5,8 @@ with msgboard installed with the hf extra (pip install -e '.[hf]'):
 
 The defaults target the live demo, lvwerra/msgboard-demo: set MSGBOARD_SPACE (and MSGBOARD_SECRETS)
 for any other board. The bucket is the one the Space already uses (MSGBOARD_BUCKET overrides it for a
-new Space). Board tokens and the invite code are kept in ~/.config/msgboard-demo/ and never printed.
+new Space). MSGBOARD_TITLE sets the Space card's title (default: the Space's name). Board tokens and
+the invite code are kept in ~/.config/msgboard-demo/ and never printed.
 A new Space is made public; an existing one keeps its visibility. People join with invite links
 created in the dashboard's settings; the MSGBOARD_INVITE_CODE secret is kept working as one such link.
 """
@@ -24,6 +25,7 @@ from msgboard.space import deploy
 HERE = Path(__file__).resolve().parent
 SPACE = os.environ.get("MSGBOARD_SPACE", "lvwerra/msgboard-demo")
 BUCKET = os.environ.get("MSGBOARD_BUCKET") or None
+TITLE = os.environ.get("MSGBOARD_TITLE") or None   # e.g. "msgboard demo", the demo's title before deploy()
 # Each board keeps its own tokens: set MSGBOARD_SECRETS for any board other than the demo.
 SECRETS = Path(os.environ.get("MSGBOARD_SECRETS", Path.home() / ".config" / "msgboard-demo")).expanduser()
 SHARED_INVITE = os.environ.get("MSGBOARD_SHARED_INVITE", "1") == "1"   # 0: no standing member invite link
@@ -42,7 +44,7 @@ def _secret_file(name: str, make) -> str:
 
 def main() -> None:
     operator = _secret_file("operator.token", lambda: new_token()[1])
-    result = deploy(SPACE, operator_token=operator, bucket_id=BUCKET, private=False)
+    result = deploy(SPACE, operator_token=operator, bucket_id=BUCKET, private=False, title=TITLE)
     api = HfApi()
     if SHARED_INVITE:
         api.add_space_secret(result.space_id, "MSGBOARD_INVITE_CODE",

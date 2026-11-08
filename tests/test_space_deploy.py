@@ -164,6 +164,34 @@ def test_an_interrupted_first_deploy_gets_its_bucket_before_any_secret_changes(f
     assert [w[0] for w in fake.writes[1:3]] == ["secret", "secret"]
 
 
+def test_missing_explicit_recovery_bucket_is_refused(fake):
+    fake.add_space(
+        "alice/board", tags=["msgboard"], variables={},
+        files={"Dockerfile": b"FROM existing"},
+    )
+    with pytest.raises(DeployError):
+        deploy(
+            "alice/board", operator_token=new_token()[1],
+            bucket_id="alice/missing-backup",
+        )
+    assert fake.writes == []
+
+
+def test_a_tagged_board_without_a_replica_recovers_from_an_existing_bucket(fake):
+    fake.add_space("alice/board", tags=["msgboard"], files={".gitattributes": b"", "Dockerfile": b"FROM existing"})
+    fake.buckets["alice/backup"] = True
+    result = deploy("alice/board", operator_token=new_token()[1], bucket_id="alice/backup")
+    assert result.bucket_id == "alice/backup" and not any(w[0] == "create_bucket" for w in fake.writes)
+    assert fake.spaces["alice/board"]["variables"]["MSGBOARD_REPLICA"] == "hf://buckets/alice/backup"
+
+
+def test_card_title_override(fake):
+    deploy("alice/board", operator_token=new_token()[1], title="Team board: run 7")
+    assert 'title: "Team board: run 7"\n' in fake.spaces["alice/board"]["files"]["README.md"].decode()
+    deploy("alice/plain", operator_token=new_token()[1], title="msgboard demo")
+    assert "title: msgboard demo\n" in fake.spaces["alice/plain"]["files"]["README.md"].decode()
+
+
 def test_symlinks_out_of_the_package_are_not_uploaded(monkeypatch, tmp_path):
     package = tmp_path / "msgboard"
     package.mkdir()

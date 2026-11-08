@@ -260,7 +260,8 @@ def cmd_deploy_space(args) -> int:
         token_path = token_path.expanduser()
         # A new token replaces the Space's MSGBOARD_OPERATOR_TOKEN secret, which the app adopts on restart.
         token = token_path.read_text().strip() if token_path.exists() else new_token()[1]
-        result = deploy(space_id, operator_token=token, bucket_id=args.bucket, private=args.private)
+        result = deploy(space_id, operator_token=token, bucket_id=args.bucket, private=args.private,
+                        title=args.title)
     except (DeployError, HfHubHTTPError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -336,6 +337,7 @@ def main(argv: list[str] | None = None) -> int:
                             help="make a new Space private (default: the namespace's default)")
     visibility.add_argument("--public", dest="private", action="store_const", const=False,
                             help="make a new Space public; an existing Space keeps its visibility")
+    p.add_argument("--title", default=None, help="the Space card's title (default: the Space's name)")
     p.add_argument("--token-file", default=None,
                    help="operator token file, created (0600) if missing; "
                         "default ~/.config/msgboard/spaces/<namespace>/<name>/operator.token")
