@@ -94,7 +94,8 @@ class Dispatcher:
         if not replica_url:
             return
         self.replica = store_from_url(replica_url)
-        self.replicator = Replicator(self.replica, DATA_DIR, stop=self.stop,
+        # heartbeats well inside the window in which the next container waits for one
+        self.replicator = Replicator(self.replica, DATA_DIR, stop=self.stop, heartbeat=min(30.0, STALE_AFTER / 10),
                                      interval=float(os.environ.get("MSGBOARD_SNAPSHOT_INTERVAL", "15")))
         self.handover = self.replicator.take_over(stale_after=STALE_AFTER)
         log.info("replica handover: %s", self.handover)

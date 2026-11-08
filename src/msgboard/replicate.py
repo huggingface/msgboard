@@ -332,6 +332,7 @@ def _await_owner(store, instance: str, since: float, stale_after: float, poll: f
             if lease.get("since", 0) < since and not mine and not newer:
                 store.put([(json.dumps({"instance": instance, "since": since, "at": time.time()}).encode(),
                             HANDOVER)])
+                quiet_since = time.monotonic()  # the owner can answer only now, however long the upload took
             if time.time() - last_log > log_every:
                 log.info("waiting for instance %s to hand over the replica", owner)
                 last_log = time.time()

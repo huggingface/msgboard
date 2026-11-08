@@ -772,3 +772,15 @@ def test_a_replacement_stopped_before_serving_releases_the_replica(tmp_path):
             first.instance, True, None, False)
         assert not [p for p in replica.list("snapshots/") if first.instance in p]   # nothing of its own
         assert _ask(replica, "next", timeout=5) == "released"
+
+
+def test_a_slow_request_upload_does_not_use_up_the_owners_time(tmp_path):
+    # Seen live with 20 s uploads: the requester's clock started before its own request had landed, and the
+    # owner, which can answer only after that, looked dead early.
+    replica = SlowStore(tmp_path / "bucket", lambda dests: 1.2 if dests == ["HANDOVER.json"] else 0.01)
+    data = tmp_path / "a"
+    token = init_board(data)
+    rep = Replicator(replica, data, interval=3600, poll=0.4)   # no lease writes of its own meanwhile
+    with ThreadedServer(data, replicator=rep) as s, Client(s.url, token, max_retries=0) as c:
+        c.post(c.create_channel("x")["id"], "acknowledged")
+        assert _ask(replica, "new", stale_after=0.8) == "released"   # it sees the request up to 0.4 s later
