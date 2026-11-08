@@ -46,6 +46,9 @@ What `deploy()` does:
   already exists. The suffix matters because the app restores the latest snapshot whenever its
   disk is empty: a new board in a bucket a deleted Space left behind would come back with the old
   board's messages. Deleting a Space leaves its bucket, so removing a board means deleting both.
+  The reverse is refused: `deploy()` won't restart a deployed board whose bucket is missing
+  (deleted, or not visible to the token), whose `MSGBOARD_REPLICA` names no bucket, or that
+  would move to a different bucket. Its bucket is in place before its secrets change.
 - **Code.** It uploads the installed msgboard package (`msgboard/`), the LICENSE from the
   install's metadata (`dist-info/licenses/`), a `requirements.txt` made from the install's
   dependencies plus the `hf` extra, and the Dockerfile and Space card from `msgboard/space/`.

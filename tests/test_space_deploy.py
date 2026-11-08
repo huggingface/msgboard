@@ -153,15 +153,49 @@ def test_a_space_from_the_old_deploy_script_keeps_its_replica(fake):
                                                          "MSGBOARD_SNAPSHOT_INTERVAL": "30"}
 
 
-@pytest.mark.parametrize("case", ["foreign space", "other bucket", "public bucket", "bad operator token"])
+def test_an_interrupted_first_deploy_gets_its_bucket_before_any_secret_changes(fake):
+    # create_repo() ran (default card, no tag yet, variables set), then deploy() stopped before the bucket
+    fake.add_space("alice/board", variables={"MSGBOARD_REPLICA": "hf://buckets/alice/board-bucket",
+                                             "MSGBOARD_SNAPSHOT_INTERVAL": "15"})
+    result = deploy("alice/board", operator_token=new_token()[1])
+    assert result.bucket_id == "alice/board-bucket" and not result.created
+    assert fake.writes[0] == ("create_bucket", "alice/board-bucket", True)
+    assert [w[0] for w in fake.writes[1:3]] == ["secret", "secret"]
+
+
+def test_symlinks_out_of_the_package_are_not_uploaded(monkeypatch, tmp_path):
+    package = tmp_path / "msgboard"
+    package.mkdir()
+    (package / "board.py").write_text("x = 1\n")
+    (tmp_path / "secret.py").write_text("TOKEN = 'do not upload'\n")
+    (package / "link.py").symlink_to(tmp_path / "secret.py")
+    monkeypatch.setattr(hub, "_PACKAGE", package)
+    files = hub._space_files("alice/board", hub._distribution())
+    assert "msgboard/board.py" in files and "msgboard/link.py" not in files
+
+
+@pytest.mark.parametrize("case", ["foreign space", "other bucket", "public bucket", "bad operator token",
+                                  "replica is a directory", "replica names no bucket", "tagged, bucket missing",
+                                  "old layout, bucket missing", "tagged, no replica"])
 def test_refusals_change_nothing(fake, case):
     token = new_token()[1]
     kwargs = {}
+    gone = {"MSGBOARD_REPLICA": "hf://buckets/alice/gone/board"}
     if case == "foreign space":
         fake.add_space("alice/board", tags=["gradio"])
     elif case == "other bucket":
         fake.add_space("alice/board", tags=["msgboard"], variables={"MSGBOARD_REPLICA": "hf://buckets/alice/a"})
         kwargs = {"bucket_id": "alice/b"}
+    elif case == "replica is a directory":    # store_from_url() accepts it, but it names no bucket
+        fake.add_space("alice/board", tags=["msgboard"], variables={"MSGBOARD_REPLICA": "/data/board"})
+    elif case == "replica names no bucket":
+        fake.add_space("alice/board", variables={"MSGBOARD_REPLICA": "hf://buckets/alice"})
+    elif case == "tagged, bucket missing":    # deleted, or not visible to this token
+        fake.add_space("alice/board", tags=["msgboard"], variables=gone)
+    elif case == "old layout, bucket missing":
+        fake.add_space("alice/board", variables=gone, files={".gitattributes": b"", "Dockerfile": b"FROM x"})
+    elif case == "tagged, no replica":
+        fake.add_space("alice/board", tags=["msgboard"])
     elif case == "public bucket":
         fake.buckets["alice/board-bucket"] = False
         kwargs = {"bucket_id": "board-bucket"}

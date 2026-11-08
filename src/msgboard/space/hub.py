@@ -60,8 +60,11 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
     The bucket is `bucket_id` if given, else the one the Space's MSGBOARD_REPLICA already names, else
     "<space_id>-bucket", or -2, -3 ... if that exists, so a new board never restores the snapshots a
     deleted Space left behind. The bucket is always private, whatever `private` says: it holds every
-    message, token hash and invite. A reused Space can't be pointed at a different bucket, and an
-    existing public bucket is refused.
+    message, token hash and invite. An existing public bucket is refused. So is anything that would
+    restart a reused board against an empty bucket: a different `bucket_id`, a MSGBOARD_REPLICA that
+    names no bucket, a deployed board whose bucket is missing (deleted or not visible to this token),
+    and a tagged board without MSGBOARD_REPLICA unless `bucket_id` says where its snapshots are. All
+    checks run before the first write; a reused Space's bucket is in place before its secrets change.
 
     The Space gets the secrets MSGBOARD_OPERATOR_TOKEN (`operator_token`, from
     `msgboard.auth.new_token()`; the app makes it the admin credential on every boot) and HF_TOKEN
@@ -90,20 +93,36 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
         info = None
     variables: dict[str, str] = {}
     replica = current = None
+    tagged = False
     if info is not None:
         variables = {k: v.value for k, v in api.get_space_variables(space_id).items()}
         replica = variables.get("MSGBOARD_REPLICA")
-        if TAG not in (info.tags or []) and replica is None:
+        tagged = TAG in (info.tags or [])
+        if not tagged and replica is None:
             raise DeployError(f"{space_id} exists but is not a msgboard board (no {TAG!r} tag in its card and "
                               "no MSGBOARD_REPLICA variable), so it was left alone; choose another Space ID")
-        current = _bucket_of(replica)
-        if bucket_id and current and bucket_id != current:
-            raise DeployError(f"{space_id} keeps its board in bucket {current}, not {bucket_id}; "
-                              "leave bucket_id out to keep using it")
+        # A restart boots a reused board from its bucket, so never let it come back against an empty one.
+        if replica is not None:
+            current = _bucket_of(replica)
+            if current is None:
+                raise DeployError(f"{space_id} has MSGBOARD_REPLICA={replica!r}, which names no HF bucket; set it "
+                                  "to hf://buckets/<namespace>/<bucket>[/<prefix>] where the board's snapshots are")
+            if bucket_id and bucket_id != current:
+                raise DeployError(f"{space_id} keeps its board in bucket {current}, not {bucket_id}; "
+                                  "leave bucket_id out to keep using it")
+        elif not bucket_id:
+            raise DeployError(f"{space_id} is a msgboard board without a MSGBOARD_REPLICA variable; "
+                              "pass bucket_id to say which bucket holds its snapshots")
     bucket_id = bucket_id or current or _free_bucket_id(api, f"{space_id}-bucket")
     if bucket_id != current:
         replica = None  # the Space had no bucket yet: snapshots go to the new one's root
     bucket = _bucket_info(api, bucket_id)
+    # A missing bucket is fine for a Space that was never deployed (a deploy() stopped after create_repo),
+    # but a deployed board (tagged, or an old-layout Space with a Dockerfile) would restart empty.
+    if bucket is None and current is not None and (
+            tagged or "Dockerfile" in api.list_repo_files(space_id, repo_type="space")):
+        raise DeployError(f"{space_id} keeps its board in bucket {current}, which was not found (deleted, or not "
+                          "visible to this token); refusing to restart the board against an empty bucket")
     if bucket is not None and not bucket.private:
         raise DeployError(f"bucket {bucket_id} is public; a board's bucket must be private, because its "
                           "snapshots hold every message, token hash and invite")
@@ -115,18 +134,19 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
     wanted = {"MSGBOARD_REPLICA": replica or f"hf://buckets/{bucket_id}",
               "MSGBOARD_SNAPSHOT_INTERVAL": variables.get("MSGBOARD_SNAPSHOT_INTERVAL", SNAPSHOT_INTERVAL)}
     created = info is None
-    if created:
+    if created:  # secrets and variables come with the Space; nothing runs before the first commit
         api.create_repo(space_id, repo_type="space", private=private, space_sdk="docker",
                         space_hardware="cpu-basic",
                         space_secrets=[{"key": k, "value": v} for k, v in secrets.items()],
                         space_variables=[{"key": k, "value": v} for k, v in wanted.items()])
-    else:
+    if bucket is None:  # after create_repo, so a retry finds the Space and reuses this bucket name
+        api.create_bucket(bucket_id, private=True, exist_ok=True)
+    if not created:  # each of these restarts a reused Space, so only once its bucket is in place
         for key, value in secrets.items():
             api.add_space_secret(space_id, key, value)
         for key, value in wanted.items():
             if variables.get(key) != value:
                 api.add_space_variable(space_id, key, value)
-    api.create_bucket(bucket_id, private=True, exist_ok=True)
     stale = set(api.list_repo_files(space_id, repo_type="space")) - set(files) - {".gitattributes"}
     operations = [CommitOperationAdd(path, data) for path, data in files.items()]
     operations += [CommitOperationDelete(path) for path in sorted(stale)]
@@ -214,7 +234,8 @@ def _space_files(space_id: str, dist) -> dict[str, bytes]:
     # An allowlist, so stray files in an editable install's src/msgboard (a test board's token, say)
     # never reach a public Space. Keep it in step with [tool.setuptools.package-data] in pyproject.toml.
     for path in sorted(_PACKAGE.rglob("*")):
-        if path.suffix in (".py", ".html") and "__pycache__" not in path.parts and path.is_file():
+        if (path.suffix in (".py", ".html") and "__pycache__" not in path.parts and path.is_file()
+                and path.resolve().is_relative_to(_PACKAGE)):  # no symlinks out of the package
             files["msgboard/" + path.relative_to(_PACKAGE).as_posix()] = path.read_bytes()
     return files
 
