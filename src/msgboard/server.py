@@ -432,12 +432,20 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
 
     # ------------------------------------------------------------- health
 
+    def fenced() -> JSONResponse | None:
+        if board.replicator is not None and board.replicator.fenced:
+            return JSONResponse({"status": "fenced", "error": "another instance owns the replica; this one takes "
+                                 "no writes and has to be restarted"}, status_code=503)
+        return None
+
     @app.get("/v1/health")
     async def health():
-        return {"status": "ok"}
+        return fenced() or {"status": "ok"}
 
     @app.get("/v1/ready")
     async def ready():
+        if (answer := fenced()) is not None:
+            return answer
         await db.read(lambda c: c.execute("SELECT 1").fetchone())
         return {"status": "ready", "shutting_down": board.shutting_down}
 
@@ -1236,7 +1244,14 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         async with board.storage_write(), board.storage_reservations.hold([(owner["id"], path)]):
             out = await db.write(store.storage_remove, p, handle, path, time.time())
             keys = out.pop("keys")
-            await anyio.to_thread.run_sync(lambda: board.storage.delete(keys))
+            # shielded like uploads: a hand-over waits for it, so it must not leave storage_write early
+            task = asyncio.ensure_future(anyio.to_thread.run_sync(lambda: board.storage.delete(keys)))
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                with suppress(Exception):
+                    await task
+                raise
         return out
 
     if dashboard:

@@ -233,8 +233,8 @@ def _json(path):
     return json.loads(path.read_text())
 
 
-def _request(replica, instance, since):
-    replica.put([(json.dumps({"instance": instance, "since": since}).encode(), "HANDOVER.json")])
+def _request(replica, instance, since, **fields):
+    replica.put([(json.dumps({"instance": instance, "since": since, **fields}).encode(), "HANDOVER.json")])
 
 
 def _ask(replica, instance, since=None, timeout=10.0, **kwargs):
@@ -392,7 +392,7 @@ def test_a_late_lease_write_from_an_older_instance_does_not_fence_the_newer_one(
     init_board(data)
     old = Replicator(replica, data, interval=3600)
     new = Replicator(replica, data, interval=3600)
-    assert old.claim()
+    assert old.claim() and old.push_if_changed()
     late = (tmp_path / "bucket" / "LEASE.json").read_bytes()
     assert new.claim()
     (tmp_path / "bucket" / "LEASE.json").write_bytes(late)  # a heartbeat the old one sent before it was replaced
@@ -666,10 +666,11 @@ def test_take_over_claims_the_replica_before_serving(tmp_path):
     with ThreadedServer(data, replicator=rep):
         new = Replicator(replica, tmp_path / "b", interval=3600)
         assert new.take_over(poll=0.05) == "released"
-        assert _json(tmp_path / "bucket" / "LEASE.json")["instance"] == new.instance
-        assert [p for p in replica.list("claims/") if new.instance in p] == [f"claims/{new.epoch:08d}-"
-                                                                          f"{int(new.since * 1000)}-{new.instance}.json"]
+        name = f"claims/{new.epoch:08d}-{int(new.since * 1000)}-{new.instance}"
+        assert [p for p in replica.list("claims/") if new.instance in p] == [name + ".json", name + ".won"]
         assert new.epoch == rep.epoch + 1
+        lease = _json(tmp_path / "bucket" / "LEASE.json")   # its lease comes once it serves (start())
+        assert lease["instance"] == rep.instance and lease["handover_to"] == new.instance
         older = Replicator(replica, tmp_path / "c", interval=3600)
         older.since = rep.since + 0.001          # started before the new owner: never takes it from it
         assert older.claim() is False
@@ -784,3 +785,269 @@ def test_a_slow_request_upload_does_not_use_up_the_owners_time(tmp_path):
     with ThreadedServer(data, replicator=rep) as s, Client(s.url, token, max_retries=0) as c:
         c.post(c.create_channel("x")["id"], "acknowledged")
         assert _ask(replica, "new", stale_after=0.8) == "released"   # it sees the request up to 0.4 s later
+
+
+# ------------------------------------------ concurrent claimants and recovery: review #5 of #25
+
+
+class GatedStore(DirStore):
+    """Holds back chosen instances' claim uploads until released, as a slow (rate-limited) upload would."""
+
+    def __init__(self, root):
+        super().__init__(root)
+        self.gates: dict[str, threading.Event] = {}
+        self.held: set[str] = set()
+        self.fail_next_claim = False
+
+    def hold(self, instance):
+        self.gates[instance] = threading.Event()
+
+    def release(self, instance):
+        self.gates[instance].set()
+
+    def put(self, items):
+        for _, dest in items:
+            if dest.startswith("claims/") and dest.endswith(".json"):
+                if self.fail_next_claim:
+                    self.fail_next_claim = False
+                    raise ConnectionError("Rate limited: 429 Too Many Requests")
+                gate = self.gates.get(dest.removesuffix(".json").rsplit("-", 1)[1])
+                if gate is not None:
+                    self.held.add(dest)
+                    gate.wait(30)
+        super().put(items)
+
+    def holding(self, rep):
+        return any(rep.instance in dest for dest in self.held)
+
+
+def _take_over(rep, results, key, **kwargs):
+    try:
+        results[key] = rep.take_over(poll=0.02, **kwargs)
+    except RuntimeError:   # stopped while claiming
+        results[key] = "stopped"
+
+
+def _withdrawn(store, rep):
+    return any(rep.instance in p and p.endswith(".withdrawn") for p in store.list("claims/"))
+
+
+def _contest(store, first, second, results):
+    """Run `first` and `second`'s take_over in threads: `second` claims first but its upload lands only after
+    `first` has finished. Returns who won."""
+    store.hold(second.instance)
+    threads = [threading.Thread(target=_take_over, args=(second, results, "second"))]
+    threads[0].start()
+    wait_for(lambda: store.holding(second), timeout=15)
+    threads.append(threading.Thread(target=_take_over, args=(first, results, "first")))
+    threads[1].start()
+    wait_for(lambda: "first" in results, timeout=25)
+    store.release(second.instance)
+    wait_for(lambda: "second" in results or _withdrawn(store, second), timeout=15)
+    first._stop.set()
+    second._stop.set()
+    for t in threads:
+        t.join(timeout=30)
+    return [key for key in ("first", "second") if results.get(key) not in (None, "stopped")]
+
+
+def test_two_claimants_after_a_redirect_do_not_both_serve(tmp_path):
+    # Item 1: A released the replica to B, whose claim upload was slow, so A released it to the newer C, which
+    # claimed too. B confirmed before C's claim landed and served; then C's landed, and C served as well.
+    store = GatedStore(tmp_path / "bucket")
+    init_board(tmp_path / "a")
+    a = Replicator(store, tmp_path / "a", interval=3600, poll=0.02, regrant_after=0.2)
+    results = {}
+    with ThreadedServer(tmp_path / "a", replicator=a):
+        b = Replicator(store, tmp_path / "b", interval=3600, poll=0.02, stop=threading.Event())
+        time.sleep(0.01)
+        c = Replicator(store, tmp_path / "c", interval=3600, poll=0.02, stop=threading.Event())
+        store.hold(b.instance)
+        store.hold(c.instance)
+        threads = [threading.Thread(target=_take_over, args=(b, results, "b"))]
+        threads[0].start()
+        wait_for(lambda: store.holding(b), timeout=15)
+        threads.append(threading.Thread(target=_take_over, args=(c, results, "c")))
+        threads[1].start()
+        wait_for(lambda: store.holding(c), timeout=15)        # A released it to C, which claims too
+        store.release(b.instance)                              # B's claim lands first
+        wait_for(lambda: "b" in results, timeout=25)
+        store.release(c.instance)
+        wait_for(lambda: "c" in results or _withdrawn(store, c), timeout=15)
+        b._stop.set()
+        c._stop.set()
+        for t in threads:
+            t.join(timeout=30)
+    assert [k for k in ("b", "c") if results.get(k) not in (None, "stopped")] == ["b"], results
+
+
+def test_two_waiters_after_a_clean_release_do_not_both_serve(tmp_path):
+    # Item 1: a release to nobody in particular (stop()) let two waiters claim the same epoch, and both served.
+    store = GatedStore(tmp_path / "bucket")
+    init_board(tmp_path / "a")
+    with ThreadedServer(tmp_path / "a", replicator=Replicator(store, tmp_path / "a", interval=3600, poll=0.02)):
+        pass                                                   # stopped: final snapshot, release to anyone
+    second = Replicator(store, tmp_path / "c", interval=3600, poll=0.02, stop=threading.Event())
+    first = Replicator(store, tmp_path / "b", interval=3600, poll=0.02, stop=threading.Event())
+    results = {}
+    assert _contest(store, first, second, results) == ["first"], results
+
+
+def test_two_requesters_that_judge_the_owner_dead_do_not_both_serve(tmp_path):
+    # Item 1: two instances that both counted the owner dead both claimed, and both served.
+    store = GatedStore(tmp_path / "bucket")
+    store.put([(json.dumps({"protocol": 2, "instance": "dead", "since": 1.0, "epoch": 1, "released": False,
+                            "heartbeat": time.time()}).encode(), "LEASE.json")])
+    first = Replicator(store, tmp_path / "b", interval=3600, poll=0.02, stop=threading.Event())
+    time.sleep(0.01)
+    second = Replicator(store, tmp_path / "c", interval=3600, poll=0.02, stop=threading.Event())
+    results = {}
+    store.hold(second.instance)
+    threads = [threading.Thread(target=_take_over, args=(second, results, "second"), kwargs={"stale_after": 0.3})]
+    threads[0].start()
+    wait_for(lambda: store.holding(second), timeout=15)
+    threads.append(threading.Thread(target=_take_over, args=(first, results, "first"), kwargs={"stale_after": 0.3}))
+    threads[1].start()
+    wait_for(lambda: "first" in results, timeout=25)
+    store.release(second.instance)
+    wait_for(lambda: "second" in results or _withdrawn(store, second), timeout=15)
+    first._stop.set()
+    second._stop.set()
+    for t in threads:
+        t.join(timeout=30)
+    assert [k for k in ("first", "second") if results.get(k) not in (None, "stopped")] == ["first"], results
+
+
+def test_an_owner_checks_the_claims_even_when_the_lease_names_it(tmp_path):
+    # Item 1: a late lease write from B kept B pushing after C's higher claim had landed, because B checked
+    # the claims only when the lease named another instance.
+    data, replica = tmp_path / "a", DirStore(tmp_path / "bucket")
+    init_board(data)
+    b = Replicator(replica, data, interval=3600)
+    c = Replicator(replica, data, interval=3600)
+    assert b.claim() and b.push_if_changed()
+    late = (tmp_path / "bucket" / "LEASE.json").read_bytes()
+    assert c.claim()
+    (tmp_path / "bucket" / "LEASE.json").write_bytes(late)    # B's heartbeat lands after C's claim
+    b.generation_fn = lambda: 99
+    assert not b.push_if_changed() and b.fenced
+
+
+def test_the_old_owner_does_not_take_the_replica_back_from_a_slow_live_claimant(tmp_path):
+    # Item 2: the old owner counted 2 minutes from its release and took the replica back, under a higher
+    # epoch, from a new container whose claim upload was still running; that one then never served.
+    store = GatedStore(tmp_path / "bucket")
+    init_board(tmp_path / "a")
+    a = Replicator(store, tmp_path / "a", interval=3600, poll=0.02, reclaim_after=0.5)
+    results = {}
+    with ThreadedServer(tmp_path / "a", replicator=a):
+        n = Replicator(store, tmp_path / "n", interval=3600, poll=0.02, heartbeat=0.1, stop=threading.Event())
+        store.hold(n.instance)
+        t = threading.Thread(target=_take_over, args=(n, results, "n"))
+        t.start()
+        wait_for(lambda: store.holding(n), timeout=15)
+        time.sleep(1.5)                     # three reclaim windows, while its heartbeats land
+        store.release(n.instance)
+        wait_for(lambda: "n" in results, timeout=20)
+        n._stop.set()
+        t.join(timeout=30)
+        assert results["n"] == "released"
+        assert a.handed_over and not a.fenced and a.epoch < n.epoch
+
+
+def test_a_request_given_up_on_does_not_refuse_the_next_one(tmp_path):
+    # Item 2: an instance the owner once took the replica back from was refused for good.
+    data, replica = tmp_path / "a", DirStore(tmp_path / "bucket")
+    init_board(data)
+    a = Replicator(replica, data, interval=3600, poll=0.02, reclaim_after=0.3)
+    with ThreadedServer(data, replicator=a):
+        _request(replica, "x", time.time(), at=1.0)
+        wait_for(lambda: a.handed_over)
+        wait_for(lambda: not a.handed_over)             # x never claimed it: taken back
+        _request(replica, "x", time.time(), at=2.0)     # x asks again
+        wait_for(lambda: a.handed_over and _json(tmp_path / "bucket" / "LEASE.json").get("handover_to") == "x")
+
+
+def test_an_instance_that_lost_the_replica_takes_it_once_the_winner_stops(tmp_path):
+    # Item 3: being superseded was permanent. B lost to C; C then stopped before serving (released the
+    # replica to anyone), and B kept waiting with its port closed instead of taking it.
+    store = GatedStore(tmp_path / "bucket")
+    init_board(tmp_path / "a")
+    with ThreadedServer(tmp_path / "a", replicator=Replicator(store, tmp_path / "a", interval=3600, poll=0.02)):
+        pass
+    b = Replicator(store, tmp_path / "b", interval=3600, poll=0.02, stop=threading.Event())
+    time.sleep(0.01)
+    c = Replicator(store, tmp_path / "c", interval=3600, poll=0.02, stop=threading.Event())
+    results = {}
+    store.hold(b.instance)
+    tb = threading.Thread(target=_take_over, args=(b, results, "b"))
+    tb.start()
+    wait_for(lambda: store.holding(b), timeout=15)
+    assert c.take_over(poll=0.02) == "released"   # C wins while B's claim is uploading
+    store.release(b.instance)
+    time.sleep(0.5)
+    assert "b" not in results or results["b"] == "stopped"   # B gave way...
+    c.stop()                                                 # ...and C stops before it serves
+    wait_for(lambda: "b" in results, timeout=15)
+    b._stop.set()
+    tb.join(timeout=30)
+    assert results["b"] == "released" and b.epoch > c.epoch
+
+
+def test_health_and_readiness_report_a_fenced_instance(tmp_path):
+    # Item 3: a fenced instance answered /v1/health "ok" and /v1/ready "ready" while refusing every write.
+    data, replica = tmp_path / "a", DirStore(tmp_path / "bucket")
+    token = init_board(data)
+    rep = Replicator(replica, data, interval=3600)
+    with ThreadedServer(data, replicator=rep) as s, Client(s.url, token, max_retries=0) as c:
+        c.create_channel("x")
+        assert Replicator(replica, tmp_path / "b", interval=3600).claim()   # a newer instance takes over
+        assert not rep.push_if_changed() and rep.fenced
+        with httpx.Client(base_url=s.url) as h:
+            health, ready = h.get("/v1/health"), h.get("/v1/ready")
+        assert (health.status_code, health.json()["status"]) == (503, "fenced")
+        assert (ready.status_code, ready.json()["status"]) == (503, "fenced")
+
+
+def test_a_fenced_space_app_exits_so_the_platform_restarts_it(tmp_path):
+    # Item 3: the Space app kept a fenced board up, serving reads and refusing writes, until restarted by hand.
+    import os
+    import subprocess
+    import sys
+
+    from msgboard.auth import new_token
+
+    from .conftest import free_port
+
+    port = free_port()
+    proc = subprocess.Popen([sys.executable, "-m", "msgboard.space.app"], stderr=subprocess.PIPE, text=True,
+                            env={**os.environ, "MSGBOARD_OPERATOR_TOKEN": new_token()[1], "PORT": str(port),
+                                 "MSGBOARD_REPLICA": str(tmp_path / "bucket"), "MSGBOARD_DATA_DIR": str(tmp_path / "a"),
+                                 "MSGBOARD_SNAPSHOT_INTERVAL": "3600", "MSGBOARD_LEASE_STALE_AFTER": "2"})
+    try:
+        wait_for(lambda: _up(f"http://127.0.0.1:{port}") and (tmp_path / "bucket" / "LEASE.json").exists(), timeout=30)
+        assert Replicator(DirStore(tmp_path / "bucket"), tmp_path / "b", interval=3600).claim()
+        assert proc.wait(timeout=30) == 1
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        _, err = proc.communicate(timeout=30)
+    assert "exiting so the platform restarts this one" in err
+
+
+def test_a_reclaim_whose_upload_fails_once_still_takes_the_replica_back(tmp_path):
+    # Item 4: _reclaim set the new epoch and dropped its grant before uploading; one failed upload left it
+    # raising TypeError on every pass, quiesced, with nobody taking writes.
+    store = GatedStore(tmp_path / "bucket")
+    data = tmp_path / "a"
+    token = init_board(data)
+    a = Replicator(store, data, interval=3600, poll=0.02, reclaim_after=0.3)
+    with ThreadedServer(data, replicator=a) as s, Client(s.url, token, max_retries=0) as c:
+        ch = c.create_channel("x")
+        _request(store, "x", time.time())
+        wait_for(lambda: a.handed_over)
+        store.fail_next_claim = True                 # its reclaim's first upload fails
+        wait_for(lambda: not a.handed_over, timeout=10)
+        c.post(ch["id"], "accepted again")
+        lease = _json(tmp_path / "bucket" / "LEASE.json")
+        assert lease["instance"] == a.instance and not lease["released"]

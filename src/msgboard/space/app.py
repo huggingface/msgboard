@@ -19,9 +19,10 @@ it opens its port (Replicator.take_over): the old one stops taking writes (503,
 Retry-After), pushes its final snapshot and releases the lease, however long that
 takes while its uploads or heartbeats keep landing. The new one claims the replica,
 then opens its port, restores and serves. Clients retry with the same request IDs.
-A container that a newer one replaced meanwhile never opens its port. An old
-container from before hand-over requests hands over on SIGTERM instead, so then the
-port opens at once and answers 503 meanwhile.
+A container that another one beat to the replica keeps asking for it with its port
+closed. One that finds another owner while it serves exits, so the platform starts a
+new one. An old container from before hand-over requests hands over on SIGTERM
+instead, so then the port opens at once and answers 503 meanwhile.
 """
 
 import asyncio
@@ -30,6 +31,7 @@ import json
 import logging
 import os
 import signal
+import sys
 import threading
 import time
 from pathlib import Path
@@ -87,6 +89,7 @@ class Dispatcher:
         self.stop = threading.Event()
         self._inner_lifespan = None
         self.replica = self.replicator = self.handover = None
+        self.exit_code = 0
 
     def take_over(self) -> None:
         """Before the port opens: get the replica from the container this one replaces (module docstring)."""
@@ -96,7 +99,9 @@ class Dispatcher:
         self.replica = store_from_url(replica_url)
         # heartbeats well inside the window in which the next container waits for one
         self.replicator = Replicator(self.replica, DATA_DIR, stop=self.stop, heartbeat=min(30.0, STALE_AFTER / 10),
+                                     stale_after=STALE_AFTER,
                                      interval=float(os.environ.get("MSGBOARD_SNAPSHOT_INTERVAL", "15")))
+        self.replicator.on_fenced = self.fenced
         self.handover = self.replicator.take_over(stale_after=STALE_AFTER)
         log.info("replica handover: %s", self.handover)
 
@@ -153,6 +158,14 @@ class Dispatcher:
             self.error = f"{type(exc).__name__}: {exc}"
             log.exception("board failed to start")
 
+    def fenced(self) -> None:
+        """Another container owns the replica now. Exit, so the platform starts a new one, which asks the
+        owner for the replica, instead of serving reads and refusing writes until someone restarts it."""
+        if not self.exit_code:
+            self.exit_code = 1
+            log.error("another container owns the replica; exiting so the platform restarts this one")
+            os.kill(os.getpid(), signal.SIGTERM)
+
     def begin_shutdown(self) -> None:
         self.stop.set()
         if self.board is not None:
@@ -198,7 +211,7 @@ def main() -> None:
             super().handle_exit(sig, frame)
 
     def _exit(signum, frame):  # see msgboard.cli.run_board: keep cleanup from being skipped
-        raise SystemExit(0)
+        raise SystemExit(dispatcher.exit_code)  # uvicorn raises SIGTERM again once it has shut down
 
     signal.signal(signal.SIGTERM, _exit)
     signal.signal(signal.SIGINT, _exit)
@@ -206,9 +219,6 @@ def main() -> None:
                             log_level="warning", timeout_graceful_shutdown=5, server_header=False)
     try:
         dispatcher.take_over()  # with the port still closed, so the platform keeps the old container serving
-        if dispatcher.handover == "superseded":
-            log.warning("a newer container has the replica; this one does not serve, and waits to be stopped")
-            threading.Event().wait()  # until SIGTERM
         SpaceServer(config).run()
     finally:
         if dispatcher.board is not None:
@@ -216,6 +226,8 @@ def main() -> None:
         elif dispatcher.replicator is not None:
             dispatcher.replicator.stop()  # claimed but never served: release it to the next container
         log.info("stopped")
+    if dispatcher.exit_code:
+        sys.exit(dispatcher.exit_code)
 
 
 if __name__ == "__main__":
