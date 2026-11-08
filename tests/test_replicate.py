@@ -729,3 +729,46 @@ def test_a_dead_owner_behind_a_late_lease_write_is_taken_over(tmp_path):
     finally:
         timer.cancel()
     assert rep.epoch == 3
+
+
+def test_a_replacement_that_claims_and_dies_before_serving_does_not_block_the_next(tmp_path):
+    # Seen live in a double restart: the first replacement claimed the replica, and the platform discarded
+    # it before it served. The old owner took the claim as the end of the hand-over, and the replacement
+    # the platform kept, older than the discarded one, could not ask it: it waited out stale_after.
+    data, replica = tmp_path / "a", DirStore(tmp_path / "bucket")
+    token = init_board(data)
+    stop = threading.Event()
+    timer = threading.Timer(15, stop.set)
+    timer.start()
+    a = Replicator(replica, data, interval=3600, poll=0.05, reclaim_after=0.5)
+    try:
+        with ThreadedServer(data, replicator=a) as s, Client(s.url, token, max_retries=0) as c:
+            ch = c.create_channel("x")["id"]
+            c.post(ch, "before the restarts")
+            kept = Replicator(replica, tmp_path / "c", interval=3600, stop=stop)
+            time.sleep(0.01)
+            discarded = Replicator(replica, tmp_path / "b", interval=3600, stop=stop)
+            assert discarded.take_over(poll=0.05) == "released"   # claims, then never serves
+            assert kept.take_over(stale_after=300, poll=0.05) == "released"
+            assert kept.epoch > discarded.epoch
+            discarded.start(lambda: 0)                             # too late: it must not serve
+            assert discarded.fenced
+    finally:
+        timer.cancel()
+    restore(replica, tmp_path / "c")
+    assert _bodies(tmp_path / "c", ch, token) == ["before the restarts"]
+
+
+def test_a_replacement_stopped_before_serving_releases_the_replica(tmp_path):
+    data, replica = tmp_path / "a", DirStore(tmp_path / "bucket")
+    init_board(data)
+    a = Replicator(replica, data, interval=3600, poll=0.05)
+    with ThreadedServer(data, replicator=a):
+        first = Replicator(replica, tmp_path / "b", interval=3600)
+        assert first.take_over(poll=0.05) == "released"
+        first.stop()                                    # SIGTERM while restoring, say
+        lease = _json(tmp_path / "bucket" / "LEASE.json")
+        assert (lease["instance"], lease["released"], lease["handover_to"], lease["serving"]) == (
+            first.instance, True, None, False)
+        assert not [p for p in replica.list("snapshots/") if first.instance in p]   # nothing of its own
+        assert _ask(replica, "next", timeout=5) == "released"

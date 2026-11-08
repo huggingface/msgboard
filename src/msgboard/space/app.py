@@ -201,17 +201,19 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, _exit)
     signal.signal(signal.SIGINT, _exit)
-    dispatcher.take_over()  # with the port still closed, so the platform keeps the old container serving
-    if dispatcher.handover == "superseded":
-        log.warning("a newer container has the replica; this one does not serve, and waits to be stopped")
-        threading.Event().wait()  # until SIGTERM
     config = uvicorn.Config(dispatcher, host="0.0.0.0", port=int(os.environ.get("PORT", "7860")),
                             log_level="warning", timeout_graceful_shutdown=5, server_header=False)
     try:
+        dispatcher.take_over()  # with the port still closed, so the platform keeps the old container serving
+        if dispatcher.handover == "superseded":
+            log.warning("a newer container has the replica; this one does not serve, and waits to be stopped")
+            threading.Event().wait()  # until SIGTERM
         SpaceServer(config).run()
     finally:
         if dispatcher.board is not None:
             dispatcher.board.close()  # final snapshot, then release the lease
+        elif dispatcher.replicator is not None:
+            dispatcher.replicator.stop()  # claimed but never served: release it to the next container
         log.info("stopped")
 
 

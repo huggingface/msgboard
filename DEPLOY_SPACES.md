@@ -155,8 +155,13 @@ writes during the switch are delayed, not lost or doubled.
   took it hands it on. If the first one has not taken it 15 s after it was released
   to it, the old one releases it to the newer one instead; the first one then never
   opens its port.
-- **A new container that asks and then dies:** the old one takes the bucket back
-  after 2 minutes and accepts writes again.
+- **A new container that asks, or even claims the bucket, and then dies before it
+  serves** (in a double restart the platform discards one of the new containers): the
+  old one counts the hand-over as done only once the new owner's lease says it
+  serves. If the new one stops changing the lease for 2 minutes first, the old one
+  takes the bucket back under a newer epoch, accepts writes again, and the containers
+  still waiting ask it again. A new container stopped before it serves releases the
+  bucket at once.
 - **An old container that crashed:** the new one stops waiting once nothing from the
   old one (neither its lease nor a heartbeat) has changed for 5 minutes by the new
   one's clock (`MSGBOARD_LEASE_STALE_AFTER`), and restores the newest snapshot. The

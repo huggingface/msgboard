@@ -27,6 +27,7 @@ disappears; a graceful shutdown (SIGTERM) pushes a final snapshot first.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -421,6 +422,7 @@ class Replicator:
         self._last_beat = 0.0
         self._beats_stop = threading.Event()
         self._tidied = False
+        self._serving = False                 # started serving; until then its writes are nobody's
         self.fenced = False
         self.handed_over = False
         # Set by the Board: stop taking writes and return once accepted ones are committed; take them again.
@@ -447,8 +449,9 @@ class Replicator:
     def _lease(self, released: bool = False, handover_to: str | None = None,
                snapshot: str | None = None) -> tuple[bytes, str]:
         return json.dumps({"protocol": PROTOCOL, "instance": self.instance, "since": self.since,
-                           "epoch": self.epoch, "heartbeat": time.time(), "released": released,
-                           "handover_to": handover_to, "grant": self._grant if released else None,
+                           "epoch": self.epoch, "serving": self._serving, "heartbeat": time.time(),
+                           "released": released, "handover_to": handover_to,
+                           "grant": self._grant if released else None,
                            "snapshot": snapshot or self.status["last_snapshot"]}).encode(), LEASE
 
     def _events(self) -> tuple[list[tuple[bytes, str]], int]:
@@ -555,6 +558,7 @@ class Replicator:
         replaced = self._retrying("checking the replica lease", lambda: self._replaced_by(lease))
         if replaced is not None:
             log.warning("instance %s took the replica (epoch %s)", replaced[2], replaced[0])
+            self.fenced = self.status["fenced"] = True   # so stop() does not release what it does not own
             return False
         log.info("took the replica: epoch %s", self.epoch)
         return True
@@ -578,11 +582,21 @@ class Replicator:
         self.generation_fn = generation_fn
         self.record("started")
         if self.epoch is None:
+            self._serving = True
             owner = self.claim()
-        else:  # claimed in take_over: check nobody took the replica while this instance restored it
-            owner = self._retrying("checking the replica lease",
-                                   lambda: self._replaced_by(self._watch.read(LEASE)[0]) is None)
+        else:
+            # Claimed in take_over. Tell the previous owner, which watches for it, that this instance serves
+            # now, then check that nobody took the replica meanwhile (while this one restored it, say).
+            def mark_serving():
+                if self._replaced_by(self._watch.read(LEASE)[0]) is not None:
+                    return False
+                self._serving = True
+                self._put_lease()
+                return self._replaced_by(self._watch.read(LEASE)[0]) is None
+
+            owner = self._retrying("checking the replica lease", mark_serving)
         if not owner:
+            self._serving = False
             self.fenced = self.status["fenced"] = True
             log.error("this instance does not own the replica: it does not push or take writes")
             self.quiesce()
@@ -649,17 +663,28 @@ class Replicator:
                     return True  # stopping: stop() makes the final push
         self.handed_over = self.status["handed_over"] = True
         log.info("released the replica to instance %s", request["instance"])
-        released_at = time.monotonic()
+        released_at = changed_at = time.monotonic()
+        version = None
         while not self._stop.wait(self.poll):
             try:
                 lease, newer = self._watch.read(LEASE, HANDOVER)
+                if self._watch.versions.get(LEASE) != version:
+                    version, changed_at = self._watch.versions.get(LEASE), time.monotonic()
                 waited = time.monotonic() - released_at
                 # the new owner's claim shows in the lease; look for it in claims/ too before changing anything
+                replaced = None
                 if not self._owns(lease) or waited > min(self.regrant_after, self.reclaim_after):
                     replaced = self._replaced_by(lease)
-                    if replaced is not None:
+                if replaced is not None:
+                    if lease is not None and lease.get("instance") == replaced[2] and lease.get("serving"):
                         log.info("instance %s took the replica over", replaced[2])
                         return True
+                    # Claimed but not serving yet, so it has no writes of its own. If it stops changing the
+                    # lease for reclaim_after s, it died first (a platform discards a replaced container):
+                    # take the replica back, or nobody would hand it on.
+                    if time.monotonic() - changed_at > self.reclaim_after:
+                        return self._reclaim(request, replaced[0])
+                    continue
                 if not self._owns(lease) or not lease.get("released") or lease.get("handover_to") != request["instance"]:
                     self._put_lease(released=True, handover_to=request["instance"])  # a late write hid it
                 elif (newer is not None and newer.get("since", 0) > request.get("since", 0)
@@ -672,18 +697,23 @@ class Replicator:
                     self._put_lease(released=True, handover_to=request["instance"])
                     released_at = time.monotonic()
                 elif waited > self.reclaim_after:
-                    log.warning("instance %s did not take the replica over in %.0f s; taking it back",
-                                request["instance"], self.reclaim_after)
-                    self._refused.add(request["instance"])
-                    self.epoch = self.status["epoch"] = self._grant + 1  # above any claim its releases allowed
-                    self._grant = None
-                    self._put_lease(claim=True)
-                    self.handed_over = self.status["handed_over"] = False
-                    self.resume()
-                    return False
+                    return self._reclaim(request, 0)
             except Exception as exc:
                 log.warning("waiting for the hand-over: %s", exc)
         return True
+
+    def _reclaim(self, request: dict, above: int) -> bool:
+        log.warning("instance %s did not take the replica over and serve within %.0f s; taking it back",
+                    request["instance"], self.reclaim_after)
+        self._refused.add(request["instance"])
+        self.epoch = self.status["epoch"] = max(self._grant, above) + 1  # above any claim its releases allowed
+        self._grant = None
+        self._put_lease(claim=True)
+        with contextlib.suppress(Exception):  # instances still waiting ask again, this time this one
+            self.store.delete([HANDOVER])
+        self.handed_over = self.status["handed_over"] = False
+        self.resume()
+        return False
 
     def stop(self, final_push: bool = True) -> None:
         self._stop.set()
@@ -699,9 +729,9 @@ class Replicator:
                         self._fence(replaced)
                     else:
                         self._grant = self.epoch + 1
-                        if self.generation_fn() != self._pushed_generation:
+                        if self._serving and self.generation_fn() != self._pushed_generation:
                             self._push(self.generation_fn(), released=True)  # the next instance may restore now
-                        else:
+                        else:  # e.g. stopped after claiming, before serving: nothing of its own to push
                             self._put_lease(released=True)
             except Exception as exc:
                 log.error("final snapshot push failed: %s", exc)
