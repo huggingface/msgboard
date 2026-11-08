@@ -1,4 +1,4 @@
-"""python -m msgboard {init,serve,backup,rotate-operator-token,demo}"""
+"""python -m msgboard {init,serve,restore,backup,rotate-operator-token,demo,deploy-space}"""
 
 from __future__ import annotations
 
@@ -242,6 +242,52 @@ def cmd_demo(args) -> int:
     return run_demo(args.data_dir, args.port)
 
 
+def cmd_deploy_space(args) -> int:
+    try:
+        from huggingface_hub import get_token
+        from huggingface_hub.errors import HfHubHTTPError
+    except ImportError:
+        print("error: deploy-space needs the hf extra: pip install 'msgboard[hf]'", file=sys.stderr)
+        return 1
+    from .auth import new_token
+    from .client import Client
+    from .space import DeployError, deploy, resolve_space_id
+
+    try:
+        space_id = resolve_space_id(args.space_id)
+        token_path = Path(args.token_file or Path.home() / ".config/msgboard/spaces" / space_id / OPERATOR_TOKEN_FILE)
+        token_path = token_path.expanduser()
+        # A new token replaces the Space's MSGBOARD_OPERATOR_TOKEN secret, which the app adopts on restart.
+        token = token_path.read_text().strip() if token_path.exists() else new_token()[1]
+        result = deploy(space_id, operator_token=token, bucket_id=args.bucket, private=args.private)
+    except (DeployError, HfHubHTTPError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not token_path.exists():
+        token_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        _write_secret_file(token_path, token)
+    print(f"{'Created' if result.created else 'Updated'} the {'private' if result.private else 'public'} "
+          f"Space {result.space_id} at {result.url}")
+    print(f"Snapshots go to the private bucket {result.bucket_id}.")
+    print(f"Operator token in {token_path} (mode 0600). Keep it secret; open the dashboard with it to create invite links.")
+    if args.wait is None:
+        print("The Space is building; the board answers in a few minutes.")
+        return 0
+    print(f"Waiting up to {args.wait:g} s for the board to answer ...")
+    gate = {}
+    if result.private:  # the Space's gate wants an HF token in Authorization; the board token moves aside
+        gate = {"headers": {"Authorization": f"Bearer {os.environ.get('MSGBOARD_HF_TOKEN') or get_token()}"},
+                "token_header": "X-Msgboard-Token"}
+    with Client(result.url, token, **gate) as client:
+        try:
+            client.wait_ready(args.wait)
+        except TimeoutError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    print(f"Board ready at {result.url}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m msgboard", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -279,6 +325,22 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--data-dir", default=None, help="defaults to a new temporary directory")
     p.add_argument("--port", type=int, default=0, help="0 picks a free port")
     p.set_defaults(func=cmd_demo)
+
+    p = sub.add_parser("deploy-space", help="create or update a board on a Hugging Face Space (needs the hf extra)")
+    p.add_argument("space_id", help="namespace/name, or a bare name for the logged-in account")
+    p.add_argument("--bucket", default=None,
+                   help="snapshot bucket; default: the one the Space uses, else <space_id>-bucket (or -2, -3 ...)")
+    visibility = p.add_mutually_exclusive_group()
+    visibility.add_argument("--private", dest="private", action="store_const", const=True,
+                            help="make a new Space private (default: the namespace's default)")
+    visibility.add_argument("--public", dest="private", action="store_const", const=False,
+                            help="make a new Space public; an existing Space keeps its visibility")
+    p.add_argument("--token-file", default=None,
+                   help="operator token file, created (0600) if missing; "
+                        "default ~/.config/msgboard/spaces/<namespace>/<name>/operator.token")
+    p.add_argument("--wait", type=float, nargs="?", const=600.0, default=None, metavar="SECONDS",
+                   help="wait for the board to answer (default 600 s)")
+    p.set_defaults(func=cmd_deploy_space, private=None)
 
     args = parser.parse_args(argv)
     return args.func(args)

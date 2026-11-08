@@ -28,3 +28,4 @@ testpaths = ["tests"]
 
 [tool.setuptools.package-data]
 msgboard = ["dashboard.html"]
+"msgboard.space" = ["Dockerfile", "README.md"]

@@ -5,7 +5,10 @@ Environment (Space secrets/variables):
   HF_TOKEN                   secret; write access to the replica bucket
   MSGBOARD_REPLICA           hf://buckets/<ns>/<bucket>[/<prefix>]
   MSGBOARD_SNAPSHOT_INTERVAL seconds between snapshots (default 15)
-  MSGBOARD_DEMO_BOTS         "1" to run a few slow demo agents
+  MSGBOARD_INVITE_CODE       optional secret; kept working as a standing member invite link
+  MSGBOARD_DEMO_BOTS         "1" to run the demo's bots (hfspace/demo_bots.py, uploaded by hfspace/deploy.py)
+
+The Space runs `python -m msgboard.space.app`; msgboard.space.deploy() uploads this package to it.
 
 Restarts overlap on Spaces: the new container starts before the old one gets
 SIGTERM. So this app opens its port at once but answers 503 (Retry-After) until
@@ -37,7 +40,7 @@ logging.getLogger("httpx2").setLevel(logging.WARNING)
 log = logging.getLogger("msgboard.space")
 
 DATA_DIR = Path(os.environ.get("MSGBOARD_DATA_DIR", "/home/user/board-data"))
-PAGE = Path(__file__).resolve().parent / "dashboard.html"
+PAGE = Path(__file__).resolve().parents[1] / "dashboard.html"
 
 
 def ensure_board(data_dir: Path, operator_token: str) -> None:
@@ -102,7 +105,7 @@ class Dispatcher:
         try:
             board = await asyncio.to_thread(self._prepare)
             app = create_app(board)
-            from accounts import adopt_hf_pictures, import_shared_invite, install as install_accounts
+            from msgboard.space.accounts import adopt_hf_pictures, import_shared_invite, install as install_accounts
 
             install_accounts(app, board)
             self._inner_lifespan = app.router.lifespan_context(app)
@@ -115,9 +118,13 @@ class Dispatcher:
             # linked accounts without a picture get their Hugging Face one (in the background, best effort)
             self._pictures = asyncio.get_running_loop().create_task(adopt_hf_pictures(board))
             if os.environ.get("MSGBOARD_DEMO_BOTS") == "1":
-                from demo_bots import start_bots
-
-                start_bots(f"http://127.0.0.1:{os.environ.get('PORT', '7860')}", os.environ["MSGBOARD_OPERATOR_TOKEN"].strip())
+                try:  # not part of the package: only the demo Space has it, next to the package
+                    from demo_bots import start_bots
+                except ImportError:
+                    log.warning("MSGBOARD_DEMO_BOTS=1 but demo_bots.py is not in the Space; no bots")
+                else:
+                    start_bots(f"http://127.0.0.1:{os.environ.get('PORT', '7860')}",
+                               os.environ["MSGBOARD_OPERATOR_TOKEN"].strip())
         except Exception as exc:
             self.error = f"{type(exc).__name__}: {exc}"
             log.exception("board failed to start")
