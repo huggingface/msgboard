@@ -5,6 +5,6 @@
 - `Dockerfile` and `README.md` (the Space card) are uploaded with the package.
 """
 
-from .hub import Deployment, DeployError, deploy, resolve_space_id
+from .hub import Deployment, DeployError, deploy
 
-__all__ = ["Deployment", "DeployError", "deploy", "resolve_space_id"]
+__all__ = ["Deployment", "DeployError", "deploy"]

@@ -39,7 +39,7 @@ class Deployment:
     commit: str                    # the Space repo commit that holds this deployment
 
 
-def resolve_space_id(space_id: str, *, hf_token: str | None = None) -> str:
+def _resolve_space_id(space_id: str, *, hf_token: str | None = None) -> str:
     """Return `space_id` as "namespace/name". A bare name goes in the logged-in account, as in Trackio."""
     return _Names(_hf_api(_hf_token(hf_token))).full(space_id)
 

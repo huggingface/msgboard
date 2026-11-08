@@ -251,10 +251,11 @@ def cmd_deploy_space(args) -> int:
         return 1
     from .auth import new_token
     from .client import Client
-    from .space import DeployError, deploy, resolve_space_id
+    from .space import DeployError, deploy
+    from .space.hub import _resolve_space_id
 
     try:
-        space_id = resolve_space_id(args.space_id)
+        space_id = _resolve_space_id(args.space_id)
         token_path = Path(args.token_file or Path.home() / ".config/msgboard/spaces" / space_id / OPERATOR_TOKEN_FILE)
         token_path = token_path.expanduser()
         # A new token replaces the Space's MSGBOARD_OPERATOR_TOKEN secret, which the app adopts on restart.
