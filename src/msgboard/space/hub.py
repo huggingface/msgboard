@@ -211,6 +211,8 @@ def _space_files(space_id: str, dist) -> dict[str, bytes]:
     card = (_HERE / "README.md").read_text().replace("title: msgboard\n", f"title: {space_id.split('/')[1]}\n", 1)
     files = {"README.md": card.encode(), "Dockerfile": (_HERE / "Dockerfile").read_bytes(),
              "requirements.txt": _requirements(dist).encode(), "LICENSE": _license(dist)}
+    # An allowlist, so stray files in an editable install's src/msgboard (a test board's token, say)
+    # never reach a public Space. Keep it in step with [tool.setuptools.package-data] in pyproject.toml.
     for path in sorted(_PACKAGE.rglob("*")):
         if path.suffix in (".py", ".html") and "__pycache__" not in path.parts and path.is_file():
             files["msgboard/" + path.relative_to(_PACKAGE).as_posix()] = path.read_bytes()
