@@ -28,7 +28,7 @@ from msgboard.space import deploy
 operator = new_token()[1]                    # the board's admin token: keep it
 d = deploy("ns/my-board", operator_token=operator, private=None)
 # d.space_id, d.url (https://ns-my-board.hf.space), d.bucket_id, d.created, d.private,
-# d.commit (Space repo commit), d.msgboard_revision (git commit msgboard was installed from, or None)
+# d.commit (the Space repo commit)
 with Client(d.url, operator) as op:         # private Space: add headers={"Authorization": "Bearer <HF token>"},
     op.wait_ready(900)                      #   token_header="X-Msgboard-Token" (what from_env does)
 ```

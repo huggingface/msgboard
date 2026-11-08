@@ -7,7 +7,6 @@ Hub API (DEPLOY_SPACES.md explains why it is not a bucket mount).
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -38,7 +37,6 @@ class Deployment:
     created: bool                  # True if this call created the Space, False if it reused one
     private: bool                  # the Space's visibility; a reused Space keeps its own
     commit: str                    # the Space repo commit that holds this deployment
-    msgboard_revision: str | None  # git commit msgboard was installed from; None for a local install
 
 
 def resolve_space_id(space_id: str, *, hf_token: str | None = None) -> str:
@@ -128,7 +126,6 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
                           "snapshots hold every message, token hash and invite")
     dist = _distribution()
     files = _space_files(space_id, dist)
-    revision = _vcs_commit(dist)
 
     secrets = {"MSGBOARD_OPERATOR_TOKEN": operator_token, "HF_TOKEN": token}
     wanted = {"MSGBOARD_REPLICA": replica or f"hf://buckets/{bucket_id}",
@@ -150,12 +147,11 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
     stale = set(api.list_repo_files(space_id, repo_type="space")) - set(files) - {".gitattributes"}
     operations = [CommitOperationAdd(path, data) for path, data in files.items()]
     operations += [CommitOperationDelete(path) for path in sorted(stale)]
-    message = f"Deploy msgboard {dist.version}" + (f" ({revision[:12]})" if revision else "")
-    commit = api.create_commit(space_id, repo_type="space", operations=operations, commit_message=message)
+    commit = api.create_commit(space_id, repo_type="space", operations=operations,
+                               commit_message=f"Deploy msgboard {dist.version}")
     info = api.space_info(space_id)
     return Deployment(space_id=space_id, url=(info.host or f"https://{info.subdomain}.hf.space").rstrip("/"),
-                      bucket_id=bucket_id, created=created, private=bool(info.private), commit=commit.oid,
-                      msgboard_revision=revision)
+                      bucket_id=bucket_id, created=created, private=bool(info.private), commit=commit.oid)
 
 
 def _hf_token(hf_token: str | None) -> str:
@@ -261,12 +257,3 @@ def _license(dist) -> bytes:
             if text:
                 return text.encode()
     raise DeployError("the installed msgboard has no LICENSE in its metadata; reinstall it with setuptools>=77")
-
-
-def _vcs_commit(dist) -> str | None:
-    """The git commit a `pip install git+...` (or uv) install came from, per PEP 610's direct_url.json."""
-    try:
-        direct = json.loads(dist.read_text("direct_url.json") or "{}")
-    except ValueError:
-        return None
-    return (direct.get("vcs_info") or {}).get("commit_id")

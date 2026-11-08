@@ -100,6 +100,7 @@ def test_new_space_gets_a_private_bucket_secrets_and_the_installed_package(fake)
     assert result.space_id == "alice/board" and result.created and result.private is False
     assert result.url == "https://alice-board.hf.space" and result.bucket_id == "alice/board-bucket"
     assert result.commit.startswith("c0ffee")
+    assert ("commit", "alice/board", f"Deploy msgboard {hub._distribution().version}") in fake.writes
     (_, _, repo), *_ = [w for w in fake.writes if w[0] == "create_repo"]
     assert repo["private"] is False and repo["space_sdk"] == "docker" and repo["space_hardware"] == "cpu-basic"
     assert ("create_bucket", "alice/board-bucket", True) in fake.writes      # private, whatever `private` says
