@@ -1,7 +1,5 @@
 """msgboard.space.deploy() against a fake HfApi, Client.wait_ready() and `deploy-space`."""
 
-from __future__ import annotations
-
 import stat
 from pathlib import Path
 from types import SimpleNamespace
@@ -110,7 +108,7 @@ def test_new_space_gets_a_private_bucket_secrets_and_the_installed_package(fake)
                                   "MSGBOARD_SNAPSHOT_INTERVAL": "15"}
     files = space["files"]
     card = files["README.md"].decode()
-    assert "title: board\n" in card and "hf_oauth: true\n" in card and "\n  - msgboard\n" in card
+    assert 'title: "board"\n' in card and "hf_oauth: true\n" in card and "\n  - msgboard\n" in card
     assert files["LICENSE"] == (ROOT / "LICENSE").read_bytes()
     assert b'CMD ["python", "-m", "msgboard.space.app"]' in files["Dockerfile"]
     requirements = files["requirements.txt"].decode().split()
@@ -189,7 +187,17 @@ def test_card_title_override(fake):
     deploy("alice/board", operator_token=new_token()[1], title="Team board: run 7")
     assert 'title: "Team board: run 7"\n' in fake.spaces["alice/board"]["files"]["README.md"].decode()
     deploy("alice/plain", operator_token=new_token()[1], title="msgboard demo")
-    assert "title: msgboard demo\n" in fake.spaces["alice/plain"]["files"]["README.md"].decode()
+    assert 'title: "msgboard demo"\n' in fake.spaces["alice/plain"]["files"]["README.md"].decode()
+
+
+@pytest.mark.parametrize("space_id, title", [("alice/board", "true"), ("alice/board", "No"), ("alice/board", "null"),
+                                             ("alice/board", "1.5"), ("alice/2024", None), ("alice/board", "a: b # c")])
+def test_card_title_reads_back_as_written(fake, space_id, title):
+    # YAML reads bare true/No as booleans, null as None and 2024 as a number
+    yaml = pytest.importorskip("yaml")
+    deploy(space_id, operator_token=new_token()[1], title=title)
+    card = fake.spaces[space_id]["files"]["README.md"].decode()
+    assert yaml.safe_load(card.split("---")[1])["title"] == (title or space_id.split("/")[1])
 
 
 def test_symlinks_out_of_the_package_are_not_uploaded(monkeypatch, tmp_path):

@@ -24,8 +24,6 @@ container from before hand-over requests hands over on SIGTERM instead, so then 
 port opens at once and answers 503 meanwhile.
 """
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import json
@@ -202,11 +200,11 @@ def main() -> None:
         raise SystemExit(0)
 
     signal.signal(signal.SIGTERM, _exit)
+    signal.signal(signal.SIGINT, _exit)
+    dispatcher.take_over()  # with the port still closed, so the platform keeps the old container serving
     if dispatcher.handover == "superseded":
         log.warning("a newer container has the replica; this one does not serve, and waits to be stopped")
         threading.Event().wait()  # until SIGTERM
-    signal.signal(signal.SIGINT, _exit)
-    dispatcher.take_over()  # with the port still closed, so the platform keeps the old container serving
     config = uvicorn.Config(dispatcher, host="0.0.0.0", port=int(os.environ.get("PORT", "7860")),
                             log_level="warning", timeout_graceful_shutdown=5, server_header=False)
     try:

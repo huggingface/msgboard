@@ -5,8 +5,6 @@ files are installed before their rows commit; a failed transaction may leave an
 unreferenced object, but never publishes a row whose bytes are incomplete.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import math

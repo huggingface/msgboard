@@ -6,8 +6,6 @@ Once linked (at join or later from their profile), "Sign in with Hugging Face"
 gives them a token on any device. HF sign-in never creates an account without an invite.
 """
 
-from __future__ import annotations
-
 import hashlib
 import html
 import json

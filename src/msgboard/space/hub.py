@@ -5,8 +5,6 @@ keeps its board in SQLite on its own disk and pushes snapshots to a private buck
 Hub API (DEPLOY_SPACES.md explains why it is not a bucket mount).
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import re
@@ -226,9 +224,8 @@ def _distribution():
 
 def _space_files(space_id: str, dist, title: str | None = None) -> dict[str, bytes]:
     """The Space repo's files by path: card, Dockerfile, requirements.txt, LICENSE and the package."""
-    title = title or space_id.split("/")[1]
-    if not re.fullmatch(r"[\w][\w .-]*", title):
-        title = json.dumps(title)  # a JSON string is a quoted YAML scalar: no ':' or '#' surprises in the card
+    # A JSON string is a quoted YAML string, so `true`, `null`, `2024`, ':' or '#' stay the title as written.
+    title = json.dumps(title or space_id.split("/")[1])
     card = (_HERE / "README.md").read_text().replace("title: msgboard\n", f"title: {title}\n", 1)
     files = {"README.md": card.encode(), "Dockerfile": (_HERE / "Dockerfile").read_bytes(),
              "requirements.txt": _requirements(dist).encode(), "LICENSE": _license(dist)}
