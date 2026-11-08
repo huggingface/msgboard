@@ -5,7 +5,7 @@ Environment (Space secrets/variables):
   HF_TOKEN                   secret; write access to the replica bucket
   MSGBOARD_REPLICA           hf://buckets/<ns>/<bucket>[/<prefix>]
   MSGBOARD_SNAPSHOT_INTERVAL seconds between snapshots (default 15)
-  MSGBOARD_LEASE_STALE_AFTER seconds without a lease renewal before the owner counts as dead (default 300)
+  MSGBOARD_LEASE_STALE_AFTER seconds in which nothing from the owner lands before it counts as dead (default 300)
   MSGBOARD_INVITE_CODE       optional secret; kept working as a standing member invite link
   MSGBOARD_DEMO_BOTS         "1" to run the demo's bots (hfspace/demo_bots.py, uploaded by hfspace/deploy.py)
 
@@ -15,11 +15,13 @@ Restarts overlap on Spaces: the new container starts while the old one serves, a
 the old one gets SIGTERM once the new one's port answers, then SIGKILL about 10 s
 later. A final snapshot in those 10 s fails when the bucket is slow (rate-limited
 uploads take minutes). So the new container asks the old one for the replica before
-it opens its port (replicate.request_handover): the old one stops taking writes
-(503, Retry-After), pushes its final snapshot and releases the lease, with no
-deadline. Then the new one opens its port, restores and serves. Clients retry with
-the same request IDs. An old container from before hand-over requests hands over
-on SIGTERM instead, so then the port opens at once and answers 503 meanwhile.
+it opens its port (Replicator.take_over): the old one stops taking writes (503,
+Retry-After), pushes its final snapshot and releases the lease, however long that
+takes while its uploads or heartbeats keep landing. The new one claims the replica,
+then opens its port, restores and serves. Clients retry with the same request IDs.
+A container that a newer one replaced meanwhile never opens its port. An old
+container from before hand-over requests hands over on SIGTERM instead, so then the
+port opens at once and answers 503 meanwhile.
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ from pathlib import Path
 import uvicorn
 
 from msgboard import auth, db, store
-from msgboard.replicate import Replicator, request_handover, restore, store_from_url, wait_for_release
+from msgboard.replicate import Replicator, restore, store_from_url, wait_for_release
 from msgboard.server import Board, create_app
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -96,8 +98,7 @@ class Dispatcher:
         self.replica = store_from_url(replica_url)
         self.replicator = Replicator(self.replica, DATA_DIR, stop=self.stop,
                                      interval=float(os.environ.get("MSGBOARD_SNAPSHOT_INTERVAL", "15")))
-        self.handover = request_handover(self.replica, self.replicator.instance, self.replicator.since,
-                                         stale_after=STALE_AFTER, stop=self.stop)
+        self.handover = self.replicator.take_over(stale_after=STALE_AFTER)
         log.info("replica handover: %s", self.handover)
 
     def _prepare(self) -> Board:
@@ -201,6 +202,9 @@ def main() -> None:
         raise SystemExit(0)
 
     signal.signal(signal.SIGTERM, _exit)
+    if dispatcher.handover == "superseded":
+        log.warning("a newer container has the replica; this one does not serve, and waits to be stopped")
+        threading.Event().wait()  # until SIGTERM
     signal.signal(signal.SIGINT, _exit)
     dispatcher.take_over()  # with the port still closed, so the platform keeps the old container serving
     config = uvicorn.Config(dispatcher, host="0.0.0.0", port=int(os.environ.get("PORT", "7860")),
