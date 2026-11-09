@@ -714,6 +714,53 @@ def test_a_hand_over_waits_for_storage_writes_and_their_rollback(tmp_path):
     assert outcome["status"] in (201, 503)            # stored before the hand-over, or refused and rolled back
 
 
+def test_a_cancelled_storage_delete_holds_off_the_hand_over_until_it_lands(tmp_path):
+    # Item 5 of review #5: the DELETE route awaited the bucket delete directly. Cancelled natively (uvicorn
+    # cancels requests at its shutdown deadline), it left storage_write while the delete still ran, so a
+    # hand-over could release the replica first, and the late delete could remove the next owner's file.
+    import asyncio
+    import contextlib
+
+    entered, release = threading.Event(), threading.Event()
+
+    class SlowDeleteStore(DirStore):
+        def delete(self, paths):
+            if any(path.startswith("storage/") for path in paths):
+                entered.set()
+                release.wait(10)
+            super().delete(paths)
+
+    data, replica = tmp_path / "a", SlowDeleteStore(tmp_path / "bucket")
+    token = init_board(data)
+    headers = {"X-Msgboard-Token": token}
+    with ThreadedServer(data, replicator=Replicator(replica, data, interval=3600)) as s, Client(s.url, token) as c:
+        handle = c.me()["external_id"]
+        assert httpx.put(f"{s.url}/v1/storage/{handle}/notes.txt", content=b"draft", headers=headers).status_code == 201
+        board, tasks, admit = s.board, [], s.board.storage_write
+
+        @contextlib.asynccontextmanager
+        async def recording():
+            tasks.append(asyncio.current_task())
+            async with admit():
+                yield
+
+        board.storage_write = recording
+        thread = threading.Thread(target=lambda: httpx.delete(f"{s.url}/v1/storage/{handle}/notes.txt",
+                                                              headers=headers, timeout=15))
+        thread.start()
+        try:
+            assert entered.wait(10)                              # the bucket delete is running
+            board.notifier.loop.call_soon_threadsafe(tasks[-1].cancel)
+            wait_for(lambda: tasks[-1].done() or tasks[-1].cancelling())
+            time.sleep(0.3)
+            held = board.storage_writes                          # what _quiesce waits on
+        finally:
+            release.set()
+            thread.join(timeout=15)
+        wait_for(lambda: board.storage_writes == 0)
+    assert held == 1
+
+
 def test_a_dead_owner_behind_a_late_lease_write_is_taken_over(tmp_path):
     # B claimed the replica, a late write from A replaced its lease, and both died: the next instance
     # takes over above B's epoch instead of waiting for B forever.
