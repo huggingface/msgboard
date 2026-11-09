@@ -259,6 +259,69 @@ def test_wait_ready_waits_for_the_board_to_accept_its_token(tmp_path):
             server.stop()
 
 
+def _cli_deploy_failing(monkeypatch, tmp_path, error):
+    """Run deploy-space with no token file yet and a deploy() that raises `error`, as on the Hub."""
+    import msgboard.space
+    import msgboard.space.hub
+
+    path, seen = tmp_path / "operator.token", {}
+
+    def deploy(space_id, *, operator_token, **kwargs):
+        seen["saved"] = path.exists() and path.read_text().strip() == operator_token
+        seen["mode"] = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
+        raise error
+
+    monkeypatch.setattr(msgboard.space.hub, "_resolve_space_id", lambda space_id, token=None: space_id)
+    monkeypatch.setattr(msgboard.space, "deploy", deploy)
+    return main(["deploy-space", "ns/board", "--token-file", str(path)]), path, seen
+
+
+def test_deploy_space_cli_saves_a_new_token_before_deploying(tmp_path, monkeypatch, capsys):
+    # #29 (review #5 #11): the token file was written only after deploy() had replaced the Space's secret, so
+    # a deploy() that failed after that left no copy of the token the Space now has.
+    from huggingface_hub.errors import HfHubHTTPError
+
+    try:
+        import httpx2 as http
+    except ImportError:
+        import httpx as http
+    failed_upload = HfHubHTTPError("500 Server Error: upload failed", response=http.Response(
+        500, request=http.Request("POST", "https://huggingface.co/api/spaces/ns/board/commit/main")))
+    code, path, seen = _cli_deploy_failing(monkeypatch, tmp_path, failed_upload)
+    assert code == 1 and seen == {"saved": True, "mode": 0o600}
+    assert path.exists(), "a failure after deploy() may have changed the secret keeps the token"
+    assert f"stays in {path}" in capsys.readouterr().err
+
+
+def test_deploy_space_cli_drops_the_new_token_when_deploy_refuses(tmp_path, monkeypatch):
+    # #29: DeployError means nothing changed on the Hub, so the new token was never installed.
+    code, path, seen = _cli_deploy_failing(monkeypatch, tmp_path, DeployError("not a msgboard board"))
+    assert code == 1 and seen["saved"] and not path.exists()
+
+
+def test_deploy_space_cli_reports_network_errors_without_a_traceback(tmp_path, monkeypatch, capsys):
+    # #30 (review #5 #12): a transport error from huggingface_hub escaped the CLI as a traceback.
+    try:
+        import httpx2 as http
+    except ImportError:
+        import httpx as http
+    code, _, _ = _cli_deploy_failing(monkeypatch, tmp_path, http.ConnectError("[Errno 111] Connection refused"))
+    assert code == 1 and "error: [Errno 111] Connection refused" in capsys.readouterr().err
+
+
+def test_a_long_space_name_gets_an_actionable_error_before_any_bucket_call():
+    # #30: a valid Space name of 90+ characters makes "<space>-bucket" too long, and the first bucket read
+    # failed with a raw HTTP 400.
+    from msgboard.space.hub import _free_bucket_id
+
+    class NoHub:
+        def bucket_info(self, bucket_id):
+            raise AssertionError(f"asked the Hub about {bucket_id}")
+
+    with pytest.raises(DeployError, match="--bucket"):
+        _free_bucket_id(NoHub(), f"ns/{'b' * 90}-bucket")
+
+
 @pytest.mark.live
 def test_deploy_live():
     """Deploys a private CPU Basic Space, checks that the returned token is the board's admin, deletes both."""

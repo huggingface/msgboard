@@ -207,12 +207,26 @@ def _bucket_info(api, bucket_id: str):
 def _free_bucket_id(api, preferred: str) -> str:
     """`preferred`, or the first of preferred-2, -3 ... that doesn't exist, as Trackio's resolve_auto_bucket_id."""
     candidate, n = preferred, 1
-    while _bucket_info(api, candidate) is not None:
+    while _check_derived_bucket_id(candidate) and _bucket_info(api, candidate) is not None:
         n += 1
         candidate = f"{preferred}-{n}"
     if candidate != preferred:
         log.info("bucket %s already exists; using %s", preferred, candidate)
     return candidate
+
+
+def _check_derived_bucket_id(bucket_id: str) -> bool:
+    """Refuse a bucket name derived from a long Space name before the Hub does, with a raw HTTP 400."""
+    from huggingface_hub.errors import HFValidationError
+    from huggingface_hub.utils import validate_repo_id
+
+    try:
+        validate_repo_id(bucket_id)
+    except HFValidationError:
+        raise DeployError(f"the bucket name derived from the Space ID, {bucket_id}, is too long for a repo name "
+                          "(at most 96 characters after the namespace); pass a shorter bucket_id "
+                          "(deploy-space: --bucket)") from None
+    return True
 
 
 def _distribution():

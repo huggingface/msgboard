@@ -1,6 +1,7 @@
 """python -m msgboard {init,serve,restore,backup,rotate-operator-token,demo,deploy-space}"""
 
 import argparse
+import importlib
 import ipaddress
 import os
 import signal
@@ -240,6 +241,17 @@ def cmd_demo(args) -> int:
     return run_demo(args.data_dir, args.port)
 
 
+def _transport_errors() -> tuple:
+    """Network failures from huggingface_hub's HTTP client: httpx2 since huggingface_hub 2, httpx before."""
+    errors = []
+    for name in ("httpx2", "httpx"):
+        try:
+            errors.append(importlib.import_module(name).TransportError)
+        except (ImportError, AttributeError):
+            pass
+    return tuple(errors)
+
+
 def cmd_deploy_space(args) -> int:
     try:
         from huggingface_hub import get_token
@@ -252,20 +264,31 @@ def cmd_deploy_space(args) -> int:
     from .space import DeployError, deploy
     from .space.hub import _resolve_space_id
 
+    staged = None   # a new token's file, written before deploy() can install the token in the Space
     try:
         space_id = _resolve_space_id(args.space_id)
         token_path = Path(args.token_file or Path.home() / ".config/msgboard/spaces" / space_id / OPERATOR_TOKEN_FILE)
         token_path = token_path.expanduser()
         # A new token replaces the Space's MSGBOARD_OPERATOR_TOKEN secret, which the app adopts on restart.
-        operator = token_path.read_text().strip() if token_path.exists() else new_token()[1]
+        if token_path.exists():
+            operator = token_path.read_text().strip()
+        else:  # saved first, so a deploy() that fails after changing the secret still leaves it here
+            operator = new_token()[1]
+            token_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            _write_secret_file(token_path, operator)
+            staged = token_path
         result = deploy(space_id, operator_token=operator, bucket_id=args.bucket, private=args.private,
                         title=args.title)
-    except (DeployError, HfHubHTTPError, ValueError) as exc:
+    except DeployError as exc:  # refused before changing anything on the Hub: the new token was never used
+        if staged is not None:
+            staged.unlink(missing_ok=True)
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    if not token_path.exists():
-        token_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        _write_secret_file(token_path, operator)
+    except (HfHubHTTPError, ValueError, OSError, *_transport_errors()) as exc:
+        print(f"error: {str(exc) or type(exc).__name__}", file=sys.stderr)
+        if staged is not None:  # the Space may have the new token already
+            print(f"The new operator token stays in {staged}: the Space may already have it.", file=sys.stderr)
+        return 1
     print(f"{'Created' if result.created else 'Updated'} the {'private' if result.private else 'public'} "
           f"Space {result.space_id} at {result.url}")
     print(f"Snapshots go to the private bucket {result.bucket_id}.")
