@@ -15,7 +15,9 @@ python -m msgboard deploy-space my-board --wait         # a bare name goes in yo
 
 `deploy-space` keeps the operator (admin) token in
 `~/.config/msgboard/spaces/<ns>/<name>/operator.token` (mode 0600, never printed; `--token-file`
-picks another file) and reuses it on the next deploy. Open the dashboard with it to make invite
+picks another file) and reuses it on the next deploy. A new token's file is written before the Space
+is changed. It is removed if `deploy()` refuses, which changes nothing, and kept after any other
+failure, since the Space may already have that token. Open the dashboard with it to make invite
 links. `--private` or `--public` sets the visibility of a new Space (default: the namespace's), and
 `--title` the Space card's title (default: the Space's name; `title=` in Python).
 
@@ -157,18 +159,23 @@ happens before SIGTERM:
    snapshot and serves. The platform then switches traffic and stops the old one.
 
 Clients retry with the same request IDs (the SDK and the dashboard both do), so
-writes during the switch are delayed, not lost or doubled.
+writes during the switch are delayed, not lost or doubled. The SDK keeps retrying a
+`503` that says the board is `starting` or `shutting_down` for up to 5 minutes
+(`Client(restart_timeout=...)`), whatever `max_retries` says.
 
 - **Two quick restarts** (`deploy()` replaces two secrets, and each change restarts
   the Space): the newest container to ask gets the bucket. A container that already
-  took it hands it on. If the first one has not taken it 15 s after it was released
-  to it, the old one releases it to the newer one instead; the first one then never
-  opens its port.
+  took it hands it on. If the first one has not even claimed it 15 s after it was
+  released to it, the old one releases it to the newer one instead. A container that
+  loses the bucket to another keeps its port closed and keeps asking: it takes the
+  bucket if the winner hands it on, stops, or dies before serving.
 - **A new container that asks, or even claims the bucket, and then dies before it
   serves** (in a double restart the platform discards one of the new containers): the
-  old one counts the hand-over as done only once the new owner's lease says it
-  serves. If the new one stops changing the lease for 2 minutes first, the old one
-  takes the bucket back under a newer epoch, accepts writes again, and the containers
+  old one counts the hand-over as done only once the new owner serves (its
+  `.serving` marker, below, or its lease). While the new one claims and restores, it
+  uploads a heartbeat every 30 s. If nothing from it (claim markers, heartbeat or
+  lease) lands for 5 minutes, the stale window below, the old one takes the bucket
+  back by claiming it as any container does, accepts writes again, and the containers
   still waiting ask it again. A new container stopped before it serves releases the
   bucket at once.
 - **An old container that crashed:** the new one stops waiting once nothing from the
@@ -177,27 +184,60 @@ writes during the switch are delayed, not lost or doubled.
   5 minutes start when the new container starts looking, so they apply even if the
   old one died long before. An old container that is alive but cannot upload
   anything for 5 minutes counts as dead too: it then loses what it accepted since
-  its last snapshot, as in a crash, but its late uploads cannot replace newer data.
+  its last snapshot, as in a crash. Its late snapshots, leases and claims cannot
+  replace newer data. Its storage-folder files can: an upload, delete or rollback it
+  still had running can land over the new container's file at the same path, and
+  reading that file then fails with `409 storage_mismatch` until it is written again.
+- **A container that finds another owner while it serves** stops taking writes,
+  answers `503` `fenced` on `/v1/health` and `/v1/ready`, and exits, so the
+  platform starts it again. Measured: a fresh container about 3 s later, which asks
+  the owner for the bucket like any new one. It never serves a board left on its
+  disk by an earlier process: with a replica, it moves one aside and restores.
 - **An old container from before hand-over requests** (its lease has no
   `"protocol": 2`): the new one opens its port at once and answers `503` until the
   old one, stopped by the platform, has pushed its final snapshot. That is the
   previous behaviour, and it happens once, when a board is updated to this version.
 
 Ownership is numbered. A container that takes the bucket claims the next **epoch**
-by uploading `claims/<epoch>-<start time>-<instance>.json` with its lease, and names
-its snapshots after that epoch. A bucket has no compare-and-swap, so an upload from
-a container that was replaced (a heartbeat, a release, a final snapshot) can still
-land late, but it never outranks the newer claim: other containers read the claims,
-not just the lease, and a restore picks the newest epoch's snapshot. A container
-checks that nobody claimed a newer epoch before it serves, before each push and
-before it publishes a final snapshot or a release; if one did, it stops pushing and
-accepting writes. Of two claims on the same epoch, the newer container's wins.
+and names its snapshots after it. A bucket has no compare-and-swap, so taking it
+is a little election with two uploads, each followed by a listing of `claims/`:
+
+1. Upload a claim, `claims/<epoch>-<start time>-<instance>.json`, and wait out the
+   other claims: give way to one that won or to a newer container, and wait for
+   older ones to withdraw (or to go 5 minutes without anything landing).
+2. Upload a `.won` marker next to the claim, then list `claims/` again. If another
+   `.won` marker shows, withdraw (a `.withdrawn` marker). Of two won markers, the
+   later one to land sees the earlier one, so at most one container wins an epoch,
+   however slow the uploads are.
+3. Before taking writes, the winner uploads a `.serving` marker with its lease and
+   lists `claims/` once more; if a newer epoch has won meanwhile, it does not serve.
+   A container that judged a slow owner dead (below) also withdraws if that owner's
+   `.serving` marker appeared while it claimed. Again the later upload is seen by the
+   other's listing, so the two never both take writes.
+
+An upload from a container that was replaced (a heartbeat, a release, a final
+snapshot) can still land late, but it never outranks the newer claim: other
+containers read the claims, not just the lease, and a restore picks the newest
+epoch's snapshot. A container checks the claims before it serves, before each push
+and before it publishes a final snapshot or a release; if a newer epoch won, it stops
+pushing and accepting writes.
+
+**The one timing assumption left** is the stale window: a container from which
+nothing has landed for 5 minutes is dead. Taking over from an owner that was
+already serving when it went quiet relies on it, so if that owner was alive but
+unable to reach the bucket for 5 minutes, it loses what it acknowledged since its
+last snapshot (as in a crash), plus whatever it acknowledges until it sees the newer
+claim or the platform stops it (on a Space, seconds after the new container's port
+opens), and its storage-folder caveat above applies. Every other step, including
+contention between new containers and an owner taking the bucket back, is decided by
+the markers above, not by timing: a slow container loses nothing it acknowledged,
+whatever the upload times.
 
 ### What you can lose
 
 | Event | Loss |
 | --- | --- |
-| Restart, rebuild, settings change (hand-over) | nothing; writes pause for a few seconds, longer if bucket uploads are rate-limited. If no upload from the old container lands for 5 minutes, what it accepted since its last snapshot |
+| Restart, rebuild, settings change (hand-over) | nothing; writes pause for a few seconds, longer if bucket uploads are rate-limited. If no upload from the old container lands for 5 minutes, what it accepted since its last snapshot (above) |
 | Sleep or pause (SIGTERM with no new container) | nothing if the final snapshot is stored within ~10 s; otherwise what was written since the last snapshot |
 | Container crash or out-of-memory kill | messages since the last snapshot (up to ~15 s plus upload time) |
 | Bucket deleted | everything; take occasional off-Hub backups with `msgboard backup` |

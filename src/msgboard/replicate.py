@@ -8,10 +8,12 @@ rate-limited one can take minutes. On startup an empty data directory is
 restored from the newest snapshot.
 
 One instance owns the replica at a time. Owners are numbered: an instance that
-takes the replica claims the next epoch (a file in claims/), and its snapshots
-carry that epoch. A bucket has no compare-and-swap, so a late upload from an
-instance that was replaced can still land, but it never outranks its
-successor's claim or snapshots, and a restore picks the newest owner's snapshot.
+takes the replica wins the next epoch in an election in claims/ ("Ownership"
+below), and its snapshots carry that epoch. A bucket has no compare-and-swap, but
+of the instances claiming an epoch at most one wins, however slow their uploads.
+A late upload from an instance that was replaced can still land, but it never
+outranks its successor's claim or snapshots, and a restore picks the newest
+owner's snapshot.
 
 An instance that wants the replica, such as the replacement container in a
 restart, asks the owner first (HANDOVER.json, see request_handover). The owner
@@ -19,7 +21,16 @@ stops taking writes, pushes a final snapshot and releases the lease to it. That
 has no deadline while the owner's uploads keep landing: during a slow one it
 uploads a small heartbeat (beats/), and the instance asking counts it dead only
 after `stale_after` seconds in which nothing from it landed. After SIGTERM there
-is a deadline: HF Spaces kill a container about 10 s later.
+is a deadline: HF Spaces kill a container about 10 s later. If the instance it
+released the replica to goes as quiet as that before it serves (it uploads
+heartbeats while it claims and restores), the owner takes the replica back by
+winning a newer epoch the same way; it gives way if that instance started
+serving meanwhile, so a slow successor keeps what it acknowledged.
+
+The one timing assumption is that window: an owner that was serving when nothing
+from it landed for `stale_after` seconds counts as dead. If it was alive after
+all, it loses what it acknowledged since its last snapshot, as in a crash, and
+whatever it acknowledges until it sees the newer claim.
 
 Writes acknowledged since the last completed snapshot are lost if the machine
 disappears; a graceful shutdown (SIGTERM) pushes a final snapshot first.
