@@ -176,8 +176,9 @@ writes during the switch are delayed, not lost or doubled. The SDK keeps retryin
   uploads a heartbeat every 30 s. If nothing from it (claim markers, heartbeat or
   lease) lands for 5 minutes, the stale window below, the old one takes the bucket
   back by claiming it as any container does, accepts writes again, and the containers
-  still waiting ask it again. A new container stopped before it serves releases the
-  bucket at once.
+  still waiting ask it again. A new container stopped before it serves (SIGTERM, as
+  when the platform replaces it in a double restart) releases the bucket at once, or
+  withdraws its claim if it is still claiming, so the old one hands it on at once.
 - **An old container that crashed:** the new one stops waiting once nothing from the
   old one (neither its lease nor a heartbeat) has changed for 5 minutes by the new
   one's clock (`MSGBOARD_LEASE_STALE_AFTER`), and restores the newest snapshot. The

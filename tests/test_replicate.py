@@ -1150,6 +1150,46 @@ def test_a_space_app_restarted_in_its_container_serves_the_replica_not_its_old_b
     assert [p.name.startswith("a.set-aside-") and (p / "board.db").exists() for p in tmp_path.glob("a.*")] == [True]
 
 
+def test_a_space_app_stopped_while_it_claims_withdraws_its_claim(tmp_path):
+    # Seen live in a double restart (lewtun/msgboard-27-test-1): the platform replaced the first new container
+    # while it claimed the replica. SIGTERM ended the claim without a .withdrawn marker, and the old owner,
+    # which hands the replica on to a newer container only once the first has given its claim up, waited
+    # the 5-minute stale window instead.
+    import os
+    import signal
+    import subprocess
+    import sys
+
+    from .conftest import free_port
+
+    bucket = DirStore(tmp_path / "bucket")
+    token = init_board(tmp_path / "a")
+    a = Replicator(bucket, tmp_path / "a", interval=3600, poll=0.05)
+    with ThreadedServer(tmp_path / "a", replicator=a):
+        # an older instance's claim on the next epoch, alive as far as anyone knows: the app waits for it
+        bucket.put([(b"{}", f"claims/00000002-{int(a.since * 1000) + 1}-older.json")])
+        port = free_port()
+        proc = subprocess.Popen([sys.executable, "-m", "msgboard.space.app"], stderr=subprocess.PIPE, text=True,
+                                env={**os.environ, "MSGBOARD_OPERATOR_TOKEN": token, "PORT": str(port),
+                                     "MSGBOARD_REPLICA": str(tmp_path / "bucket"),
+                                     "MSGBOARD_DATA_DIR": str(tmp_path / "x"), "MSGBOARD_LEASE_STALE_AFTER": "60"})
+
+        def its_claim():
+            return [path for path in bucket.list("claims/") if path.startswith("claims/00000003-")]
+
+        try:
+            wait_for(lambda: any(path.endswith(".json") for path in its_claim()), timeout=30)
+            time.sleep(0.5)                                    # it claimed, and waits in the election
+            proc.send_signal(signal.SIGTERM)                   # the platform replaces it
+            proc.wait(timeout=30)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            proc.communicate(timeout=30)
+        assert any(path.endswith(".withdrawn") for path in its_claim()), its_claim()
+        assert _ask(bucket, "newer") == "released"             # the owner hands the replica on at once
+
+
 def test_a_reclaim_whose_upload_fails_once_still_takes_the_replica_back(tmp_path):
     # Item 4: _reclaim set the new epoch and dropped its grant before uploading; one failed upload left it
     # raising TypeError on every pass, quiesced, with nobody taking writes.

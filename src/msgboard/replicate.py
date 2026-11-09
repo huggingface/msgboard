@@ -606,12 +606,10 @@ class Replicator:
         mine = (epoch, int(self.since * 1000), self.instance)
         self._acquiring = True
         self._start_beats()
-        claimed = False
         try:
             self._retrying("uploading a claim", lambda: self._upload([(json.dumps(
                 {"instance": self.instance, "since": self.since, "epoch": epoch, "parent": parent,
                  "at": time.time()}).encode(), _claim_path(mine))]))
-            claimed = True
             if self._retrying("claiming the replica", lambda: self._contend(mine, parent, stale_after, silent)):
                 self._retrying("uploading the won marker", lambda: self._upload([(b"{}", _claim_path(mine, "won"))]))
                 now = self._retrying("checking the replica's claims", lambda: _claims(self.store))
@@ -630,10 +628,13 @@ class Replicator:
                                 "withdraws", started[2])
             self._retrying("withdrawing a claim", lambda: self._upload([(b"{}", _claim_path(mine, "withdrawn"))]))
             return False
-        except RuntimeError:  # stopping: withdraw if it can, so others need not wait for this claim to go stale
-            if claimed:
-                with contextlib.suppress(Exception):
-                    self.store.put([(b"{}", _claim_path(mine, "withdrawn"))])
+        except BaseException:
+            # Stopping: stop(), or SIGTERM in the Space app (SystemExit), say when the platform replaces this
+            # container in a double restart. Withdraw if it can, so the owner hands the replica on and the
+            # others need not wait for this claim to go stale. Even if the claim upload was cut short: it may
+            # still land, and a marker without a claim is harmless.
+            with contextlib.suppress(Exception):
+                self.store.put([(b"{}", _claim_path(mine, "withdrawn"))])
             raise
         finally:
             self._acquiring = False
