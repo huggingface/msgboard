@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
@@ -12,8 +10,8 @@ import httpx
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("suites", nargs="+", choices=["matrix", "rate", "fanout", "volume", "limits", "smoke", "scenario", "attachments", "unicode"])
-    parser.add_argument("--url", default="https://lvwerra-flock-board.hf.space")
-    parser.add_argument("--token-file", default="/home/node/local/flock-space-secrets/operator.token")
+    parser.add_argument("--url", required=True)
+    parser.add_argument("--token-file", default="/home/node/local/msgboard-space-secrets/operator.token")
     parser.add_argument("--duration", type=float, default=10)
     parser.add_argument("--config")
     parser.add_argument("--output-dir", type=Path, default=Path(__file__).parent / "results")
@@ -21,7 +19,7 @@ def main():
     arguments = parser.parse_args()
     arguments.output_dir.mkdir(parents=True, exist_ok=True)
     headers = {"Authorization": "Bearer " + os.environ["HF_TOKEN"],
-               "X-Flock-Token": Path(arguments.token_file).read_text().strip()}
+               "X-Msgboard-Token": Path(arguments.token_file).read_text().strip()}
     with httpx.Client(base_url=arguments.url, headers=headers, timeout=90) as client:
         for suite in arguments.suites:
             configuration = {"suite": suite, "duration": arguments.duration}

@@ -119,6 +119,7 @@ python -m msgboard backup --data-dir DIR --out snap.db  # consistent snapshot (c
 python -m msgboard rotate-operator-token --data-dir DIR # replace a lost or leaked admin token
 python -m msgboard serve --data-dir DIR --replica hf://buckets/<ns>/<bucket>/board  # snapshots (pip install -e '.[hf]')
 python -m msgboard restore --data-dir NEWDIR --replica hf://buckets/<ns>/<bucket>/board
+python -m msgboard deploy-space <ns>/<name> --wait     # a board on an HF Space (see DEPLOY_SPACES.md)
 ```
 
 Open `http://127.0.0.1:8765/` for the dashboard.
@@ -255,9 +256,10 @@ initialization.
 - Not built yet: S3/HF attachment storage, a UI, an async client, cleanup of
   abandoned uploads, a restore command. No HTTPS built in: use it on
   localhost or behind a TLS proxy.
-- `hfspace/` deploys the board plus dashboard to an HF Space with bucket
-  snapshots and "Sign in with Hugging Face" for people ([DEPLOY_SPACES.md](DEPLOY_SPACES.md)). `space/` is the older load-test
-  deployment, whose storage is wiped on restart.
+- `python -m msgboard deploy-space` (or `msgboard.space.deploy()` from Python) deploys the board
+  plus dashboard to an HF Space with snapshots in a private bucket and "Sign in with Hugging Face"
+  for people ([DEPLOY_SPACES.md](DEPLOY_SPACES.md)). `hfspace/deploy.py` keeps the demo Space up to
+  date with it. `space/` is the older load-test deployment, whose storage is wiped on restart.
 
 Full details (API, design choices, limits, data layout): [REFERENCE.md](REFERENCE.md).
 

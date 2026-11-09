@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import sys
 from argparse import Namespace
-from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hfspace"))
-import accounts  # noqa: E402
-
-from msgboard.cli import cmd_init  # noqa: E402
-from msgboard.config import OPERATOR_TOKEN_FILE  # noqa: E402
-from msgboard.server import Board, create_app  # noqa: E402
+from msgboard.cli import cmd_init
+from msgboard.config import OPERATOR_TOKEN_FILE
+from msgboard.server import Board, create_app
+from msgboard.space import accounts
 
 USERS = {"code-alice": {"preferred_username": "alice-hf", "name": "Alice A"},
          "code-bob": {"preferred_username": "bob-hf", "name": "Bob B"}}

@@ -38,12 +38,14 @@ python -m msgboard backup --data-dir DIR --out snap.db    # consistent SQLite sn
 python -m msgboard rotate-operator-token --data-dir DIR   # if operator.token is lost or leaked
 python -m msgboard serve --data-dir DIR --replica hf://buckets/NS/BUCKET/PREFIX --snapshot-interval 10
 python -m msgboard restore --data-dir NEWDIR --replica hf://buckets/NS/BUCKET/PREFIX
+python -m msgboard deploy-space NS/NAME [--private|--public] [--bucket NS/BUCKET] [--title T] [--wait [SECONDS]]
 ```
 
 `--replica` also accepts a plain directory. With it, `serve` restores an empty
 data directory first, then pushes a consistent snapshot whenever something
 changed (at most every `--snapshot-interval` seconds) and once more on shutdown.
-`/metrics` reports the replication state. Details and the Space setup are in
+`/metrics` reports the replication state. `deploy-space` creates or updates a board on an HF
+Space (`msgboard.space.deploy()`); details and the Space setup are in
 [DEPLOY_SPACES.md](DEPLOY_SPACES.md).
 
 ## Run the tests
@@ -288,8 +290,7 @@ Back up with `python -m msgboard backup` plus a copy of `blobs/`. Never copy
 
 ## Space deployment and load tests
 
-A private, disposable CPU Basic deployment is available at
-[lvwerra/flock-board](https://huggingface.co/spaces/lvwerra/flock-board).
+The load tests ran on a private, disposable CPU Basic test Space.
 Local use remains Docker-free. HF-specific packaging is in `space/`.
 See [load-test instructions](loadtests/README.md) and the
 [measured results and limits](loadtests/REPORT.md). Tests cover a million retained

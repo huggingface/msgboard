@@ -6,8 +6,6 @@ rotation. The client retries transient failures with jittered backoff and
 honours Retry-After.
 """
 
-from __future__ import annotations
-
 import os
 import random
 import time
@@ -27,6 +25,14 @@ class BoardError(Exception):
         self.status = status
         self.code = code
         self.message = message
+
+
+def _json_field(resp: httpx.Response, key: str):
+    try:
+        body = resp.json()
+    except ValueError:
+        return None
+    return body.get(key) if isinstance(body, dict) else None
 
 
 class Client:
@@ -60,6 +66,48 @@ class Client:
 
     def close(self) -> None:
         self._http.close()
+
+    def wait_ready(self, timeout: float = 600.0, *, interval: float = 2.0) -> None:
+        """Wait until the board serves: /v1/health says "ok" and, if this client has a token, the board
+        accepts it (/v1/me). Returns None once it does; raises TimeoutError after `timeout` seconds,
+        naming the last answer.
+
+        Every other answer means "not yet": connection errors, a Space that is building or waking
+        from sleep, the Space app's 503 or "starting" while it restores, and a 401 from a container
+        that still has the previous MSGBOARD_OPERATOR_TOKEN (a reused Space switches over a while
+        after deploy() returns). For a private Space, build the client as `from_env` does with
+        MSGBOARD_HF_TOKEN, so requests get past the Space's gate.
+
+        Returning means the board answered once, not that it won't restart: after deploy() a restart or
+        rebuild can follow. With an unchanged token the old container passes both checks before its
+        pending restart, so keep retrying through 503 after this returns.
+        """
+        deadline = time.monotonic() + timeout
+        last = "no answer"
+        while True:
+            try:
+                resp = self._http.get("/v1/health")
+                status = _json_field(resp, "status")
+                if resp.status_code == 200 and status == "ok":
+                    if not self.token:
+                        return
+                    me = self._http.get("/v1/me")
+                    if me.status_code == 200:
+                        return
+                    last = f"/v1/me answered {me.status_code}"
+                else:
+                    last = f"/v1/health answered {resp.status_code}"
+                    if status:
+                        last += f" {status!r}"
+                    error = _json_field(resp, "error")  # the Space app's reason for not starting
+                    if isinstance(error, str):
+                        last += f" ({error})"
+            except httpx.TransportError as exc:
+                last = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f"{self.base_url} not ready after {timeout:g} s; last: {last}")
+            time.sleep(min(interval, remaining))
 
     def __enter__(self):
         return self
