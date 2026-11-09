@@ -17,6 +17,8 @@ from typing import Any, Iterator
 import httpx
 
 RETRY_STATUS = {429, 502, 503, 504}
+# 503 codes of a board that restarts or hands over to a new container: it comes back, so wait for it
+RESTARTING = {"starting", "shutting_down"}
 
 
 class BoardError(Exception):
@@ -38,14 +40,20 @@ def _json_field(resp: httpx.Response, key: str):
 class Client:
     def __init__(self, base_url: str, token: str, *, timeout: float = 10.0,
                  max_retries: int = 5, backoff: float = 0.25, transport: httpx.BaseTransport | None = None,
-                 headers: dict | None = None, token_header: str | None = None):
+                 headers: dict | None = None, token_header: str | None = None, restart_timeout: float = 300.0):
         """`token_header="X-Msgboard-Token"` sends the board token there, leaving
-        Authorization free for a proxy login passed in `headers` (e.g. a private HF Space)."""
+        Authorization free for a proxy login passed in `headers` (e.g. a private HF Space).
+
+        Failed requests are retried up to `max_retries` times (0: never). A 503 that says the board is
+        starting or handing over to a new container (`starting`, `shutting_down`) is retried for up to
+        `restart_timeout` seconds instead, however many tries that takes: on a slow bucket a Space
+        restart can refuse writes for minutes. 0 counts those against `max_retries` too."""
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
         self.max_retries = max_retries
         self.backoff = backoff
+        self.restart_timeout = restart_timeout
         self._http = httpx.Client(
             base_url=self.base_url,
             headers={**(headers or {}),
@@ -70,7 +78,8 @@ class Client:
     def wait_ready(self, timeout: float = 600.0, *, interval: float = 2.0) -> None:
         """Wait until the board serves: /v1/health says "ok" and, if this client has a token, the board
         accepts it (/v1/me). Returns None once it does; raises TimeoutError after `timeout` seconds,
-        naming the last answer.
+        naming the last answer. Each request gets only the time left, and an answer that comes after the
+        deadline doesn't count.
 
         Every other answer means "not yet": connection errors, a Space that is building or waking
         from sleep, the Space app's 503 or "starting" while it restores, and a 401 from a container
@@ -83,18 +92,23 @@ class Client:
         pending restart, so keep retrying through 503 after this returns.
         """
         deadline = time.monotonic() + timeout
+
+        def get(path):  # each request gets only the time left
+            return self._http.get(path, timeout=min(self.timeout, max(deadline - time.monotonic(), 0.001)))
+
         last = "no answer"
         while True:
             try:
-                resp = self._http.get("/v1/health")
+                resp = get("/v1/health")
                 status = _json_field(resp, "status")
                 if resp.status_code == 200 and status == "ok":
-                    if not self.token:
+                    me = get("/v1/me") if self.token else None
+                    if me is not None and me.status_code != 200:
+                        last = f"/v1/me answered {me.status_code}"
+                    elif time.monotonic() <= deadline:
                         return
-                    me = self._http.get("/v1/me")
-                    if me.status_code == 200:
-                        return
-                    last = f"/v1/me answered {me.status_code}"
+                    else:  # ready, but too late to count
+                        last = "ready, but only after the deadline"
                 else:
                     last = f"/v1/health answered {resp.status_code}"
                     if status:
@@ -103,7 +117,9 @@ class Client:
                     if isinstance(error, str):
                         last += f" ({error})"
             except httpx.TransportError as exc:
-                last = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+                # a request cut short by the deadline says nothing new about the board: keep its last answer
+                if time.monotonic() < deadline or last == "no answer":
+                    last = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError(f"{self.base_url} not ready after {timeout:g} s; last: {last}")
@@ -119,6 +135,7 @@ class Client:
 
     def _request(self, method: str, path: str, *, timeout: float | None = None, **kwargs) -> httpx.Response:
         attempt = 0
+        restarting_since = None   # when the board first said it is starting or handing over
         while True:
             try:
                 resp = self._http.request(method, "/v1" + path, timeout=timeout or self.timeout, **kwargs)
@@ -130,8 +147,14 @@ class Client:
                 self._sleep(attempt, None)
                 attempt += 1
                 continue
-            if resp.status_code in RETRY_STATUS and attempt < self.max_retries:
-                self._sleep(attempt, resp.headers.get("retry-after"))
+            error = _json_field(resp, "error") if resp.status_code == 503 else None
+            restarting = isinstance(error, dict) and error.get("code") in RESTARTING
+            if restarting and restarting_since is None:
+                restarting_since = time.monotonic()
+            if resp.status_code in RETRY_STATUS and (attempt < self.max_retries or (
+                    restarting and self.max_retries and time.monotonic() - restarting_since < self.restart_timeout)):
+                # past max_retries, keep the pace of the last tries rather than backing off further
+                self._sleep(min(attempt, max(self.max_retries - 1, 0)), resp.headers.get("retry-after"))
                 attempt += 1
                 continue
             if resp.status_code >= 400:
