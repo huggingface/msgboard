@@ -715,50 +715,55 @@ def test_a_hand_over_waits_for_storage_writes_and_their_rollback(tmp_path):
 
 
 def test_a_cancelled_storage_delete_holds_off_the_hand_over_until_it_lands(tmp_path):
-    # Item 5 of review #5: the DELETE route awaited the bucket delete directly. Cancelled natively (uvicorn
-    # cancels requests at its shutdown deadline), it left storage_write while the delete still ran, so a
-    # hand-over could release the replica first, and the late delete could remove the next owner's file.
+    # Item 5 of review #5: the DELETE route awaited the bucket delete directly. When uvicorn cancelled the
+    # request (it does at its shutdown deadline), the route left storage_write while the delete still ran, so
+    # a hand-over released the replica first, and the late delete could remove the next owner's file.
     import asyncio
-    import contextlib
 
-    entered, release = threading.Event(), threading.Event()
+    log, entered, release = [], threading.Event(), threading.Event()
 
     class SlowDeleteStore(DirStore):
+        def put(self, items):
+            super().put(items)
+            if any(dest == "LEASE.json" and json.loads(source)["released"] for source, dest in items):
+                log.append("release")
+
         def delete(self, paths):
             if any(path.startswith("storage/") for path in paths):
                 entered.set()
                 release.wait(10)
+                log.append("storage delete")
             super().delete(paths)
 
     data, replica = tmp_path / "a", SlowDeleteStore(tmp_path / "bucket")
     token = init_board(data)
     headers = {"X-Msgboard-Token": token}
-    with ThreadedServer(data, replicator=Replicator(replica, data, interval=3600)) as s, Client(s.url, token) as c:
+    rep = Replicator(replica, data, interval=3600, poll=0.05)
+    with ThreadedServer(data, replicator=rep) as s, Client(s.url, token) as c:
         handle = c.me()["external_id"]
         assert httpx.put(f"{s.url}/v1/storage/{handle}/notes.txt", content=b"draft", headers=headers).status_code == 201
-        board, tasks, admit = s.board, [], s.board.storage_write
-
-        @contextlib.asynccontextmanager
-        async def recording():
-            tasks.append(asyncio.current_task())
-            async with admit():
-                yield
-
-        board.storage_write = recording
-        thread = threading.Thread(target=lambda: httpx.delete(f"{s.url}/v1/storage/{handle}/notes.txt",
-                                                              headers=headers, timeout=15))
-        thread.start()
+        deleting = threading.Thread(target=lambda: httpx.delete(f"{s.url}/v1/storage/{handle}/notes.txt",
+                                                                headers=headers, timeout=15))
+        deleting.start()
+        asking = threading.Thread(target=lambda: _ask(replica, "new"))
         try:
-            assert entered.wait(10)                              # the bucket delete is running
-            board.notifier.loop.call_soon_threadsafe(tasks[-1].cancel)
-            wait_for(lambda: tasks[-1].done() or tasks[-1].cancelling())
-            time.sleep(0.3)
-            held = board.storage_writes                          # what _quiesce waits on
+            assert entered.wait(10)                                  # the bucket delete is running
+
+            async def cancel_requests():                             # as uvicorn does at its shutdown deadline
+                for task in asyncio.all_tasks():
+                    if task.get_coro().__qualname__.endswith("run_asgi"):
+                        task.cancel()
+
+            loop = s.board.notifier.loop
+            asyncio.run_coroutine_threadsafe(cancel_requests(), loop).result(5)
+            asking.start()                                           # a newer instance asks for the replica
+            time.sleep(0.5)
         finally:
             release.set()
-            thread.join(timeout=15)
-        wait_for(lambda: board.storage_writes == 0)
-    assert held == 1
+            deleting.join(timeout=15)
+            if asking.ident is not None:
+                asking.join(timeout=15)
+    assert log[:2] == ["storage delete", "release"], log
 
 
 def test_a_dead_owner_behind_a_late_lease_write_is_taken_over(tmp_path):
@@ -1050,19 +1055,18 @@ def test_an_instance_that_lost_the_replica_takes_it_once_the_winner_dies(tmp_pat
         pass
     b = Replicator(store, tmp_path / "b", interval=3600, poll=0.02, stop=threading.Event())
     time.sleep(0.01)
-    c = Replicator(store, tmp_path / "c", interval=3600, poll=0.02, heartbeat=0.1, stop=threading.Event())
+    c = Replicator(store, tmp_path / "c", interval=3600, poll=0.02, stop=threading.Event())
     results = {}
     store.hold(b.instance)
-    tb = threading.Thread(target=_take_over, args=(b, results, "b"), kwargs={"stale_after": 1.0})
+    tb = threading.Thread(target=_take_over, args=(b, results, "b"), kwargs={"stale_after": 2.0})
     tb.start()
     try:
         wait_for(lambda: store.holding(b), timeout=15)
-        assert c.take_over(poll=0.02) == "released"   # C wins while B's claim is uploading
-        store.release(b.instance)
+        assert c.take_over(poll=0.02) == "released"   # C wins while B's claim is uploading, then dies:
+        store.release(b.instance)                     # nothing more from it lands, and it never releases
         time.sleep(0.5)
-        assert "b" not in results                     # B gave way and asks C, whose heartbeats land...
-        c._beats_stop.set()                           # ...until C dies, with no release
-        wait_for(lambda: "b" in results, timeout=15)
+        assert "b" not in results                     # B gave way and asks C...
+        wait_for(lambda: "b" in results, timeout=15)  # ...until nothing from C has landed for the window
     finally:
         store.release(b.instance)
         b._stop.set()
@@ -1210,8 +1214,7 @@ def test_a_reclaim_does_not_take_the_replica_from_a_claimant_that_started_servin
             with ThreadedServer(tmp_path / "n", replicator=n) as sn, Client(sn.url, token, max_retries=0) as cn:
                 cn.post(ch, "acknowledged by N")
                 gate.set()                                     # A's won marker lands
-                wait_for(lambda: not a._acquiring)
-                time.sleep(0.3)
+                wait_for(lambda: _withdrawn(store, a))       # A saw N serving, and gave way
                 assert a.handed_over and a.epoch == 1          # A gave way instead of serving again
                 assert n.push_if_changed() and not n.fenced
         finally:
