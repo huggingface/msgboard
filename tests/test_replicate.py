@@ -1041,6 +1041,35 @@ def test_an_instance_that_lost_the_replica_takes_it_once_the_winner_stops(tmp_pa
     assert results["b"] == "released" and b.epoch > c.epoch
 
 
+def test_an_instance_that_lost_the_replica_takes_it_once_the_winner_dies(tmp_path):
+    # Item 3, the other way the winner goes away: C took the replica from under B and died before serving,
+    # without releasing it. B, which kept asking, takes it once nothing from C has landed for the stale window.
+    store = GatedStore(tmp_path / "bucket")
+    init_board(tmp_path / "a")
+    with ThreadedServer(tmp_path / "a", replicator=Replicator(store, tmp_path / "a", interval=3600, poll=0.02)):
+        pass
+    b = Replicator(store, tmp_path / "b", interval=3600, poll=0.02, stop=threading.Event())
+    time.sleep(0.01)
+    c = Replicator(store, tmp_path / "c", interval=3600, poll=0.02, heartbeat=0.1, stop=threading.Event())
+    results = {}
+    store.hold(b.instance)
+    tb = threading.Thread(target=_take_over, args=(b, results, "b"), kwargs={"stale_after": 1.0})
+    tb.start()
+    try:
+        wait_for(lambda: store.holding(b), timeout=15)
+        assert c.take_over(poll=0.02) == "released"   # C wins while B's claim is uploading
+        store.release(b.instance)
+        time.sleep(0.5)
+        assert "b" not in results                     # B gave way and asks C, whose heartbeats land...
+        c._beats_stop.set()                           # ...until C dies, with no release
+        wait_for(lambda: "b" in results, timeout=15)
+    finally:
+        store.release(b.instance)
+        b._stop.set()
+        tb.join(timeout=30)
+    assert results["b"] == "stale" and b.epoch > c.epoch
+
+
 def test_health_and_readiness_report_a_fenced_instance(tmp_path):
     # Item 3: a fenced instance answered /v1/health "ok" and /v1/ready "ready" while refusing every write.
     data, replica = tmp_path / "a", DirStore(tmp_path / "bucket")
