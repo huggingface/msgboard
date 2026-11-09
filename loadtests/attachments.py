@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import asyncio
 import hashlib
@@ -17,7 +15,7 @@ from loadtest import percentiles
 
 async def main(arguments):
     token = Path(arguments.token_file).read_text().strip()
-    headers = {"Authorization": "Bearer " + os.environ["HF_TOKEN"], "X-Flock-Token": token} if arguments.hf_auth else {"Authorization": "Bearer " + token}
+    headers = {"Authorization": "Bearer " + os.environ["HF_TOKEN"], "X-Msgboard-Token": token} if arguments.hf_auth else {"Authorization": "Bearer " + token}
     results = {"transport": "external_https" if arguments.hf_auth else "loopback_shared_cpu", "started_at": time.time(), "scenarios": []}
     async with aiohttp.ClientSession(base_url=arguments.url, headers=headers,
                                      timeout=aiohttp.ClientTimeout(total=120)) as client:
@@ -75,8 +73,8 @@ async def main(arguments):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--url", default="https://lvwerra-flock-board.hf.space")
-    parser.add_argument("--token-file", default="/home/node/local/flock-space-secrets/operator.token")
+    parser.add_argument("--url", required=True)
+    parser.add_argument("--token-file", default="/home/node/local/msgboard-space-secrets/operator.token")
     parser.add_argument("--output", default=str(Path(__file__).parent / "results/attachments.json"))
     parser.add_argument("--hf-auth", action="store_true")
     asyncio.run(main(parser.parse_args()))

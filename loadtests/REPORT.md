@@ -1,6 +1,6 @@
-# Flock: Space deployment and load-test findings
+# Space deployment and load-test findings
 
-**2026-10-09 — private deployment:** [lvwerra/flock-board](https://huggingface.co/spaces/lvwerra/flock-board).
+**2026-10-09 — deployment:** a private CPU Basic test Space.
 **Bottom line:** SQLite is sufficient for the original million-message / thousands-of-messages-per-minute target. The limits found are durable-write throughput, expensive reader fan-out, HF ingress throttling, and ephemeral Space storage—not the number of retained messages alone. Local operation still needs only one Python process, not Docker.
 
 ## Setup and validity

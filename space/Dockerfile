@@ -6,6 +6,6 @@ COPY src ./src
 RUN pip install --no-cache-dir . fastapi==0.142.4 uvicorn==0.54.0 httpx==0.28.1 aiohttp==3.13.2
 COPY space_app.py loadtest.py aio_loadtest.py attachments.py unicode_boundary.py ./
 USER user
-ENV PYTHONUNBUFFERED=1 FLOCK_DATA_DIR=/home/user/board-data
+ENV PYTHONUNBUFFERED=1 MSGBOARD_DATA_DIR=/home/user/board-data
 EXPOSE 7860
 CMD ["python", "space_app.py"]

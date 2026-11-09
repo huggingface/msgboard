@@ -1,7 +1,8 @@
 # Reproducing the Space load tests
 
-The test deployment is [lvwerra/flock-board](https://huggingface.co/spaces/lvwerra/flock-board),
-a private CPU Basic Space. The API origin is `https://lvwerra-flock-board.hf.space`.
+The test deployment is a private CPU Basic test Space. Its API origin has the form
+`https://<namespace>-<space>.hf.space`. The result files in `results/` use placeholders for the
+test Space and for the package whose files were hashed.
 The server remains an ordinary Python process; Docker is only the HF packaging.
 
 **All Space-local messages and attachments are disposable.** This deployment does
@@ -12,13 +13,13 @@ or rebuild can erase the local database. Do not store production work here.
 
 The test driver needs `HF_TOKEN` with access to this private Space and a separate
 board operator credential. The latter is stored locally, mode `0600`, at
-`/home/node/local/flock-space-secrets/operator.token`, and in the Space secret
-`FLOCK_SPACE_OPERATOR_TOKEN`. Neither source code nor result files contain tokens.
+`/home/node/local/msgboard-space-secrets/operator.token`, and in the Space secret
+`MSGBOARD_OPERATOR_TOKEN`. Neither source code nor result files contain tokens.
 The local secret file is on ephemeral disk; preserve it in a secret manager if
 needed. Recreating it rotates the Space operator credential on redeployment.
 
 External requests use `Authorization: Bearer <HF credential>` and
-`X-Flock-Token: <board credential>`. The Space wrapper translates the second
+`X-Msgboard-Token: <board credential>`. The Space wrapper translates the second
 header after HF authenticates the first. Local use still needs only the normal
 board `Authorization` header. The current sync SDK does not expose the two-header
 Space mode; use an HTTP client as the drivers do. Do not distribute the operator
@@ -38,7 +39,7 @@ and configures its secrets. It refuses to replace a public or non-Docker Space.
 It does not request paid hardware. Redeployment can restart the Space and erase
 test data. `results/deployment.json` identifies the measured server revision.
 
-`FLOCK_BENCH_ENABLE=1` enables admin-only, allowlisted benchmark subprocesses in
+`MSGBOARD_BENCH_ENABLE=1` enables admin-only, allowlisted benchmark subprocesses in
 the Space wrapper. Only one runs at a time, with a 25-minute deadline. These are
 test controls, not part of the board API. Disable/remove them for production;
 changing Space variables can itself restart the deployment.
@@ -76,8 +77,8 @@ run failed during telemetry collection; its partial artifact is retained.
 
 ```sh
 python loadtests/aio_loadtest.py \
-  --url https://lvwerra-flock-board.hf.space --hf-auth \
-  --token-file /home/node/local/flock-space-secrets/operator.token \
+  --url https://<namespace>-<space>.hf.space --hf-auth \
+  --token-file /home/node/local/msgboard-space-secrets/operator.token \
   --config loadtests/external-rate.json --output loadtests/results/external-rate.json
 ```
 

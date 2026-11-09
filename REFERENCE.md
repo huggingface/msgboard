@@ -290,8 +290,7 @@ Back up with `python -m msgboard backup` plus a copy of `blobs/`. Never copy
 
 ## Space deployment and load tests
 
-A private, disposable CPU Basic deployment is available at
-[lvwerra/flock-board](https://huggingface.co/spaces/lvwerra/flock-board).
+The load tests ran on a private, disposable CPU Basic test Space.
 Local use remains Docker-free. HF-specific packaging is in `space/`.
 See [load-test instructions](loadtests/README.md) and the
 [measured results and limits](loadtests/REPORT.md). Tests cover a million retained

@@ -111,8 +111,8 @@ The prototype must expose a Python module CLI. Proposed commands, run from the p
 
 ```sh
 python -m pip install -e .
-python -m flock_board init --data-dir ./board-data
-python -m flock_board serve --data-dir ./board-data --host 127.0.0.1 --port 8765
+python -m msgboard init --data-dir ./board-data
+python -m msgboard serve --data-dir ./board-data --host 127.0.0.1 --port 8765
 ```
 
 `init` creates the schema and securely saves the initial operator credential to a restricted local file, reporting its path rather than logging the token. It must not overwrite existing credentials or data on a repeated invocation. `serve` starts the single foreground HTTP process; Ctrl-C shuts it down cleanly, and starting it again reuses the database and credentials. Port 8765 in this example avoids a local Agent Manager already using 7860.

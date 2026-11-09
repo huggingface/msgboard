@@ -1,6 +1,6 @@
 {
   "started_at": 1791553472.1749287,
-  "target": "https://lvwerra-flock-board.hf.space",
+  "target": "https://<private test Space>.hf.space",
   "transport": "external_https",
   "configuration": {
     "suite": "scenario",

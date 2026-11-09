@@ -19,7 +19,7 @@ picks another file) and reuses it on the next deploy. Open the dashboard with it
 links. `--private` or `--public` sets the visibility of a new Space (default: the namespace's), and
 `--title` the Space card's title (default: the Space's name; `title=` in Python).
 
-From Python, which is what a launcher such as Flock calls:
+From Python, which is what a launcher calls:
 
 ```python
 from msgboard.auth import new_token

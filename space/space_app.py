@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import importlib.metadata
@@ -26,7 +24,7 @@ from msgboard.server import Board, create_app
 def bootstrap(data_dir: Path, token: str) -> None:
     parsed = auth.parse_token(token)
     if parsed is None:
-        raise RuntimeError("FLOCK_SPACE_OPERATOR_TOKEN must be a valid board token")
+        raise RuntimeError("MSGBOARD_OPERATOR_TOKEN must be a valid board token")
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     connection = db.connect(data_dir / "board.db")
     try:
@@ -85,11 +83,11 @@ class BoardCredentialHeader:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             headers = scope.get("headers", [])
-            board_token = next((value for key, value in headers if key == b"x-flock-token"), None)
+            board_token = next((value for key, value in headers if key == b"x-msgboard-token"), None)
             if board_token is not None:
                 scope = dict(scope)
                 scope["headers"] = [(key, value) for key, value in headers
-                                    if key not in (b"authorization", b"x-flock-token")]
+                                    if key not in (b"authorization", b"x-msgboard-token")]
                 scope["headers"].append((b"authorization", b"Bearer " + board_token))
         await self.app(scope, receive, send)
 
@@ -121,11 +119,11 @@ def build_app(data_dir: Path):
     @app.get("/", response_class=HTMLResponse)
     async def index():
         return """<!doctype html><html><meta name="viewport" content="width=device-width">
-        <title>Flock board prototype</title><body style="font:17px/1.6 system-ui;max-width:760px;margin:60px auto;padding:20px">
-        <h1>Flock board prototype</h1><p>One Python server. SQLite. Authenticated channel history.</p>
+        <title>msgboard prototype</title><body style="font:17px/1.6 system-ui;max-width:760px;margin:60px auto;padding:20px">
+        <h1>msgboard prototype</h1><p>One Python server. SQLite. Authenticated channel history.</p>
         <p><strong>Test deployment: storage is ephemeral.</strong> Do not store production data here.</p>
         <p>The API is under <code>/v1</code>. Private Space clients send their Hugging Face credential
-        in <code>Authorization</code> and their board credential in <code>X-Flock-Token</code>.</p>
+        in <code>Authorization</code> and their board credential in <code>X-Msgboard-Token</code>.</p>
         <p><a href="/v1/health">Health</a></p></body></html>"""
 
     @app.get("/_bench/system")
@@ -133,7 +131,7 @@ def build_app(data_dir: Path):
         await operator(request)
         snapshot = system_snapshot()
         snapshot["limits"] = vars(LIMITS)
-        snapshot["bench_enabled"] = os.environ.get("FLOCK_BENCH_ENABLE") == "1"
+        snapshot["bench_enabled"] = os.environ.get("MSGBOARD_BENCH_ENABLE") == "1"
         return snapshot
 
     async def run_job(job_id: str, configuration: dict):
@@ -172,7 +170,7 @@ def build_app(data_dir: Path):
     async def start_job(request: Request):
         nonlocal active_job
         await operator(request)
-        if os.environ.get("FLOCK_BENCH_ENABLE") != "1":
+        if os.environ.get("MSGBOARD_BENCH_ENABLE") != "1":
             raise forbidden("benchmark controls disabled")
         if active_job is not None:
             return JSONResponse({"error": "benchmark already running", "job_id": active_job}, status_code=409)
@@ -202,7 +200,7 @@ def build_app(data_dir: Path):
 
 
 if __name__ == "__main__":
-    directory = Path(os.environ.get("FLOCK_DATA_DIR", "/home/user/board-data"))
-    bootstrap(directory, os.environ["FLOCK_SPACE_OPERATOR_TOKEN"])
+    directory = Path(os.environ.get("MSGBOARD_DATA_DIR", "/home/user/board-data"))
+    bootstrap(directory, os.environ["MSGBOARD_OPERATOR_TOKEN"])
     uvicorn.run(build_app(directory), host="0.0.0.0", port=int(os.environ.get("PORT", "7860")),
                 access_log=False, log_level="warning")
