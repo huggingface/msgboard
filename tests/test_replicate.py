@@ -1051,3 +1051,90 @@ def test_a_reclaim_whose_upload_fails_once_still_takes_the_replica_back(tmp_path
         c.post(ch["id"], "accepted again")
         lease = _json(tmp_path / "bucket" / "LEASE.json")
         assert lease["instance"] == a.instance and not lease["released"]
+
+
+class HeldStore(DirStore):
+    """Holds back uploads whose destinations match a rule until the rule's gate opens, as a slow
+    (rate-limited) upload would: the content is made before the delay, so it lands late."""
+
+    def __init__(self, root):
+        super().__init__(root)
+        self.rules: list[tuple] = []
+
+    def hold(self, pred):
+        gate, reached = threading.Event(), threading.Event()
+        self.rules.append((pred, gate, reached))
+        return gate, reached
+
+    def put(self, items):
+        dests = [dest for _, dest in items]
+        for pred, gate, reached in list(self.rules):
+            if any(pred(dest) for dest in dests):
+                reached.set()
+                assert gate.wait(30), f"gate for {dests} never opened"
+        super().put(items)
+
+
+def _won_marker_of(rep, epoch):
+    return lambda dest: dest.startswith(f"claims/{epoch:08d}-") and dest.endswith(f"-{rep.instance}.won")
+
+
+def test_a_reclaim_does_not_take_the_replica_from_a_claimant_that_started_serving(tmp_path):
+    # The remaining no-CAS window of review #5 (#1/#2): the old owner A counted the new owner N dead (nothing
+    # from N landed for reclaim_after) and took the replica back. N was only slow: it passed its last check
+    # before A's won marker landed, served and acknowledged a write; then A's marker landed, A served too,
+    # and N was fenced with that write in no snapshot.
+    store = HeldStore(tmp_path / "bucket")
+    token = init_board(tmp_path / "a")
+    a = Replicator(store, tmp_path / "a", interval=3600, poll=0.02, reclaim_after=0.5)
+    with ThreadedServer(tmp_path / "a", replicator=a) as sa, Client(sa.url, token, max_retries=0) as ca:
+        ch = ca.create_channel("x")["id"]
+        ca.post(ch, "before the restart")
+        n = Replicator(store, tmp_path / "n", interval=3600, poll=0.02, heartbeat=3600, stop=threading.Event())
+        gate, reached = store.hold(_won_marker_of(a, 3))       # A's reclaim: epoch 3, above N's 2
+        try:
+            assert n.take_over(poll=0.02) == "released" and n.epoch == 2
+            assert reached.wait(10)                            # N was silent; A's won marker is uploading
+            restore(store, tmp_path / "n")
+            with ThreadedServer(tmp_path / "n", replicator=n) as sn, Client(sn.url, token, max_retries=0) as cn:
+                cn.post(ch, "acknowledged by N")
+                gate.set()                                     # A's won marker lands
+                wait_for(lambda: not a._acquiring)
+                time.sleep(0.3)
+                assert a.handed_over and a.epoch == 1          # A gave way instead of serving again
+                assert n.push_if_changed() and not n.fenced
+        finally:
+            gate.set()
+            n._stop.set()
+    restore(store, tmp_path / "restored")
+    assert "acknowledged by N" in _bodies(tmp_path / "restored", ch, token)
+
+
+def test_a_requester_does_not_take_the_replica_from_an_owner_that_started_serving(tmp_path):
+    # The same window from the other side: M counted the owner W dead (nothing from W landed for the stale
+    # window while W restored) and claimed above it. W was only slow: it served and acknowledged a write
+    # before M's won marker landed, and M then served without it.
+    store = HeldStore(tmp_path / "bucket")
+    token = init_board(tmp_path / "w")
+    # W polls for hand-over requests every 0.5 s: it takes writes before it answers M's
+    w = Replicator(store, tmp_path / "w", interval=3600, poll=0.5, heartbeat=3600)
+    assert w.claim() and w.epoch == 1                          # W won the replica, and is slow to serve
+    m = Replicator(store, tmp_path / "m", interval=3600, poll=0.02, stop=threading.Event())
+    gate, reached = store.hold(_won_marker_of(m, 2))
+    results = {}
+    t = threading.Thread(target=_take_over, args=(m, results, "m"), kwargs={"stale_after": 1.5})
+    t.start()
+    try:
+        assert reached.wait(10)                                # M judged W dead; its won marker is uploading
+        with ThreadedServer(tmp_path / "w", replicator=w) as sw, Client(sw.url, token, max_retries=0) as cw:
+            ch = cw.create_channel("x")["id"]
+            cw.post(ch, "acknowledged by W")
+            gate.set()                                         # M's won marker lands
+            wait_for(lambda: "m" in results, timeout=20)       # M gave way, asked W, and got it handed over
+    finally:
+        gate.set()
+        m._stop.set()
+        t.join(timeout=30)
+    assert results["m"] == "released" and m.epoch == 3
+    restore(store, tmp_path / "m")
+    assert "acknowledged by W" in _bodies(tmp_path / "m", ch, token)

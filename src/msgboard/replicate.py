@@ -226,7 +226,8 @@ class _Watch:
 # Ownership. An instance takes the replica in two uploads: a claim, claims/<epoch>-<since ms>-<instance>.json,
 # then, once no other claim stands in its way, a .won marker next to it; one that gives way uploads a
 # .withdrawn marker instead. Ranks are (epoch, since in ms, instance), and the owner is the best claim that
-# won and was not withdrawn.
+# won and was not withdrawn. An owner uploads a .serving marker with its lease before it takes writes, then
+# checks the claims once more: see Replicator._acquire for why that pair of steps needs no timing.
 
 
 def _claim_path(rank: tuple, kind: str = "json") -> str:
@@ -238,12 +239,13 @@ def _lease_rank(lease: dict) -> tuple[int, int, str]:
 
 
 def _claims(store) -> dict[tuple[int, int, str], set[str]]:
-    """claims/ as {rank: the markers it has ("json", "won", "withdrawn")}."""
+    """claims/ as {rank: the markers it has ("json", "won", "withdrawn", "serving")}."""
     claims: dict[tuple[int, int, str], set[str]] = {}
     for path in store.list(CLAIMS):
         stem, _, kind = path[len(CLAIMS):].rpartition(".")
         parts = stem.split("-", 2)
-        if kind in ("json", "won", "withdrawn") and len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+        if (kind in ("json", "won", "withdrawn", "serving") and len(parts) == 3 and parts[0].isdigit()
+                and parts[1].isdigit()):
             claims.setdefault((int(parts[0]), int(parts[1]), parts[2]), set()).add(kind)
     return claims
 
@@ -491,9 +493,10 @@ class Replicator:
         finally:
             self._uploading = None
 
-    def _put_lease(self, released: bool = False, handover_to: str | None = None) -> None:
+    def _put_lease(self, released: bool = False, handover_to: str | None = None, serving: bool = False) -> None:
         events, n = self._events()
-        self._upload([self._lease(released, handover_to)] + events)
+        marker = [(b"{}", _claim_path(self._rank(), "serving"))] if serving else []
+        self._upload([self._lease(released, handover_to)] + marker + events)
         self._last_heartbeat = time.time()
         self._events_sent = n
 
@@ -582,6 +585,10 @@ class Replicator:
         older ones to withdraw (or, if nothing from one lands for stale_after s, to count as dead).
         3. Upload a won marker, then list again: if another won marker shows, withdraw. Of two won
         markers, the later one to land sees the earlier, so at most one instance gets past 3.
+        Also withdraw if an instance this one outranks started serving after `claims` was read: one
+        that this one judged dead (silent) but was only slow. That instance uploads its .serving marker
+        before it checks the claims (start()), so the same argument applies: of its marker and this
+        won marker, the later to land is seen by the other's check, so they never both go on.
         `silent`: claims already seen silent for stale_after s (they count as dead unless they change).
         """
         epoch = max([rank[0] for rank in claims] + [(lease or {}).get("epoch") or 0, parent]) + 1
@@ -596,14 +603,20 @@ class Replicator:
             claimed = True
             if self._retrying("claiming the replica", lambda: self._contend(mine, parent, stale_after, silent)):
                 self._retrying("uploading the won marker", lambda: self._upload([(b"{}", _claim_path(mine, "won"))]))
-                rival = self._retrying("checking the replica's claims", lambda: next(
-                    (rank for rank, kinds in _contenders(_claims(self.store), parent).items()
-                     if rank != mine and "won" in kinds), None))
-                if rival is None:
+                now = self._retrying("checking the replica's claims", lambda: _claims(self.store))
+                rival = next((rank for rank, kinds in _contenders(now, parent).items()
+                              if rank != mine and "won" in kinds), None)
+                started = next((rank for rank, kinds in now.items() if rank != mine and "serving" in kinds
+                                and "serving" not in claims.get(rank, ())), None)
+                if rival is None and started is None:
                     self.epoch = self.status["epoch"] = epoch
                     log.info("took the replica: epoch %s", epoch)
                     return True
-                log.warning("instance %s won the replica too; this one withdraws", rival[2])
+                if rival is not None:
+                    log.warning("instance %s won the replica too; this one withdraws", rival[2])
+                else:
+                    log.warning("instance %s started serving meanwhile (it was slow, not dead); this one "
+                                "withdraws", started[2])
             self._retrying("withdrawing a claim", lambda: self._upload([(b"{}", _claim_path(mine, "withdrawn"))]))
             return False
         except RuntimeError:  # stopping: withdraw if it can, so others need not wait for this claim to go stale
@@ -665,12 +678,13 @@ class Replicator:
         owner = self.epoch is not None or self.claim()
 
         def mark_serving():
-            # Tell the previous owner, which watches for it, that this instance serves now, then check that
-            # nobody took the replica meanwhile (while this one restored it, say).
+            # Tell the previous owner, which watches for it, that this instance serves now (the lease and a
+            # .serving marker, in one upload), then check that nobody took the replica meanwhile (while this
+            # one restored it, say). Marker first, check second: see _acquire.
             if self._replaced_by(self._watch.read(LEASE)[0]) is not None:
                 return False
             self._serving = True
-            self._put_lease()
+            self._put_lease(serving=True)
             return self._replaced_by(self._watch.read(LEASE)[0]) is None
 
         if owner:
@@ -757,7 +771,8 @@ class Replicator:
                 claims = _claims(self.store)
                 owner = _authority(claims, lease)
                 taken = owner is not None and owner > self._rank()
-                if taken and lease is not None and _lease_rank(lease) == owner and lease.get("serving"):
+                if taken and ("serving" in claims.get(owner, ()) or (
+                        lease is not None and _lease_rank(lease) == owner and lease.get("serving"))):
                     log.info("instance %s took the replica over", owner[2])
                     return True
                 # Until a new owner serves, watch for signs of life from instances that may take it over.
@@ -783,7 +798,7 @@ class Replicator:
                         continue
                 if time.monotonic() - changed_at > self.reclaim_after:
                     if self._reclaim(request, claims, lease, after):
-                        return False
+                        return self.fenced  # False: it serves again
                     seen = None  # another instance is taking it: keep watching
             except Exception as exc:
                 log.warning("waiting for the hand-over: %s", exc)
@@ -791,12 +806,18 @@ class Replicator:
 
     def _reclaim(self, request: dict, claims: dict, lease: dict | None, silent) -> bool:
         # Nothing from any instance that could take the replica over has landed for reclaim_after s.
+        # Returns True if this instance took the replica back (or, if one outranked it meanwhile, is fenced).
         log.warning("nobody took the replica over and served in %.0f s; taking it back", self.reclaim_after)
         owner = _authority(claims, lease)
         if not self._acquire(owner[0] if owner else self.epoch, claims, lease, self.reclaim_after, silent=silent):
             return False
         self._refused.add((request["instance"], request.get("at")))
-        self._retrying("writing the replica lease", self._put_lease)
+        # serving again: the lease with a .serving marker, then the claims once more, as start() does
+        self._retrying("writing the replica lease", lambda: self._put_lease(serving=True))
+        replaced = self._retrying("checking the replica's claims", lambda: self._replaced_by(self._watch.read(LEASE)[0]))
+        if replaced is not None:
+            self._fence(replaced)
+            return True
         with contextlib.suppress(Exception):  # instances still waiting ask again, this time this one
             self.store.delete([HANDOVER])
         self.handed_over = self.status["handed_over"] = False
