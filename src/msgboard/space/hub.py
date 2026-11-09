@@ -17,8 +17,7 @@ from .. import auth
 log = logging.getLogger("msgboard.space")
 
 TAG = "msgboard"          # deploy() puts it in the Space card, and reuses only Spaces that have it
-                          # or a MSGBOARD_REPLICA variable
-SNAPSHOT_INTERVAL = "15"  # MSGBOARD_SNAPSHOT_INTERVAL for a new Space, in seconds
+SNAPSHOT_INTERVAL = "15"  # MSGBOARD_SNAPSHOT_INTERVAL, in seconds
 _HERE = Path(__file__).resolve().parent
 _PACKAGE = _HERE.parent   # the installed msgboard package, uploaded as-is
 
@@ -53,25 +52,23 @@ def deploy(space_id: str, *, token: str | None = None, operator_token: str | Non
 
     `space_id` is "namespace/name" or a bare name for the logged-in account. A missing Space is
     created (Docker SDK, CPU Basic) with `private` as its visibility (None: the namespace's default).
-    An existing Space is reused, and keeps its visibility, only if it is a msgboard board: its card
-    has the `msgboard` tag that deploy() puts there, or it has a MSGBOARD_REPLICA variable (a Space
-    from before this function, or a deploy() that stopped before its first upload). Anything else
-    raises DeployError without changing the Space.
+    An existing Space is reused, and keeps its visibility, only if its card has the `msgboard` tag
+    that deploy() puts there. Any other Space raises DeployError without being changed, including one
+    left by a first deploy() that failed before its upload: delete that one and deploy again.
 
-    The bucket is `bucket_id` if given, else the one the Space's MSGBOARD_REPLICA already names, else
-    "<space_id>-bucket", or -2, -3 ... if that exists, so a new board never restores the snapshots a
+    A reused board keeps its bucket, the one its MSGBOARD_REPLICA names. A new board's is `bucket_id`,
+    else "<space_id>-bucket", or -2, -3 ... if that exists, so it never restores the snapshots a
     deleted Space left behind. The bucket is always private, whatever `private` says: it holds every
     message, token hash and invite. An existing public bucket is refused. So is anything that would
-    restart a reused board against an empty bucket: a different `bucket_id`, a MSGBOARD_REPLICA that
-    names no bucket, a deployed board whose bucket is missing (deleted or not visible to this token),
-    and a tagged board without MSGBOARD_REPLICA unless `bucket_id` names an existing bucket. All
-    checks run before the first write; a reused Space's bucket is in place before its secrets change.
+    restart a board against an empty bucket: a `bucket_id` other than the board's, a MSGBOARD_REPLICA
+    that isn't the hf://buckets/<namespace>/<bucket> deploy() set, or a bucket that is missing
+    (deleted or not visible to this token). All checks run before the first write.
 
     The Space gets the secrets MSGBOARD_OPERATOR_TOKEN (`operator_token`, from
     `msgboard.auth.new_token()`; the app makes it the admin credential on every boot) and HF_TOKEN
-    (`token`, default: the logged-in token), and the variables MSGBOARD_REPLICA and
-    MSGBOARD_SNAPSHOT_INTERVAL. That one HF token makes deploy()'s Hub calls and is what the Space
-    writes the bucket with, so it needs write access to both the Space and its bucket.
+    (`token`, default: the logged-in token), and the variables MSGBOARD_REPLICA=hf://buckets/<bucket>
+    and MSGBOARD_SNAPSHOT_INTERVAL=15. That one HF token makes deploy()'s Hub calls and is what the
+    Space writes the bucket with, so it needs write access to both the Space and its bucket.
 
     Without `operator_token`, deploy() makes one with new_token() and returns it as
     `Deployment.operator_token` (None when you pass one). On a reused board that rotates the admin
@@ -107,36 +104,24 @@ def deploy(space_id: str, *, token: str | None = None, operator_token: str | Non
     except RepositoryNotFoundError:
         info = None
     variables: dict[str, str] = {}
-    replica = current = None
-    tagged = False
     if info is not None:
+        if TAG not in (info.tags or []):
+            raise DeployError(f"{space_id} exists but is not a msgboard board (no {TAG!r} tag in its card), so it "
+                              "was left alone; choose another Space ID")
+        # A restart boots a reused board from its bucket, so never let it come back against an empty one.
         variables = {k: v.value for k, v in api.get_space_variables(space_id).items()}
         replica = variables.get("MSGBOARD_REPLICA")
-        tagged = TAG in (info.tags or [])
-        if not tagged and replica is None:
-            raise DeployError(f"{space_id} exists but is not a msgboard board (no {TAG!r} tag in its card and "
-                              "no MSGBOARD_REPLICA variable), so it was left alone; choose another Space ID")
-        # A restart boots a reused board from its bucket, so never let it come back against an empty one.
-        if replica is not None:
-            current = _bucket_of(replica)
-            if current is None:
-                raise DeployError(f"{space_id} has MSGBOARD_REPLICA={replica!r}, which names no HF bucket; set it "
-                                  "to hf://buckets/<namespace>/<bucket>[/<prefix>] where the board's snapshots are")
-            if bucket_id and bucket_id != current:
-                raise DeployError(f"{space_id} keeps its board in bucket {current}, not {bucket_id}; "
-                                  "leave bucket_id out to keep using it")
-        elif not bucket_id:
-            raise DeployError(f"{space_id} is a msgboard board without a MSGBOARD_REPLICA variable; "
-                              "pass bucket_id to say which bucket holds its snapshots")
-    bucket_id = bucket_id or current or _free_bucket_id(api, f"{space_id}-bucket")
-    if bucket_id != current:
-        replica = None  # the Space had no bucket yet: snapshots go to the new one's root
+        current = _bucket_of(replica)
+        if current is None:
+            raise DeployError(f"{space_id} has MSGBOARD_REPLICA={replica!r}, not hf://buckets/<namespace>/<bucket> "
+                              "as deploy() sets it; set it back to the bucket that holds the board's snapshots")
+        if bucket_id and bucket_id != current:
+            raise DeployError(f"{space_id} keeps its board in bucket {current}, not {bucket_id}; "
+                              "leave bucket_id out to keep using it")
+        bucket_id = current
+    bucket_id = bucket_id or _free_bucket_id(api, f"{space_id}-bucket")
     bucket = _bucket_info(api, bucket_id)
-    # A missing bucket is fine for a new Space or one never deployed (a deploy() stopped after create_repo),
-    # but a deployed board (tagged, or an old-layout Space with a Dockerfile) would restart empty: whether
-    # its bucket comes from MSGBOARD_REPLICA or, for a board without one, from `bucket_id`.
-    if bucket is None and info is not None and (
-            tagged or "Dockerfile" in api.list_repo_files(space_id, repo_type="space")):
+    if bucket is None and info is not None:
         raise DeployError(f"{space_id} is a deployed board, and its bucket {bucket_id} was not found (deleted, "
                           "or not visible to this token); refusing to restart the board against an empty bucket")
     if bucket is not None and not bucket.private:
@@ -146,17 +131,16 @@ def deploy(space_id: str, *, token: str | None = None, operator_token: str | Non
     files = _space_files(space_id, dist, title)
 
     secrets = {"MSGBOARD_OPERATOR_TOKEN": operator_token, "HF_TOKEN": token}
-    wanted = {"MSGBOARD_REPLICA": replica or f"hf://buckets/{bucket_id}",
-              "MSGBOARD_SNAPSHOT_INTERVAL": variables.get("MSGBOARD_SNAPSHOT_INTERVAL", SNAPSHOT_INTERVAL)}
+    wanted = {"MSGBOARD_REPLICA": f"hf://buckets/{bucket_id}", "MSGBOARD_SNAPSHOT_INTERVAL": SNAPSHOT_INTERVAL}
     created = info is None
     if created:  # secrets and variables come with the Space; nothing runs before the first commit
         api.create_repo(space_id, repo_type="space", private=private, space_sdk="docker",
                         space_hardware="cpu-basic",
                         space_secrets=[{"key": k, "value": v} for k, v in secrets.items()],
                         space_variables=[{"key": k, "value": v} for k, v in wanted.items()])
-    if bucket is None:  # after create_repo, so a retry finds the Space and reuses this bucket name
+    if bucket is None:
         api.create_bucket(bucket_id, private=True, exist_ok=True)
-    if not created:  # each of these restarts a reused Space, so only once its bucket is in place
+    if not created:  # each of these restarts the board
         for key, value in secrets.items():
             api.add_space_secret(space_id, key, value)
         for key, value in wanted.items():
@@ -206,11 +190,9 @@ class _Names:
 
 
 def _bucket_of(replica: str | None) -> str | None:
-    """The bucket ID in an `hf://buckets/<namespace>/<bucket>[/<prefix>]` replica URL."""
-    if not replica or not replica.startswith("hf://buckets/"):
-        return None
-    parts = replica[len("hf://buckets/"):].strip("/").split("/")
-    return "/".join(parts[:2]) if len(parts) >= 2 else None
+    """The bucket ID in the MSGBOARD_REPLICA deploy() sets, `hf://buckets/<namespace>/<bucket>`."""
+    match = re.fullmatch(r"hf://buckets/([^/]+/[^/]+)", replica or "")
+    return match[1] if match else None
 
 
 def _bucket_info(api, bucket_id: str):
@@ -274,10 +256,9 @@ def _requirements(dist) -> str:
 
 
 def _license(dist) -> bytes:
-    """LICENSE from the install's dist-info: licenses/ since PEP 639 (setuptools 77+), the top level before."""
-    for name in dist.metadata.get_all("License-File") or ["LICENSE"]:
-        for path in (f"licenses/{name}", name):
-            text = dist.read_text(path)
-            if text:
-                return text.encode()
+    """LICENSE from the install's dist-info, in licenses/ as setuptools 77+ (PEP 639) puts it."""
+    for name in dist.metadata.get_all("License-File") or []:
+        text = dist.read_text(f"licenses/{name}")
+        if text:
+            return text.encode()
     raise DeployError("the installed msgboard has no LICENSE in its metadata; reinstall it with setuptools>=77")

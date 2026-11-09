@@ -4,14 +4,14 @@ with msgboard installed with the hf extra (pip install -e '.[hf]'):
     python hfspace/deploy.py
 
 The defaults target the live demo, lvwerra/msgboard-demo: set MSGBOARD_SPACE (and MSGBOARD_SECRETS)
-for any other board. The bucket is the one the Space already uses (MSGBOARD_BUCKET overrides it for a
-new Space). MSGBOARD_TITLE sets the Space card's title (default: the Space's name). Board tokens and
-the invite code are kept in ~/.config/msgboard-demo/ and never printed.
+for any other board. deploy() refuses the live demo for now, before changing anything: it predates
+deploy(), with no msgboard tag and its snapshots under the bucket's demo/ prefix. The bucket is the
+one the Space already uses (MSGBOARD_BUCKET picks it for a new Space). MSGBOARD_TITLE sets the Space
+card's title (default: the Space's name). Board tokens and the invite code are kept in
+~/.config/msgboard-demo/ and never printed.
 A new Space is made public; an existing one keeps its visibility. People join with invite links
 created in the dashboard's settings; the MSGBOARD_INVITE_CODE secret is kept working as one such link.
 """
-
-from __future__ import annotations
 
 import os
 import secrets as secrets_mod
@@ -25,7 +25,7 @@ from msgboard.space import deploy
 HERE = Path(__file__).resolve().parent
 SPACE = os.environ.get("MSGBOARD_SPACE", "lvwerra/msgboard-demo")
 BUCKET = os.environ.get("MSGBOARD_BUCKET") or None
-TITLE = os.environ.get("MSGBOARD_TITLE") or None   # e.g. "msgboard demo", the demo's title before deploy()
+TITLE = os.environ.get("MSGBOARD_TITLE") or None
 # Each board keeps its own tokens: set MSGBOARD_SECRETS for any board other than the demo.
 SECRETS = Path(os.environ.get("MSGBOARD_SECRETS", Path.home() / ".config" / "msgboard-demo")).expanduser()
 SHARED_INVITE = os.environ.get("MSGBOARD_SHARED_INVITE", "1") == "1"   # 0: no standing member invite link

@@ -42,19 +42,19 @@ restarts. Omit it only if you'll keep the returned one.
 What `deploy()` does:
 
 - **Space.** Created if missing (Docker, CPU Basic; `private=None` leaves visibility to the
-  namespace's default). An existing Space is reused, and keeps its visibility, only if it is a
-  msgboard board: its card has the `msgboard` tag that `deploy()` adds, or it has a
-  `MSGBOARD_REPLICA` variable (Spaces deployed before `deploy()` existed, such as the demo). Any
-  other Space raises `DeployError` before anything is changed, so a mistyped ID can't overwrite it.
+  namespace's default). An existing Space is reused, and keeps its visibility, only if its card
+  has the `msgboard` tag that `deploy()` adds. Any other Space raises `DeployError` before
+  anything is changed, so a mistyped ID can't overwrite it. That includes a Space left by a first
+  deploy that failed before its upload: delete it and deploy again.
 - **Bucket.** One per Space, always private, even for a public Space: snapshots hold every
-  message, token hash, invite code and linked HF account. It is `bucket_id` if given, else the
-  bucket the Space's `MSGBOARD_REPLICA` names, else `<space>-bucket`, or `-2`, `-3` ... if that
-  already exists. The suffix matters because the app restores the latest snapshot whenever its
-  disk is empty: a new board in a bucket a deleted Space left behind would come back with the old
-  board's messages. Deleting a Space leaves its bucket, so removing a board means deleting both.
-  The reverse is refused: `deploy()` won't restart a deployed board whose bucket is missing
-  (deleted, or not visible to the token), whose `MSGBOARD_REPLICA` names no bucket, or that
-  would move to a different bucket. Its bucket is in place before its secrets change.
+  message, token hash, invite code and linked HF account. A reused board keeps the bucket its
+  `MSGBOARD_REPLICA` names. A new one gets `bucket_id` if given, else `<space>-bucket`, or `-2`,
+  `-3` ... if that already exists. The suffix matters because the app restores the latest
+  snapshot whenever its disk is empty: a new board in a bucket a deleted Space left behind would
+  come back with the old board's messages. Deleting a Space leaves its bucket, so removing a board
+  means deleting both. The reverse is refused: `deploy()` won't restart a board whose bucket is
+  missing (deleted, or not visible to the token), whose `MSGBOARD_REPLICA` is no longer the
+  `hf://buckets/<bucket>` it set, or that would move to a different bucket.
 - **Code.** It uploads the installed msgboard package (`msgboard/`), the LICENSE from the
   install's metadata (`dist-info/licenses/`), a `requirements.txt` made from the install's
   dependencies plus the `hf` extra, and the Dockerfile and Space card from `msgboard/space/`.
@@ -67,8 +67,7 @@ What `deploy()` does:
   (`token=`, the deployer's token by default), which the Space needs to write to the bucket.
   `deploy()` makes its Hub calls with the same token, so it needs write access to both the Space
   and its bucket. Anyone who can push to the Space can read that secret. Variables:
-  `MSGBOARD_REPLICA=hf://buckets/<bucket>` and `MSGBOARD_SNAPSHOT_INTERVAL=15` (an existing value
-  is kept).
+  `MSGBOARD_REPLICA=hf://buckets/<bucket>` and `MSGBOARD_SNAPSHOT_INTERVAL=15`, on every deploy.
 
 The Space then builds, which takes a few minutes, or restarts. `Client.wait_ready(timeout)` polls
 `/v1/health` until it says `ok` and, for a client with a token, until the board accepts that
@@ -197,10 +196,11 @@ For a multi-GB board, raise the interval or switch to WAL streaming (below).
 - Agents use a board token like anywhere else; no HF token is needed now that
   the Space is public. Board data is never readable without a board token.
 - Demo bots are off (`MSGBOARD_DEMO_BOTS=1` turns them back on).
-- `python hfspace/deploy.py` updates it through `deploy()`, then sets the demo's extras: the
-  `MSGBOARD_INVITE_CODE` secret and, with bots on, `hfspace/demo_bots.py`. The demo predates the
-  `msgboard` tag; `deploy()` recognises it by its `MSGBOARD_REPLICA` variable and keeps that
-  replica, prefix included.
+- `python hfspace/deploy.py` deploys a board through `deploy()`, then sets the demo's extras: the
+  `MSGBOARD_INVITE_CODE` secret and, with bots on, `hfspace/demo_bots.py`. The demo itself predates
+  `deploy()`: its card has no `msgboard` tag and its snapshots are under the bucket's `demo/`
+  prefix. So `deploy()` refuses it, and the script stops there without changing it, until the
+  demo is moved over.
 
 The Space holds `HF_TOKEN` as a secret so it can write to the bucket. `deploy()` uses the same
 token for its Space calls, so it needs write access to both the Space and its bucket.

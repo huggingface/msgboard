@@ -110,11 +110,15 @@ def _bodies(sent, path):
     return [json.loads(r.content) for r in sent if r.method == "POST" and r.url.path == path]
 
 
+def _commit(sent):
+    """The operations of the last commit sent."""
+    commit = [r for r in sent if r.url.path.endswith("/commit/main")][-1]
+    return [json.loads(line) for line in commit.content.splitlines()]
+
+
 def _committed(sent):
     """The files of the last commit sent, by path."""
-    commit = [r for r in sent if r.url.path.endswith("/commit/main")][-1]
-    lines = [json.loads(line) for line in commit.content.splitlines()]
-    return {line["value"]["path"]: base64.b64decode(line["value"]["content"]) for line in lines
+    return {line["value"]["path"]: base64.b64decode(line["value"]["content"]) for line in _commit(sent)
             if line["key"] == "file"}
 
 
@@ -156,40 +160,60 @@ def test_deploy_creates_a_private_board(hf_token, sent, delete_after):
 
 
 @pytest.mark.vcr
-def test_redeploy_reuses_the_board_and_refuses_one_whose_bucket_is_gone(hf_token, sent, delete_after):
+def test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket(hf_token, sent, delete_after):
     space, bucket = f"{NAMESPACE}/msgboard-25-rec-2", f"{NAMESPACE}/msgboard-25-rec-2-bucket"
     delete_after += [("space", space), ("bucket", bucket)]
+    api = HfApi(token=hf_token)
     first_token = new_token()[1]
     first = deploy(space, token=hf_token, operator_token=first_token, private=True)
     returned = first.operator_token is not None
     assert first.created and not returned, "a passed operator token isn't handed back"
+    api.upload_file(path_or_fileobj=b"not msgboard's", path_in_repo="stale.txt", repo_id=space, repo_type="space")
+    api.add_space_variable(space, "MSGBOARD_SNAPSHOT_INTERVAL", "60")
     sent.clear()
+    with pytest.raises(DeployError, match=f"keeps its board in bucket {bucket}, not {NAMESPACE}/other"):
+        deploy(space, token=hf_token, operator_token=first_token, bucket_id=f"{NAMESPACE}/other")
+    assert _writes(sent) == []
     second = deploy(space, token=hf_token, private=False, title="No")  # without operator_token, it rotates
     assert not second.created and second.bucket_id == bucket and second.private is True  # keeps its visibility
     rotated = second.operator_token not in (None, first_token)
     assert rotated, "deploy() made and returned a new operator token"
-    assert [w for w in _writes(sent) if "/repos/create" in w[1] or "/buckets/" in w[1] or "/variables" in w[1]] == []
+    assert [w for w in _writes(sent) if "/repos/create" in w[1] or "/buckets/" in w[1]] == []
     secrets_sent = {s["key"]: s["value"] for s in _bodies(sent, f"/api/spaces/{space}/secrets")}
     same = secrets_sent == {"MSGBOARD_OPERATOR_TOKEN": second.operator_token, "HF_TOKEN": hf_token}
     assert same, "the new operator token replaces the Space's secret"
+    assert [(v["key"], v["value"]) for v in _bodies(sent, f"/api/spaces/{space}/variables")] == [
+        ("MSGBOARD_SNAPSHOT_INTERVAL", "15")]                       # deploy()'s own, not the Space's
+    assert [op["value"]["path"] for op in _commit(sent) if op["key"] == "deletedFile"] == ["stale.txt"]
     assert _title(_committed(sent)["README.md"]) == "No"            # not YAML's False
-    HfApi(token=hf_token).delete_bucket(bucket)
+    api.delete_bucket(bucket)
     sent.clear()
     with pytest.raises(DeployError, match=f"its bucket {bucket} was not found"):
         deploy(space, token=hf_token, operator_token=first_token)
     assert _writes(sent) == []
+    api.add_space_variable(space, "MSGBOARD_REPLICA", f"hf://buckets/{bucket}/old")  # not where deploy() put it
+    sent.clear()
+    with pytest.raises(DeployError, match="not hf://buckets/<namespace>/<bucket> as deploy"):
+        deploy(space, token=hf_token, operator_token=first_token, bucket_id=bucket)
+    assert _writes(sent) == []
 
 
 @pytest.mark.vcr
-def test_deploy_leaves_a_space_that_is_not_a_board_alone(hf_token, sent, delete_after):
-    space = f"{NAMESPACE}/msgboard-25-rec-3"
-    delete_after.append(("space", space))
-    HfApi(token=hf_token).create_repo(space, repo_type="space", space_sdk="static", private=True)
+def test_deploy_leaves_other_spaces_and_public_buckets_alone(hf_token, sent, delete_after):
+    space, public = f"{NAMESPACE}/msgboard-25-rec-3", f"{NAMESPACE}/msgboard-25-rec-3-public"
+    delete_after += [("space", space), ("bucket", public), ("space", f"{space}-new")]
+    api = HfApi(token=hf_token)
+    # A MSGBOARD_REPLICA variable doesn't make a Space a board; only the tag deploy() puts in its card does
+    api.create_repo(space, repo_type="space", space_sdk="static", private=True,
+                    space_variables=[{"key": "MSGBOARD_REPLICA", "value": f"hf://buckets/{space}-bucket"}])
+    api.create_bucket(public, private=False)
     sent.clear()
     with pytest.raises(DeployError, match="not a msgboard board"):
         deploy(space, token=hf_token)
     with pytest.raises(DeployError, match="not a board token"):
         deploy(space, token=hf_token, operator_token="not-a-token")
+    with pytest.raises(DeployError, match=f"bucket {public} is public"):
+        deploy(f"{space}-new", token=hf_token, bucket_id=public, private=True)
     assert _writes(sent) == []
 
 
