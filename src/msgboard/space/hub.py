@@ -182,7 +182,7 @@ def _hf_token(token: str | None) -> str:
     return token
 
 
-def _hf_api(token: str):  # tests replace this with a fake
+def _hf_api(token: str):
     from huggingface_hub import HfApi
 
     return HfApi(token=token)

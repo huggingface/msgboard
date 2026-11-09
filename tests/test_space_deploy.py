@@ -1,306 +1,251 @@
-"""msgboard.space.deploy() against a fake HfApi, Client.wait_ready() and `deploy-space`."""
+"""msgboard.space.deploy(), `deploy-space` and Client.wait_ready().
 
+The Hub tests replay cassettes from tests/cassettes/, recorded once against private CPU Basic Spaces
+in NAMESPACE, which the tests delete again. To record them again, with a logged-in token that can
+write there: `python -m pytest tests/test_space_deploy.py --vcr-record=all`. Do that when the package
+gains or loses a file: the recorded preupload answers list the files uploaded then (a KeyError from
+huggingface_hub's commit code means they're stale). Changing what a file contains needs no new
+recording. Tokens never reach a cassette (see vcr_config); check new ones with
+`git grep -nE "hf_[A-Za-z0-9]{30}|fbt_" tests/cassettes`.
+
+`test_deploy_live` deploys a real Space and waits for its board; it runs only with `-m live`.
+"""
+
+import base64
+import json
+import re
+import secrets
 import stat
-import time
+import threading
 from pathlib import Path
-from types import SimpleNamespace
 
-import httpx
 import pytest
 
 pytest.importorskip("huggingface_hub")
-from huggingface_hub import SpaceCard  # noqa: E402
-from huggingface_hub.errors import BucketNotFoundError, RepositoryNotFoundError  # noqa: E402
+pytest.importorskip("pytest_vcr")
+import yaml  # noqa: E402
+from huggingface_hub import HfApi, SpaceCard, get_session, get_token  # noqa: E402
 
-from msgboard import db, store  # noqa: E402
 from msgboard.auth import new_token  # noqa: E402
 from msgboard.cli import main  # noqa: E402
 from msgboard.client import Client  # noqa: E402
-from msgboard.space import DeployError, deploy, hub  # noqa: E402
-from msgboard.space.app import ensure_board  # noqa: E402
+from msgboard.local import ThreadedServer  # noqa: E402
+from msgboard.space import DeployError, deploy  # noqa: E402
+
+from .conftest import free_port, init_board  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NOT_FOUND = SimpleNamespace(headers={}, request=None, status_code=404)
+NAMESPACE = "lewtun"  # where the cassettes were recorded
+# Tests that compare tokens assert a precomputed bool, so a failure never prints one.
+TOKEN = re.compile(r"\b(?:hf|fbt)_[A-Za-z0-9]{16,}(?:\.[A-Za-z0-9_-]+)?")  # an HF token or a board token
 
 
-class FakeHub:
-    """The HfApi calls deploy() makes, in memory. `writes` records every call that changes something."""
+def _redact(text):
+    if isinstance(text, bytes):
+        return _redact(text.decode()).encode()
+    return TOKEN.sub("<token>", text)
 
-    def __init__(self, user="alice"):
-        self.user = user
-        self.spaces: dict[str, dict] = {}
-        self.buckets: dict[str, bool] = {}   # id -> private
-        self.writes: list[tuple] = []
 
-    def add_space(self, space_id, *, tags=(), private=False, variables=None, files=None):
-        self.spaces[space_id] = {"tags": list(tags), "private": private, "variables": dict(variables or {}),
-                                 "secrets": {}, "files": dict(files or {".gitattributes": b"", "README.md": b"x"})}
+def _scrub_request(request):
+    # deploy() sends tokens as Space secrets; a commit and its preupload carry the whole package
+    if request.body:
+        upload = request.path.endswith(("/commit/main", "/preupload/main"))
+        request.body = b"<the package's files>" if upload else _redact(request.body)
+    return request
 
-    def whoami(self):
-        return {"name": self.user}
 
-    def space_info(self, space_id):
-        if space_id not in self.spaces:
-            raise RepositoryNotFoundError(space_id, response=NOT_FOUND)
-        s = self.spaces[space_id]
-        return SimpleNamespace(id=space_id, tags=s["tags"], private=s["private"], subdomain=space_id.replace("/", "-"),
-                               host=f"https://{space_id.replace('/', '-')}.hf.space")
+def _scrub_response(response):
+    response["headers"] = {k: v for k, v in response["headers"].items()
+                           if k.lower() != "set-cookie" and "token" not in k.lower()}
+    response["body"]["string"] = _redact(response["body"]["string"])
+    return response
 
-    def get_space_variables(self, space_id):
-        return {k: SimpleNamespace(key=k, value=v) for k, v in self.spaces[space_id]["variables"].items()}
 
-    def bucket_info(self, bucket_id):
-        if bucket_id not in self.buckets:
-            raise BucketNotFoundError(bucket_id, response=NOT_FOUND)
-        return SimpleNamespace(id=bucket_id, private=self.buckets[bucket_id])
+@pytest.fixture(scope="module")
+def vcr_config():
+    return {"filter_headers": ["authorization", "cookie", "user-agent"], "record_mode": "none",
+            "decode_compressed_response": True,
+            "before_record_request": _scrub_request, "before_record_response": _scrub_response}
 
-    def list_repo_files(self, space_id, repo_type):
-        return list(self.spaces[space_id]["files"])
 
-    def create_repo(self, space_id, **kw):
-        self.writes.append(("create_repo", space_id, kw))
-        self.add_space(space_id, private=bool(kw["private"]),
-                       variables={v["key"]: v["value"] for v in kw["space_variables"]})
-        self.spaces[space_id]["secrets"] = {s["key"]: s["value"] for s in kw["space_secrets"]}
-
-    def add_space_secret(self, space_id, key, value):
-        self.writes.append(("secret", space_id, key))
-        self.spaces[space_id]["secrets"][key] = value
-
-    def add_space_variable(self, space_id, key, value):
-        self.writes.append(("variable", space_id, key, value))
-        self.spaces[space_id]["variables"][key] = value
-
-    def create_bucket(self, bucket_id, *, private, exist_ok):
-        self.writes.append(("create_bucket", bucket_id, private))
-        self.buckets.setdefault(bucket_id, private)
-
-    def create_commit(self, space_id, *, repo_type, operations, commit_message):
-        self.writes.append(("commit", space_id, commit_message))
-        files = self.spaces[space_id]["files"]
-        for op in operations:
-            if hasattr(op, "path_or_fileobj"):
-                files[op.path_in_repo] = op.path_or_fileobj
-            else:
-                del files[op.path_in_repo]
-        if b"\n  - msgboard\n" in files["README.md"]:
-            self.spaces[space_id]["tags"] = ["msgboard", "docker"]
-        return SimpleNamespace(oid="c0ffee" * 6 + "abcd")
+class _Token(str):
+    def __repr__(self):  # a failing test's traceback shows its arguments
+        return "'<token>'"
 
 
 @pytest.fixture
-def fake(monkeypatch):
-    fake = FakeHub()
-    monkeypatch.setattr(hub, "_hf_api", lambda token: fake)
-    monkeypatch.setenv("HF_TOKEN", "hf_launcher")
-    return fake
+def hf_token(request):
+    """The logged-in token while recording, else a fake one: the cassettes answer without a token."""
+    return _Token(get_token() if request.config.getoption("--vcr-record") else "hf_" + "0" * 34)
 
 
-def test_new_space_gets_a_private_bucket_secrets_and_the_installed_package(fake):
-    operator = new_token()[1]
-    result = deploy("board", operator_token=operator, private=False)
-    assert result.space_id == "alice/board" and result.created and result.private is False
-    assert result.operator_token is None                 # the caller has it already
-    assert result.url == "https://alice-board.hf.space" and result.bucket_id == "alice/board-bucket"
-    assert result.commit.startswith("c0ffee")
-    assert ("commit", "alice/board", f"Deploy msgboard {hub._distribution().version}") in fake.writes
-    (_, _, repo), *_ = [w for w in fake.writes if w[0] == "create_repo"]
-    assert repo["private"] is False and repo["space_sdk"] == "docker" and repo["space_hardware"] == "cpu-basic"
-    assert ("create_bucket", "alice/board-bucket", True) in fake.writes      # private, whatever `private` says
-    space = fake.spaces["alice/board"]
-    assert space["secrets"] == {"MSGBOARD_OPERATOR_TOKEN": operator, "HF_TOKEN": "hf_launcher"}
-    assert space["variables"] == {"MSGBOARD_REPLICA": "hf://buckets/alice/board-bucket",
-                                  "MSGBOARD_SNAPSHOT_INTERVAL": "15"}
-    files = space["files"]
-    card = files["README.md"].decode()
-    assert 'title: "board"\n' in card and "hf_oauth: true\n" in card and "\n  - msgboard\n" in card
+@pytest.fixture
+def sent():
+    """The requests sent to the Hub, as the code sends them, also while a cassette answers."""
+    requests = []
+    hooks = get_session().event_hooks["request"]
+    hooks.append(requests.append)
+    yield requests
+    hooks.remove(requests.append)
+
+
+@pytest.fixture
+def delete_after(hf_token):
+    """Spaces and buckets ("space"/"bucket", ID) the test creates; deleted after it."""
+    created = []
+    yield created
+    api = HfApi(token=hf_token)
+    for kind, repo_id in created:
+        if kind == "space":
+            api.delete_repo(repo_id, repo_type="space", missing_ok=True)
+        else:
+            api.delete_bucket(repo_id, missing_ok=True)
+
+
+def _writes(sent):
+    return [(r.method, r.url.path) for r in sent if r.method != "GET"]
+
+
+def _bodies(sent, path):
+    return [json.loads(r.content) for r in sent if r.method == "POST" and r.url.path == path]
+
+
+def _committed(sent):
+    """The files of the last commit sent, by path."""
+    commit = [r for r in sent if r.url.path.endswith("/commit/main")][-1]
+    lines = [json.loads(line) for line in commit.content.splitlines()]
+    return {line["value"]["path"]: base64.b64decode(line["value"]["content"]) for line in lines
+            if line["key"] == "file"}
+
+
+def _title(card: bytes) -> str:
+    title = SpaceCard(card.decode()).data.title
+    assert yaml.safe_load(card.decode().split("---")[1])["title"] == title
+    return title
+
+
+@pytest.mark.vcr
+def test_deploy_creates_a_private_board(hf_token, sent, delete_after):
+    space = f"{NAMESPACE}/msgboard-25-rec-1"
+    delete_after += [("space", space), ("bucket", f"{space}-bucket")]
+    title = "Team 😀: run #1\x85 "     # YAML reads ': ' and ' #' as syntax, and U+0085/U+2028 as line breaks
+    d = deploy(space, token=hf_token, private=True, title=title)
+    assert (d.space_id, d.bucket_id, d.created, d.private) == (space, f"{space}-bucket", True, True)
+    assert d.url == "https://lewtun-msgboard-25-rec-1.hf.space" and d.commit
+    hidden = d.operator_token.startswith("fbt_") and d.operator_token not in repr(d)
+    assert hidden, "deploy() returns the operator token it made, and repr() leaves it out"
+    assert _writes(sent) == [("POST", "/api/repos/create"), ("POST", f"/api/buckets/{space}-bucket"),
+                             ("POST", "/api/validate-yaml"), ("POST", f"/api/spaces/{space}/preupload/main"),
+                             ("POST", f"/api/spaces/{space}/commit/main")]
+    (repo,) = _bodies(sent, "/api/repos/create")
+    assert (repo["visibility"], repo["sdk"], repo["hardware"]) == ("private", "docker", "cpu-basic")
+    secrets_sent = {s["key"]: s["value"] for s in repo["secrets"]}
+    same = secrets_sent == {"MSGBOARD_OPERATOR_TOKEN": d.operator_token, "HF_TOKEN": hf_token}
+    assert same, "the Space's secrets are the returned operator token and the HF token"
+    assert {v["key"]: v["value"] for v in repo["variables"]} == {
+        "MSGBOARD_REPLICA": f"hf://buckets/{space}-bucket", "MSGBOARD_SNAPSHOT_INTERVAL": "15"}
+    assert _bodies(sent, f"/api/buckets/{space}-bucket") == [{"visibility": "private"}]   # whatever `private` says
+    files = _committed(sent)
+    assert _title(files["README.md"]) == title and "msgboard" in SpaceCard(files["README.md"].decode()).data.tags
     assert files["LICENSE"] == (ROOT / "LICENSE").read_bytes()
     assert b'CMD ["python", "-m", "msgboard.space.app"]' in files["Dockerfile"]
-    requirements = files["requirements.txt"].decode().split()
-    assert "fastapi>=0.110" in requirements and "huggingface_hub>=1.31" in requirements
-    assert not any(r.startswith("pytest") for r in requirements)
-    for path in ("msgboard/__init__.py", "msgboard/dashboard.html", "msgboard/space/app.py",
-                 "msgboard/space/accounts.py", ".gitattributes"):
-        assert path in files
-    assert not any("__pycache__" in p or p.endswith(".pyc") for p in files)
+    assert "huggingface_hub>=1.31" in files["requirements.txt"].decode().split()
+    package = [p for p in files if p.startswith("msgboard/")]
+    assert "msgboard/space/app.py" in package and "msgboard/dashboard.html" in package
+    assert all(p.endswith((".py", ".html")) and "__pycache__" not in p for p in package)
 
 
-def test_new_space_skips_buckets_left_behind(fake):
-    fake.buckets.update({"alice/board-bucket": True, "alice/board-bucket-2": True})
-    result = deploy("alice/board", operator_token=new_token()[1])
-    assert result.bucket_id == "alice/board-bucket-3"
-    assert fake.spaces["alice/board"]["variables"]["MSGBOARD_REPLICA"] == "hf://buckets/alice/board-bucket-3"
-    assert fake.writes[0][2]["private"] is None          # the namespace's default
+@pytest.mark.vcr
+def test_redeploy_reuses_the_board_and_refuses_one_whose_bucket_is_gone(hf_token, sent, delete_after):
+    space, bucket = f"{NAMESPACE}/msgboard-25-rec-2", f"{NAMESPACE}/msgboard-25-rec-2-bucket"
+    delete_after += [("space", space), ("bucket", bucket)]
+    first_token = new_token()[1]
+    first = deploy(space, token=hf_token, operator_token=first_token, private=True)
+    returned = first.operator_token is not None
+    assert first.created and not returned, "a passed operator token isn't handed back"
+    sent.clear()
+    second = deploy(space, token=hf_token, private=False, title="No")  # without operator_token, it rotates
+    assert not second.created and second.bucket_id == bucket and second.private is True  # keeps its visibility
+    rotated = second.operator_token not in (None, first_token)
+    assert rotated, "deploy() made and returned a new operator token"
+    assert [w for w in _writes(sent) if "/repos/create" in w[1] or "/buckets/" in w[1] or "/variables" in w[1]] == []
+    secrets_sent = {s["key"]: s["value"] for s in _bodies(sent, f"/api/spaces/{space}/secrets")}
+    same = secrets_sent == {"MSGBOARD_OPERATOR_TOKEN": second.operator_token, "HF_TOKEN": hf_token}
+    assert same, "the new operator token replaces the Space's secret"
+    assert _title(_committed(sent)["README.md"]) == "No"            # not YAML's False
+    HfApi(token=hf_token).delete_bucket(bucket)
+    sent.clear()
+    with pytest.raises(DeployError, match=f"its bucket {bucket} was not found"):
+        deploy(space, token=hf_token, operator_token=first_token)
+    assert _writes(sent) == []
 
 
-def test_redeploy_reuses_the_space_and_its_bucket(fake, tmp_path):
-    first = deploy("alice/board", token="hf_other", private=True)      # deploy() makes the admin token
-    assert fake.spaces["alice/board"]["secrets"] == {"MSGBOARD_OPERATOR_TOKEN": first.operator_token,
-                                                     "HF_TOKEN": "hf_other"}
-    assert first.operator_token not in repr(first)
-    ensure_board(tmp_path, first.operator_token)       # what the Space app does with the secret on boot
-    conn = db.connect(tmp_path / "board.db")
-    assert store.authenticate(conn, first.operator_token, time.time()).is_admin
-    conn.close()
-    fake.spaces["alice/board"]["files"]["hfspace/app.py"] = b"old layout"
-    fake.writes.clear()
-    second_token = new_token()[1]
-    second = deploy("alice/board", operator_token=second_token, private=False)
-    assert not second.created and second.bucket_id == first.bucket_id
-    assert second.private is True                        # an existing Space keeps its visibility
-    assert not any(w[0] in ("create_repo", "variable") for w in fake.writes)
-    assert fake.spaces["alice/board"]["secrets"]["MSGBOARD_OPERATOR_TOKEN"] == second_token
-    files = fake.spaces["alice/board"]["files"]
-    assert "hfspace/app.py" not in files and ".gitattributes" in files
-    third = deploy("alice/board")                      # no operator_token: a reused board's admin token rotates
-    assert third.operator_token not in (None, second_token)
-    assert fake.spaces["alice/board"]["secrets"]["MSGBOARD_OPERATOR_TOKEN"] == third.operator_token
+@pytest.mark.vcr
+def test_deploy_leaves_a_space_that_is_not_a_board_alone(hf_token, sent, delete_after):
+    space = f"{NAMESPACE}/msgboard-25-rec-3"
+    delete_after.append(("space", space))
+    HfApi(token=hf_token).create_repo(space, repo_type="space", space_sdk="static", private=True)
+    sent.clear()
+    with pytest.raises(DeployError, match="not a msgboard board"):
+        deploy(space, token=hf_token)
+    with pytest.raises(DeployError, match="not a board token"):
+        deploy(space, token=hf_token, operator_token="not-a-token")
+    assert _writes(sent) == []
 
 
-def test_a_space_from_the_old_deploy_script_keeps_its_replica(fake):
-    fake.add_space("lvwerra/demo", variables={"MSGBOARD_REPLICA": "hf://buckets/lvwerra/demo-data/demo",
-                                              "MSGBOARD_SNAPSHOT_INTERVAL": "30"})
-    fake.buckets["lvwerra/demo-data"] = True
-    result = deploy("lvwerra/demo", operator_token=new_token()[1], bucket_id="lvwerra/demo-data")
-    assert result.bucket_id == "lvwerra/demo-data"
-    assert fake.spaces["lvwerra/demo"]["variables"] == {"MSGBOARD_REPLICA": "hf://buckets/lvwerra/demo-data/demo",
-                                                         "MSGBOARD_SNAPSHOT_INTERVAL": "30"}
-
-
-def test_an_interrupted_first_deploy_gets_its_bucket_before_any_secret_changes(fake):
-    # create_repo() ran (default card, no tag yet, variables set), then deploy() stopped before the bucket
-    fake.add_space("alice/board", variables={"MSGBOARD_REPLICA": "hf://buckets/alice/board-bucket",
-                                             "MSGBOARD_SNAPSHOT_INTERVAL": "15"})
-    result = deploy("alice/board", operator_token=new_token()[1])
-    assert result.bucket_id == "alice/board-bucket" and not result.created
-    assert fake.writes[0] == ("create_bucket", "alice/board-bucket", True)
-    assert [w[0] for w in fake.writes[1:3]] == ["secret", "secret"]
-
-
-def test_missing_explicit_recovery_bucket_is_refused(fake):
-    fake.add_space(
-        "alice/board", tags=["msgboard"], variables={},
-        files={"Dockerfile": b"FROM existing"},
-    )
-    with pytest.raises(DeployError):
-        deploy(
-            "alice/board", operator_token=new_token()[1],
-            bucket_id="alice/missing-backup",
-        )
-    assert fake.writes == []
-
-
-def test_a_tagged_board_without_a_replica_recovers_from_an_existing_bucket(fake):
-    fake.add_space("alice/board", tags=["msgboard"], files={".gitattributes": b"", "Dockerfile": b"FROM existing"})
-    fake.buckets["alice/backup"] = True
-    result = deploy("alice/board", operator_token=new_token()[1], bucket_id="alice/backup")
-    assert result.bucket_id == "alice/backup" and not any(w[0] == "create_bucket" for w in fake.writes)
-    assert fake.spaces["alice/board"]["variables"]["MSGBOARD_REPLICA"] == "hf://buckets/alice/backup"
-
-
-def test_card_title_override(fake):
-    deploy("alice/board", operator_token=new_token()[1], title="Team board: run 7")
-    assert 'title: "Team board: run 7"\n' in fake.spaces["alice/board"]["files"]["README.md"].decode()
-    deploy("alice/plain", operator_token=new_token()[1], title="msgboard demo")
-    assert 'title: "msgboard demo"\n' in fake.spaces["alice/plain"]["files"]["README.md"].decode()
-
-
-@pytest.mark.parametrize("space_id, title", [("alice/board", "true"), ("alice/board", "No"), ("alice/board", "null"),
-                                             ("alice/board", "1.5"), ("alice/2024", None), ("alice/board", "a: b # c"),
-                                             ("alice/board", "Team 😀"), ("alice/board", "a\x85b\u2028c\u2029d\x7f")])
-def test_card_title_reads_back_as_written(fake, space_id, title):
-    # YAML reads bare true/No as booleans, null as None and 2024 as a number, an emoji's JSON escape as
-    # two lone surrogates, and U+0085/U+2028/U+2029 as line breaks
-    yaml = pytest.importorskip("yaml")
-    deploy(space_id, operator_token=new_token()[1], title=title)
-    card = fake.spaces[space_id]["files"]["README.md"].decode()
-    expected = title or space_id.split("/")[1]
-    assert yaml.safe_load(card.split("---")[1])["title"] == expected
-    assert SpaceCard(card).data.title == expected
-
-
-def test_symlinks_out_of_the_package_are_not_uploaded(monkeypatch, tmp_path):
-    package = tmp_path / "msgboard"
-    package.mkdir()
-    (package / "board.py").write_text("x = 1\n")
-    (tmp_path / "secret.py").write_text("TOKEN = 'do not upload'\n")
-    (package / "link.py").symlink_to(tmp_path / "secret.py")
-    monkeypatch.setattr(hub, "_PACKAGE", package)
-    files = hub._space_files("alice/board", hub._distribution())
-    assert "msgboard/board.py" in files and "msgboard/link.py" not in files
-
-
-@pytest.mark.parametrize("case", ["foreign space", "other bucket", "public bucket", "bad operator token",
-                                  "replica is a directory", "replica names no bucket", "tagged, bucket missing",
-                                  "old layout, bucket missing", "tagged, no replica"])
-def test_refusals_change_nothing(fake, case):
-    token = new_token()[1]
-    kwargs = {}
-    gone = {"MSGBOARD_REPLICA": "hf://buckets/alice/gone/board"}
-    if case == "foreign space":
-        fake.add_space("alice/board", tags=["gradio"])
-    elif case == "other bucket":
-        fake.add_space("alice/board", tags=["msgboard"], variables={"MSGBOARD_REPLICA": "hf://buckets/alice/a"})
-        kwargs = {"bucket_id": "alice/b"}
-    elif case == "replica is a directory":    # store_from_url() accepts it, but it names no bucket
-        fake.add_space("alice/board", tags=["msgboard"], variables={"MSGBOARD_REPLICA": "/data/board"})
-    elif case == "replica names no bucket":
-        fake.add_space("alice/board", variables={"MSGBOARD_REPLICA": "hf://buckets/alice"})
-    elif case == "tagged, bucket missing":    # deleted, or not visible to this token
-        fake.add_space("alice/board", tags=["msgboard"], variables=gone)
-    elif case == "old layout, bucket missing":
-        fake.add_space("alice/board", variables=gone, files={".gitattributes": b"", "Dockerfile": b"FROM x"})
-    elif case == "tagged, no replica":
-        fake.add_space("alice/board", tags=["msgboard"])
-    elif case == "public bucket":
-        fake.buckets["alice/board-bucket"] = False
-        kwargs = {"bucket_id": "board-bucket"}
-    else:
-        token = "not-a-token"
-    before = {k: dict(v, files=dict(v["files"])) for k, v in fake.spaces.items()}
-    with pytest.raises(DeployError):
-        deploy("alice/board", operator_token=token, **kwargs)
-    assert fake.writes == [] and fake.spaces == before
-
-
-def test_wait_ready_waits_through_starting_and_a_stale_operator_token():
-    answers = iter([httpx.ConnectError("refused"),
-                    httpx.Response(503, json={"error": {"code": "starting", "message": "board is starting"}}),
-                    httpx.Response(200, json={"status": "starting", "error": None}),
-                    httpx.Response(200, json={"status": "ok"}), httpx.Response(401, json={}),
-                    httpx.Response(200, json={"status": "ok"}), httpx.Response(200, json={"name": "operator"})])
-    seen = []
-
-    def handler(request):
-        seen.append(request.url.path)
-        answer = next(answers)
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
-
-    with Client("https://board.example", "tok", transport=httpx.MockTransport(handler)) as client:
-        assert client.wait_ready(5, interval=0) is None
-    assert seen == ["/v1/health"] * 4 + ["/v1/me", "/v1/health", "/v1/me"]
-
-
-def test_wait_ready_times_out_naming_the_last_answer():
-    transport = httpx.MockTransport(lambda r: httpx.Response(200, json={"status": "starting", "error": "boom"}))
-    with Client("https://board.example", "", transport=transport) as client:
-        with pytest.raises(TimeoutError, match=r"200 'starting' \(boom\)"):
-            client.wait_ready(0.05, interval=0.01)
-
-
-def test_deploy_space_cli_keeps_the_operator_token_in_a_private_file(fake, monkeypatch, tmp_path, capsys):
+@pytest.mark.vcr
+def test_deploy_space_cli_keeps_the_operator_token_in_a_private_file(hf_token, sent, delete_after, monkeypatch,
+                                                                       tmp_path, capsys):
+    space = f"{NAMESPACE}/msgboard-25-rec-4"
+    delete_after += [("space", space), ("bucket", f"{space}-bucket")]
+    monkeypatch.setenv("HF_TOKEN", hf_token)
     monkeypatch.setenv("HOME", str(tmp_path))
-    assert main(["deploy-space", "board", "--public"]) == 0
-    path = tmp_path / ".config/msgboard/spaces/alice/board/operator.token"
+    assert main(["deploy-space", space, "--private"]) == 0
+    path = tmp_path / ".config/msgboard/spaces" / space / "operator.token"
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     token = path.read_text().strip()
-    assert fake.spaces["alice/board"]["secrets"]["MSGBOARD_OPERATOR_TOKEN"] == token
-    assert main(["deploy-space", "alice/board"]) == 0       # reuses the file, so the board keeps its operator
-    assert fake.spaces["alice/board"]["secrets"]["MSGBOARD_OPERATOR_TOKEN"] == token
-    assert token not in capsys.readouterr().out
-    fake.add_space("alice/other")
-    assert main(["deploy-space", "other"]) == 1
-    assert "not a msgboard board" in capsys.readouterr().err
-    assert not (tmp_path / ".config/msgboard/spaces/alice/other").exists()
+    # Reuses the file, so the board keeps its operator. The new title makes this run commit even when the
+    # package has changed since the cassette was recorded (an unchanged package skips the commit).
+    assert main(["deploy-space", space, "--title", "board"]) == 0
+    (repo,) = _bodies(sent, "/api/repos/create")
+    first = {s["key"]: s["value"] for s in repo["secrets"]}["MSGBOARD_OPERATOR_TOKEN"]
+    again = {s["key"]: s["value"] for s in _bodies(sent, f"/api/spaces/{space}/secrets")}["MSGBOARD_OPERATOR_TOKEN"]
+    same = first == token and again == token
+    assert same, "both runs install the saved token"
+    leaked = token in capsys.readouterr().out
+    assert not leaked, "the CLI printed the operator token"
+
+
+def test_wait_ready_waits_for_the_board_to_accept_its_token(tmp_path):
+    token = init_board(tmp_path)
+    url = f"http://127.0.0.1:{(port := free_port())}"
+    with Client(url, token) as client:
+        with pytest.raises(TimeoutError, match="ConnectError"):     # nothing listens yet
+            client.wait_ready(0.2, interval=0.05)
+        server = ThreadedServer(tmp_path, port=port)
+        starting = threading.Timer(0.3, server.start)
+        starting.start()
+        try:
+            client.wait_ready(15, interval=0.05)
+            with Client(url, new_token()[1]) as stale:              # e.g. the previous operator token
+                with pytest.raises(TimeoutError, match="/v1/me answered 401"):
+                    stale.wait_ready(0.3, interval=0.05)
+        finally:
+            starting.join()
+            server.stop()
+
+
+@pytest.mark.live
+def test_deploy_live():
+    """Deploys a private CPU Basic Space, checks that the returned token is the board's admin, deletes both."""
+    api = HfApi()
+    space = f"{api.whoami()['name']}/msgboard-live-{secrets.token_hex(4)}"
+    try:
+        d = deploy(space, private=True)
+        gate = {"headers": {"Authorization": f"Bearer {get_token()}"}, "token_header": "X-Msgboard-Token"}
+        with Client(d.url, d.operator_token, **gate) as operator:
+            operator.wait_ready(900)
+            assert operator.me()["role"] == "admin"
+    finally:
+        api.delete_repo(space, repo_type="space", missing_ok=True)
+        api.delete_bucket(f"{space}-bucket", missing_ok=True)

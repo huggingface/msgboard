@@ -1,0 +1,203 @@
+interactions:
+- request:
+    body: '{"name":"msgboard-25-rec-3","organization":"lewtun","visibility":"private","type":"space","sdk":"static"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '105'
+      content-type:
+      - application/json
+      host:
+      - huggingface.co
+      x-amzn-trace-id:
+      - ee8c7785-1104-4cf3-900b-e4b750d9946e
+    method: POST
+    uri: https://huggingface.co/api/repos/create
+  response:
+    body:
+      string: '{"url":"https://huggingface.co/spaces/lewtun/msgboard-25-rec-3","name":"lewtun/msgboard-25-rec-3","id":"6af1865f1219905ac53d57d7","filesCopyPending":false}'
+    headers:
+      access-control-allow-origin:
+      - https://huggingface.co
+      access-control-expose-headers:
+      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
+      access-control-max-age:
+      - '86400'
+      connection:
+      - keep-alive
+      content-length:
+      - '155'
+      content-type:
+      - application/json; charset=utf-8
+      cross-origin-opener-policy:
+      - same-origin
+      date:
+      - Mon, 09 Nov 2026 08:37:51 GMT
+      etag:
+      - W/"9b-qV5uh9WZ/TF21U9mTc/PfQW4Oss"
+      referrer-policy:
+      - strict-origin-when-cross-origin
+      vary:
+      - Origin
+      x-powered-by:
+      - huggingface-moon
+      x-request-id:
+      - Root=1-6af1865f-265d30887a939ce043a96078;ee8c7785-1104-4cf3-900b-e4b750d9946e
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - huggingface.co
+      x-amzn-trace-id:
+      - 697077cc-38d6-455f-813b-9b79d217e3d0
+    method: GET
+    uri: https://huggingface.co/api/spaces/lewtun/msgboard-25-rec-3
+  response:
+    body:
+      string: "{\"_id\":\"6af1865f1219905ac53d57d7\",\"id\":\"lewtun/msgboard-25-rec-3\",\"sdk\":\"static\",\"likes\":0,\"tags\":[\"static\",\"region:us\"],\"private\":true,\"author\":\"lewtun\",\"sha\":\"54d93ff09a56a1d0b3cbd0518a1a034f0998736f\",\"lastModified\":\"2026-11-09T08:37:51.000Z\",\"cardData\":{\"title\":\"Msgboard
+        25 Rec 3\",\"emoji\":\"\U0001F4CA\",\"colorFrom\":\"green\",\"colorTo\":\"indigo\",\"sdk\":\"static\",\"pinned\":false},\"subdomain\":\"lewtun-msgboard-25-rec-3\",\"gated\":false,\"disabled\":false,\"host\":\"https://lewtun-msgboard-25-rec-3.static.hf.space\",\"region\":\"us\",\"visibility\":\"private\",\"siblings\":[{\"rfilename\":\".gitattributes\"},{\"rfilename\":\"README.md\"},{\"rfilename\":\"index.html\"},{\"rfilename\":\"style.css\"}],\"createdAt\":\"2026-11-09T08:37:51.000Z\",\"usedStorage\":0,\"runtime\":{\"stage\":\"RUNNING\",\"hardware\":{\"current\":null,\"requested\":null},\"replicas\":{\"requested\":1,\"current\":1}}}"
+    headers:
+      access-control-allow-origin:
+      - https://huggingface.co
+      access-control-expose-headers:
+      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
+      access-control-max-age:
+      - '86400'
+      connection:
+      - keep-alive
+      content-length:
+      - '827'
+      content-type:
+      - application/json; charset=utf-8
+      cross-origin-opener-policy:
+      - same-origin
+      date:
+      - Mon, 09 Nov 2026 08:37:51 GMT
+      etag:
+      - W/"33b-Dt/p7IC2y2/B+++JlbNUTMGmxaQ"
+      referrer-policy:
+      - strict-origin-when-cross-origin
+      vary:
+      - Origin
+      x-powered-by:
+      - huggingface-moon
+      x-request-id:
+      - Root=1-6af1865f-69e5a9733fb98d6132c0d728;697077cc-38d6-455f-813b-9b79d217e3d0
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - huggingface.co
+      x-amzn-trace-id:
+      - 389f60a2-99e0-475c-bde5-b99b63d4577a
+    method: GET
+    uri: https://huggingface.co/api/spaces/lewtun/msgboard-25-rec-3/variables
+  response:
+    body:
+      string: '{}'
+    headers:
+      access-control-allow-origin:
+      - https://huggingface.co
+      access-control-expose-headers:
+      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
+      access-control-max-age:
+      - '86400'
+      connection:
+      - keep-alive
+      content-length:
+      - '2'
+      content-type:
+      - application/json; charset=utf-8
+      cross-origin-opener-policy:
+      - same-origin
+      date:
+      - Mon, 09 Nov 2026 08:37:51 GMT
+      etag:
+      - W/"2-vyGp6PvFo4RvsFtPoIWeCReyIC8"
+      referrer-policy:
+      - strict-origin-when-cross-origin
+      vary:
+      - Origin
+      x-powered-by:
+      - huggingface-moon
+      x-request-id:
+      - Root=1-6af1865f-62b942673366dbe35aacddcd;389f60a2-99e0-475c-bde5-b99b63d4577a
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"msgboard-25-rec-3","organization":"lewtun","type":"space"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '67'
+      content-type:
+      - application/json
+      host:
+      - huggingface.co
+      x-amzn-trace-id:
+      - 288e9b9f-1951-4cdd-9098-58410057aa87
+    method: DELETE
+    uri: https://huggingface.co/api/repos/delete
+  response:
+    body:
+      string: OK
+    headers:
+      access-control-allow-origin:
+      - https://huggingface.co
+      access-control-expose-headers:
+      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
+      access-control-max-age:
+      - '86400'
+      connection:
+      - keep-alive
+      content-length:
+      - '2'
+      content-type:
+      - text/plain; charset=utf-8
+      cross-origin-opener-policy:
+      - same-origin
+      date:
+      - Mon, 09 Nov 2026 08:37:52 GMT
+      etag:
+      - W/"2-nOO9QiTIwXgNtWtBJezz8kv3SLc"
+      referrer-policy:
+      - strict-origin-when-cross-origin
+      vary:
+      - Origin
+      x-powered-by:
+      - huggingface-moon
+      x-request-id:
+      - Root=1-6af1865f-0d96f5637d27cb0b28286880;288e9b9f-1951-4cdd-9098-58410057aa87
+    status:
+      code: 200
+      message: OK
+version: 1
