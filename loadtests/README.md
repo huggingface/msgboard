@@ -31,7 +31,7 @@ Run from the prototype directory, using a virtualenv on local disk:
 
 ```sh
 python -m pip install -e '.[test]' huggingface_hub aiohttp==3.13.2
-python space/deploy.py
+python space/deploy.py <namespace>/<space>
 ```
 
 `deploy.py` uploads source and hashes, creates a private CPU Basic Space if absent,
@@ -49,14 +49,15 @@ artifacts make the storage caveat observable, rather than hypothetical.
 ## Loopback sweeps
 
 ```sh
-python loadtests/run_space_suite.py matrix rate fanout volume limits --duration 10
+URL=https://<namespace>-<space>.hf.space
+python loadtests/run_space_suite.py matrix rate fanout volume limits --url "$URL" --duration 10
 python loadtests/run_space_suite.py rate matrix fanout limits volume attachments unicode \
-  --config loadtests/aio-driver.json --suffix=-aio --duration 6
-python loadtests/run_space_suite.py scenario --config loadtests/backend-final.json --suffix=-final
+  --url "$URL" --config loadtests/aio-driver.json --suffix=-aio --duration 6
+python loadtests/run_space_suite.py scenario --url "$URL" --config loadtests/backend-final.json --suffix=-final
 ```
 
 The controller launches each suite through `POST /_bench/jobs`, polls its status,
-and saves incremental JSON locally. Override `--url`, `--token-file`,
+and saves incremental JSON locally. `--url` is required. Override `--token-file`,
 `--output-dir`, and `--suffix` as needed. `--config FILE` supplies custom scenarios.
 Do not run overlapping suites or an external driver at the same time.
 
@@ -95,8 +96,8 @@ Custom configurations may set `reuse_channel_id` and an `after` cursor of
 `{"random_max": 999900}` for uniformly random pages in an existing million-row channel.
 
 ```sh
-python loadtests/attachments.py --hf-auth
-python loadtests/unicode_boundary.py --hf-auth
+python loadtests/attachments.py --url https://<namespace>-<space>.hf.space --hf-auth
+python loadtests/unicode_boundary.py --url https://<namespace>-<space>.hf.space --hf-auth
 python loadtests/crash_load.py
 python loadtests/summarize.py
 python -m pytest -q
