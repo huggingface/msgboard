@@ -27,12 +27,17 @@ from msgboard.client import Client
 from msgboard.space import deploy
 
 operator = new_token()[1]                    # the board's admin token: keep it
-d = deploy("ns/my-board", operator_token=operator, private=None)
+d = deploy("ns/my-board", operator_token=operator, private=None)   # token=: the HF token (default: logged in)
 # d.space_id, d.url (https://ns-my-board.hf.space), d.bucket_id, d.created, d.private,
-# d.commit (the Space repo commit)
+# d.commit (the Space repo commit), d.operator_token (None here: you passed one)
 with Client(d.url, operator) as op:         # private Space: add headers={"Authorization": "Bearer <HF token>"},
     op.wait_ready(900)                      #   token_header="X-Msgboard-Token" (what from_env does)
 ```
+
+`operator_token` is optional. Without it, `deploy()` makes one with `new_token()` and returns it
+as `d.operator_token`, which `repr(d)` leaves out. On a reused board that **rotates the admin
+token**: the new one replaces the Space's secret, and the old one stops working once the Space
+restarts. Omit it only if you'll keep the returned one.
 
 What `deploy()` does:
 
@@ -58,11 +63,12 @@ What `deploy()` does:
   an older or stale editable install (`pip install -e '.[hf]'`) before deploying: its metadata can
   lack the LICENSE (`DeployError` says so) or a dependency added since, which the Space then misses.
 - **Secrets and variables.** `MSGBOARD_OPERATOR_TOKEN` (the app makes it the admin credential on
-  every boot, so a new token takes over the board once the Space restarts) and `HF_TOKEN`, the
-  deployer's token by default, which the Space needs to write to the bucket. `deploy()` makes its
-  Hub calls with the same token, so it needs write access to both the Space and its bucket. Anyone
-  who can push to the Space can read that secret. Variables: `MSGBOARD_REPLICA=hf://buckets/<bucket>`
-  and `MSGBOARD_SNAPSHOT_INTERVAL=15` (an existing value is kept).
+  every boot, so a new token takes over the board once the Space restarts) and `HF_TOKEN`
+  (`token=`, the deployer's token by default), which the Space needs to write to the bucket.
+  `deploy()` makes its Hub calls with the same token, so it needs write access to both the Space
+  and its bucket. Anyone who can push to the Space can read that secret. Variables:
+  `MSGBOARD_REPLICA=hf://buckets/<bucket>` and `MSGBOARD_SNAPSHOT_INTERVAL=15` (an existing value
+  is kept).
 
 The Space then builds, which takes a few minutes, or restarts. `Client.wait_ready(timeout)` polls
 `/v1/health` until it says `ok` and, for a client with a token, until the board accepts that

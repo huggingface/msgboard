@@ -1,7 +1,5 @@
 """python -m msgboard {init,serve,restore,backup,rotate-operator-token,demo,deploy-space}"""
 
-from __future__ import annotations
-
 import argparse
 import ipaddress
 import os
@@ -259,15 +257,15 @@ def cmd_deploy_space(args) -> int:
         token_path = Path(args.token_file or Path.home() / ".config/msgboard/spaces" / space_id / OPERATOR_TOKEN_FILE)
         token_path = token_path.expanduser()
         # A new token replaces the Space's MSGBOARD_OPERATOR_TOKEN secret, which the app adopts on restart.
-        token = token_path.read_text().strip() if token_path.exists() else new_token()[1]
-        result = deploy(space_id, operator_token=token, bucket_id=args.bucket, private=args.private,
+        operator = token_path.read_text().strip() if token_path.exists() else new_token()[1]
+        result = deploy(space_id, operator_token=operator, bucket_id=args.bucket, private=args.private,
                         title=args.title)
     except (DeployError, HfHubHTTPError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     if not token_path.exists():
         token_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        _write_secret_file(token_path, token)
+        _write_secret_file(token_path, operator)
     print(f"{'Created' if result.created else 'Updated'} the {'private' if result.private else 'public'} "
           f"Space {result.space_id} at {result.url}")
     print(f"Snapshots go to the private bucket {result.bucket_id}.")
@@ -280,7 +278,7 @@ def cmd_deploy_space(args) -> int:
     if result.private:  # the Space's gate wants an HF token in Authorization; the board token moves aside
         gate = {"headers": {"Authorization": f"Bearer {os.environ.get('MSGBOARD_HF_TOKEN') or get_token()}"},
                 "token_header": "X-Msgboard-Token"}
-    with Client(result.url, token, **gate) as client:
+    with Client(result.url, operator, **gate) as client:
         try:
             client.wait_ready(args.wait)
         except TimeoutError as exc:

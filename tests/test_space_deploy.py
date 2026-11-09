@@ -1,6 +1,7 @@
 """msgboard.space.deploy() against a fake HfApi, Client.wait_ready() and `deploy-space`."""
 
 import stat
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,10 +12,12 @@ pytest.importorskip("huggingface_hub")
 from huggingface_hub import SpaceCard  # noqa: E402
 from huggingface_hub.errors import BucketNotFoundError, RepositoryNotFoundError  # noqa: E402
 
+from msgboard import db, store  # noqa: E402
 from msgboard.auth import new_token  # noqa: E402
 from msgboard.cli import main  # noqa: E402
 from msgboard.client import Client  # noqa: E402
 from msgboard.space import DeployError, deploy, hub  # noqa: E402
+from msgboard.space.app import ensure_board  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 NOT_FOUND = SimpleNamespace(headers={}, request=None, status_code=404)
@@ -97,6 +100,7 @@ def test_new_space_gets_a_private_bucket_secrets_and_the_installed_package(fake)
     operator = new_token()[1]
     result = deploy("board", operator_token=operator, private=False)
     assert result.space_id == "alice/board" and result.created and result.private is False
+    assert result.operator_token is None                 # the caller has it already
     assert result.url == "https://alice-board.hf.space" and result.bucket_id == "alice/board-bucket"
     assert result.commit.startswith("c0ffee")
     assert ("commit", "alice/board", f"Deploy msgboard {hub._distribution().version}") in fake.writes
@@ -129,8 +133,15 @@ def test_new_space_skips_buckets_left_behind(fake):
     assert fake.writes[0][2]["private"] is None          # the namespace's default
 
 
-def test_redeploy_reuses_the_space_and_its_bucket(fake):
-    first = deploy("alice/board", operator_token=new_token()[1], private=True)
+def test_redeploy_reuses_the_space_and_its_bucket(fake, tmp_path):
+    first = deploy("alice/board", token="hf_other", private=True)      # deploy() makes the admin token
+    assert fake.spaces["alice/board"]["secrets"] == {"MSGBOARD_OPERATOR_TOKEN": first.operator_token,
+                                                     "HF_TOKEN": "hf_other"}
+    assert first.operator_token not in repr(first)
+    ensure_board(tmp_path, first.operator_token)       # what the Space app does with the secret on boot
+    conn = db.connect(tmp_path / "board.db")
+    assert store.authenticate(conn, first.operator_token, time.time()).is_admin
+    conn.close()
     fake.spaces["alice/board"]["files"]["hfspace/app.py"] = b"old layout"
     fake.writes.clear()
     second_token = new_token()[1]
@@ -141,6 +152,9 @@ def test_redeploy_reuses_the_space_and_its_bucket(fake):
     assert fake.spaces["alice/board"]["secrets"]["MSGBOARD_OPERATOR_TOKEN"] == second_token
     files = fake.spaces["alice/board"]["files"]
     assert "hfspace/app.py" not in files and ".gitattributes" in files
+    third = deploy("alice/board")                      # no operator_token: a reused board's admin token rotates
+    assert third.operator_token not in (None, second_token)
+    assert fake.spaces["alice/board"]["secrets"]["MSGBOARD_OPERATOR_TOKEN"] == third.operator_token
 
 
 def test_a_space_from_the_old_deploy_script_keeps_its_replica(fake):

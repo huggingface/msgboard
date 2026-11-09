@@ -8,7 +8,7 @@ Hub API (DEPLOY_SPACES.md explains why it is not a bucket mount).
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import metadata
 from pathlib import Path
 
@@ -37,15 +37,18 @@ class Deployment:
     created: bool                  # True if this call created the Space, False if it reused one
     private: bool                  # the Space's visibility; a reused Space keeps its own
     commit: str                    # the Space repo commit that holds this deployment
+    # The admin token deploy() made when called without operator_token (None if the caller passed one).
+    # It's left out of repr() so printing or logging a Deployment never shows it.
+    operator_token: str | None = field(default=None, repr=False)
 
 
-def _resolve_space_id(space_id: str, *, hf_token: str | None = None) -> str:
+def _resolve_space_id(space_id: str, *, token: str | None = None) -> str:
     """Return `space_id` as "namespace/name". A bare name goes in the logged-in account, as in Trackio."""
-    return _Names(_hf_api(_hf_token(hf_token))).full(space_id)
+    return _Names(_hf_api(_hf_token(token))).full(space_id)
 
 
-def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
-           private: bool | None = None, hf_token: str | None = None, title: str | None = None) -> Deployment:
+def deploy(space_id: str, *, token: str | None = None, operator_token: str | None = None,
+           bucket_id: str | None = None, private: bool | None = None, title: str | None = None) -> Deployment:
     """Create or update the board Space `space_id` and return a `Deployment`.
 
     `space_id` is "namespace/name" or a bare name for the logged-in account. A missing Space is
@@ -66,11 +69,19 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
 
     The Space gets the secrets MSGBOARD_OPERATOR_TOKEN (`operator_token`, from
     `msgboard.auth.new_token()`; the app makes it the admin credential on every boot) and HF_TOKEN
-    (`hf_token`, default: the logged-in token), and the variables MSGBOARD_REPLICA and
-    MSGBOARD_SNAPSHOT_INTERVAL. That one token makes deploy()'s Hub calls and is what the Space writes
-    the bucket with, so it needs write access to both the Space and its bucket. The Space's files
-    become the installed msgboard package, LICENSE, requirements.txt, the Dockerfile and the card, whose
-    title is `title` (default: the Space's name); anything else in the Space repo is deleted.
+    (`token`, default: the logged-in token), and the variables MSGBOARD_REPLICA and
+    MSGBOARD_SNAPSHOT_INTERVAL. That one HF token makes deploy()'s Hub calls and is what the Space
+    writes the bucket with, so it needs write access to both the Space and its bucket.
+
+    Without `operator_token`, deploy() makes one with new_token() and returns it as
+    `Deployment.operator_token` (None when you pass one). On a reused board that rotates the admin
+    token: the new one replaces the secret, and the old one stops working once the Space restarts.
+    So omit it only if you'll keep the returned one; a deploy() that raises returns no token, and the
+    next call makes another.
+
+    The Space's files become the installed msgboard package, LICENSE, requirements.txt, the Dockerfile
+    and the card, whose title is `title` (default: the Space's name); anything else in the Space repo
+    is deleted.
 
     The Space then builds or restarts, which takes a few minutes: wait with `Client.wait_ready()`.
     A reused Space keeps answering with its previous container for a while; wait_ready() with the
@@ -81,9 +92,12 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
     from huggingface_hub import CommitOperationAdd, CommitOperationDelete
     from huggingface_hub.errors import RepositoryNotFoundError
 
-    if auth.parse_token(operator_token) is None:
+    generated = operator_token is None
+    if generated:
+        operator_token = auth.new_token()[1]
+    elif auth.parse_token(operator_token) is None:
         raise DeployError("operator_token is not a board token; make one with msgboard.auth.new_token()")
-    token = _hf_token(hf_token)
+    token = _hf_token(token)
     api = _hf_api(token)
     names = _Names(api)
     space_id = names.full(space_id)
@@ -155,13 +169,14 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
                                commit_message=f"Deploy msgboard {dist.version}")
     info = api.space_info(space_id)
     return Deployment(space_id=space_id, url=(info.host or f"https://{info.subdomain}.hf.space").rstrip("/"),
-                      bucket_id=bucket_id, created=created, private=bool(info.private), commit=commit.oid)
+                      bucket_id=bucket_id, created=created, private=bool(info.private), commit=commit.oid,
+                      operator_token=operator_token if generated else None)
 
 
-def _hf_token(hf_token: str | None) -> str:
+def _hf_token(token: str | None) -> str:
     from huggingface_hub import get_token
 
-    token = hf_token or get_token()
+    token = token or get_token()
     if not token:
         raise DeployError("no Hugging Face token: log in with `hf auth login` or set HF_TOKEN")
     return token
