@@ -259,67 +259,77 @@ def test_wait_ready_waits_for_the_board_to_accept_its_token(tmp_path):
             server.stop()
 
 
-def _cli_deploy_failing(monkeypatch, tmp_path, error):
-    """Run deploy-space with no token file yet and a deploy() that raises `error`, as on the Hub."""
-    import msgboard.space
-    import msgboard.space.hub
+@pytest.mark.vcr
+def test_deploy_space_cli_keeps_a_new_token_when_the_upload_fails(hf_token, sent, delete_after, monkeypatch,
+                                                                     tmp_path, capsys):
+    # #29 (review #5 #11): the CLI wrote a new token's file only after deploy() had made it the Space's
+    # secret, so a deploy() that failed after that left no copy of it. #30 (review #5 #12): a network error
+    # from huggingface_hub escaped as a traceback.
+    space = f"{NAMESPACE}/msgboard-27-rec-1"
+    delete_after += [("space", space), ("bucket", f"{space}-bucket")]
+    monkeypatch.setenv("HF_TOKEN", hf_token)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = tmp_path / ".config/msgboard/spaces" / space / "operator.token"
 
-    path, seen = tmp_path / "operator.token", {}
+    def connection_reset(request):  # the network fails at the upload, after the Space got its secrets
+        if request.url.path.endswith("/commit/main"):
+            raise _http().ConnectError("[Errno 104] Connection reset by peer", request=request)
 
-    def deploy(space_id, *, operator_token, **kwargs):
-        seen["saved"] = path.exists() and path.read_text().strip() == operator_token
-        seen["mode"] = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
-        raise error
-
-    monkeypatch.setattr(msgboard.space.hub, "_resolve_space_id", lambda space_id, token=None: space_id)
-    monkeypatch.setattr(msgboard.space, "deploy", deploy)
-    return main(["deploy-space", "ns/board", "--token-file", str(path)]), path, seen
-
-
-def test_deploy_space_cli_saves_a_new_token_before_deploying(tmp_path, monkeypatch, capsys):
-    # #29 (review #5 #11): the token file was written only after deploy() had replaced the Space's secret, so
-    # a deploy() that failed after that left no copy of the token the Space now has.
-    from huggingface_hub.errors import HfHubHTTPError
-
+    hooks = get_session().event_hooks["request"]
+    hooks.append(connection_reset)
     try:
-        import httpx2 as http
-    except ImportError:
-        import httpx as http
-    failed_upload = HfHubHTTPError("500 Server Error: upload failed", response=http.Response(
-        500, request=http.Request("POST", "https://huggingface.co/api/spaces/ns/board/commit/main")))
-    code, path, seen = _cli_deploy_failing(monkeypatch, tmp_path, failed_upload)
-    assert code == 1 and seen == {"saved": True, "mode": 0o600}
-    assert path.exists(), "a failure after deploy() may have changed the secret keeps the token"
-    assert f"stays in {path}" in capsys.readouterr().err
+        assert main(["deploy-space", space, "--private"]) == 1
+    finally:
+        hooks.remove(connection_reset)
+    (repo,) = _bodies(sent, "/api/repos/create")
+    installed = {s["key"]: s["value"] for s in repo["secrets"]}["MSGBOARD_OPERATOR_TOKEN"]
+    kept = path.exists() and path.read_text().strip() == installed
+    assert kept, "the file keeps the token the Space now has"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    err = capsys.readouterr().err
+    assert "error: [Errno 104] Connection reset by peer" in err and "Traceback" not in err
 
 
-def test_deploy_space_cli_drops_the_new_token_when_deploy_refuses(tmp_path, monkeypatch):
-    # #29: DeployError means nothing changed on the Hub, so the new token was never installed.
-    code, path, seen = _cli_deploy_failing(monkeypatch, tmp_path, DeployError("not a msgboard board"))
-    assert code == 1 and seen["saved"] and not path.exists()
-
-
-def test_deploy_space_cli_reports_network_errors_without_a_traceback(tmp_path, monkeypatch, capsys):
-    # #30 (review #5 #12): a transport error from huggingface_hub escaped the CLI as a traceback.
+@pytest.mark.vcr
+def test_deploy_space_cli_drops_a_new_token_when_deploy_refuses(hf_token, delete_after, monkeypatch, tmp_path):
+    # #29: the new token's file is written before deploy() asks the Hub anything, and removed when deploy()
+    # refuses, which changes nothing.
+    space = f"{NAMESPACE}/msgboard-27-rec-2"
+    delete_after += [("space", space)]
+    monkeypatch.setenv("HF_TOKEN", hf_token)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    HfApi(token=hf_token).create_repo(space, repo_type="space", space_sdk="static", private=True)  # not a board
+    path = tmp_path / ".config/msgboard/spaces" / space / "operator.token"
+    on_disk = []
+    hooks = get_session().event_hooks["request"]
+    hooks.append(lambda request: on_disk.append(path.exists()))
     try:
-        import httpx2 as http
-    except ImportError:
-        import httpx as http
-    code, _, _ = _cli_deploy_failing(monkeypatch, tmp_path, http.ConnectError("[Errno 111] Connection refused"))
-    assert code == 1 and "error: [Errno 111] Connection refused" in capsys.readouterr().err
+        assert main(["deploy-space", space]) == 1
+    finally:
+        hooks.pop()
+    assert on_disk and on_disk[0], "saved before deploy() asked the Hub about the Space"
+    assert not path.exists(), "removed once deploy() refused"
 
 
-def test_a_long_space_name_gets_an_actionable_error_before_any_bucket_call():
-    # #30: a valid Space name of 90+ characters makes "<space>-bucket" too long, and the first bucket read
-    # failed with a raw HTTP 400.
-    from msgboard.space.hub import _free_bucket_id
-
-    class NoHub:
-        def bucket_info(self, bucket_id):
-            raise AssertionError(f"asked the Hub about {bucket_id}")
-
+@pytest.mark.vcr
+def test_deploy_refuses_a_space_name_too_long_for_its_bucket(hf_token, sent):
+    # #30 (review #5 #12): a valid Space name of 90+ characters makes "<space>-bucket" too long for a repo
+    # name, and the first bucket call failed with a raw HTTP 400.
+    space = f"{NAMESPACE}/msgboard-27-rec-3-{'x' * 75}"
     with pytest.raises(DeployError, match="--bucket"):
-        _free_bucket_id(NoHub(), f"ns/{'b' * 90}-bucket")
+        deploy(space, token=hf_token, private=True)
+    asked = [r.url.path for r in sent if r.url.path.startswith("/api/buckets/")]
+    assert asked == [], "refused before asking the Hub about the bucket"
+
+
+def _http():
+    """The HTTP library huggingface_hub uses: httpx2 since huggingface_hub 2, httpx before."""
+    try:
+        import httpx2
+        return httpx2
+    except ImportError:
+        import httpx
+        return httpx
 
 
 @pytest.mark.live

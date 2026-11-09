@@ -1,0 +1,54 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - huggingface.co
+      x-amzn-trace-id:
+      - 175195e1-759a-4dfa-a821-454a3bbf9f7d
+    method: GET
+    uri: https://huggingface.co/api/spaces/lewtun/msgboard-27-rec-3-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  response:
+    body:
+      string: '{"error":"Repository not found"}'
+    headers:
+      access-control-allow-origin:
+      - https://huggingface.co
+      access-control-expose-headers:
+      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
+      access-control-max-age:
+      - '86400'
+      connection:
+      - keep-alive
+      content-length:
+      - '32'
+      content-type:
+      - application/json; charset=utf-8
+      cross-origin-opener-policy:
+      - same-origin
+      date:
+      - Mon, 09 Nov 2026 17:28:24 GMT
+      etag:
+      - W/"20-bITJowpdmeRi6flSV9yCp5Fkq5k"
+      referrer-policy:
+      - strict-origin-when-cross-origin
+      vary:
+      - Origin
+      x-error-code:
+      - RepoNotFound
+      x-error-message:
+      - Repository not found
+      x-powered-by:
+      - huggingface-moon
+      x-request-id:
+      - Root=1-6af202b8-39c431a162395ad55621fb3c;175195e1-759a-4dfa-a821-454a3bbf9f7d
+    status:
+      code: 404
+      message: Not Found
+version: 1
