@@ -30,6 +30,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import signal
 import sys
 import threading
@@ -79,6 +80,23 @@ def ensure_board(data_dir: Path, operator_token: str) -> None:
         conn.close()
 
 
+def set_aside_local_board(data_dir: Path) -> None:
+    """With a replica, never serve a board left on this disk: restore the replica's instead.
+
+    A new container's disk is empty. A board here was left by an earlier process in the same container
+    (one that exited after it lost the replica, say), and another container may have taken writes since,
+    so the replica's newest snapshot is the board. The old one is kept beside it, the latest only.
+    """
+    if not (data_dir / "board.db").exists():
+        return
+    for old in data_dir.parent.glob(f"{data_dir.name}.set-aside-*"):
+        shutil.rmtree(old, ignore_errors=True)
+    aside = data_dir.with_name(f"{data_dir.name}.set-aside-{time.strftime('%Y%m%dT%H%M%S', time.gmtime())}")
+    data_dir.rename(aside)
+    log.warning("an earlier process left a board in %s; moved it to %s and restoring from the replica", data_dir,
+                aside)
+
+
 class Dispatcher:
     """ASGI app that answers 'starting' until the board is ready, then forwards to it."""
 
@@ -96,6 +114,7 @@ class Dispatcher:
         replica_url = os.environ.get("MSGBOARD_REPLICA")
         if not replica_url:
             return
+        set_aside_local_board(DATA_DIR)
         self.replica = store_from_url(replica_url)
         # heartbeats well inside the window in which the next container waits for one
         self.replicator = Replicator(self.replica, DATA_DIR, stop=self.stop, heartbeat=min(30.0, STALE_AFTER / 10),

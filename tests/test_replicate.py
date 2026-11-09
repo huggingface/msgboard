@@ -1035,6 +1035,41 @@ def test_a_fenced_space_app_exits_so_the_platform_restarts_it(tmp_path):
     assert "exiting so the platform restarts this one" in err
 
 
+def test_a_space_app_restarted_in_its_container_serves_the_replica_not_its_old_board(tmp_path):
+    # Item 3: a Space app that exits (fenced) or crashes may be started again in the same container, where
+    # the board it left is still on disk. Another container may have taken writes since: it must restore
+    # the replica's board instead of serving the one on its disk.
+    import os
+    import subprocess
+    import sys
+
+    from .conftest import free_port
+
+    bucket = DirStore(tmp_path / "bucket")
+    token = init_board(tmp_path / "other")
+    with ThreadedServer(tmp_path / "other", replicator=Replicator(bucket, tmp_path / "other", interval=3600)) as s, \
+            Client(s.url, token) as c:
+        c.create_channel("taken-by-another-container")
+    init_board(tmp_path / "a")
+    with ThreadedServer(tmp_path / "a") as s, Client(s.url, (tmp_path / "a" / "operator.token").read_text().strip()) as c:
+        c.create_channel("left-on-this-disk")
+    port = free_port()
+    proc = subprocess.Popen([sys.executable, "-m", "msgboard.space.app"], stderr=subprocess.PIPE, text=True,
+                            env={**os.environ, "MSGBOARD_OPERATOR_TOKEN": token, "PORT": str(port),
+                                 "MSGBOARD_REPLICA": str(tmp_path / "bucket"), "MSGBOARD_DATA_DIR": str(tmp_path / "a"),
+                                 "MSGBOARD_SNAPSHOT_INTERVAL": "3600"})
+    try:
+        wait_for(lambda: _up(f"http://127.0.0.1:{port}")
+                 and httpx.get(f"http://127.0.0.1:{port}/v1/health").json()["status"] == "ok", timeout=30)
+        with Client(f"http://127.0.0.1:{port}", token) as c:
+            names = {ch["name"] for ch in c.list_channels()}
+    finally:
+        proc.terminate()
+        proc.communicate(timeout=30)
+    assert "taken-by-another-container" in names and "left-on-this-disk" not in names
+    assert [p.name.startswith("a.set-aside-") and (p / "board.db").exists() for p in tmp_path.glob("a.*")] == [True]
+
+
 def test_a_reclaim_whose_upload_fails_once_still_takes_the_replica_back(tmp_path):
     # Item 4: _reclaim set the new epoch and dropped its grant before uploading; one failed upload left it
     # raising TypeError on every pass, quiesced, with nobody taking writes.
