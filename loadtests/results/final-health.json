@@ -101,7 +101,7 @@
     "devMode": false,
     "domains": [
       {
-        "domain": "lvwerra-flock-board.hf.space",
+        "domain": "<private test Space>.hf.space",
         "stage": "READY"
       }
     ],

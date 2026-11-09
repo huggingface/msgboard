@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import asyncio
 import hashlib
@@ -102,7 +100,7 @@ class LoadTest:
     def headers(self, token=None):
         token = token or self.token
         if self.arguments.hf_auth:
-            return {"Authorization": "Bearer " + os.environ["HF_TOKEN"], "X-Flock-Token": token}
+            return {"Authorization": "Bearer " + os.environ["HF_TOKEN"], "X-Msgboard-Token": token}
         return {"Authorization": "Bearer " + token}
 
     async def control(self, method, path, **kwargs):
