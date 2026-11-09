@@ -16,7 +16,8 @@ from .. import auth
 
 log = logging.getLogger("msgboard.space")
 
-TAG = "msgboard"          # deploy() puts it in the Space card and refuses Spaces that lack it
+TAG = "msgboard"          # deploy() puts it in the Space card, and reuses only Spaces that have it
+                          # or a MSGBOARD_REPLICA variable
 SNAPSHOT_INTERVAL = "15"  # MSGBOARD_SNAPSHOT_INTERVAL for a new Space, in seconds
 _HERE = Path(__file__).resolve().parent
 _PACKAGE = _HERE.parent   # the installed msgboard package, uploaded as-is
@@ -65,14 +66,17 @@ def deploy(space_id: str, *, operator_token: str, bucket_id: str | None = None,
 
     The Space gets the secrets MSGBOARD_OPERATOR_TOKEN (`operator_token`, from
     `msgboard.auth.new_token()`; the app makes it the admin credential on every boot) and HF_TOKEN
-    (`hf_token`, default: the logged-in token, which also makes the Hub calls; the Space needs it to
-    write to the bucket), and the variables MSGBOARD_REPLICA and MSGBOARD_SNAPSHOT_INTERVAL. Its files
+    (`hf_token`, default: the logged-in token), and the variables MSGBOARD_REPLICA and
+    MSGBOARD_SNAPSHOT_INTERVAL. That one token makes deploy()'s Hub calls and is what the Space writes
+    the bucket with, so it needs write access to both the Space and its bucket. The Space's files
     become the installed msgboard package, LICENSE, requirements.txt, the Dockerfile and the card, whose
     title is `title` (default: the Space's name); anything else in the Space repo is deleted.
 
     The Space then builds or restarts, which takes a few minutes: wait with `Client.wait_ready()`.
     A reused Space keeps answering with its previous container for a while; wait_ready() with the
-    operator token waits until the board accepts that token.
+    operator token waits until the board accepts that token. A restart or rebuild can still follow
+    after wait_ready() returns: if `operator_token` is the one the Space already has, the old healthy
+    container satisfies wait_ready() before the pending restart. Keep retrying through 503 after it.
     """
     from huggingface_hub import CommitOperationAdd, CommitOperationDelete
     from huggingface_hub.errors import RepositoryNotFoundError
@@ -225,7 +229,10 @@ def _distribution():
 def _space_files(space_id: str, dist, title: str | None = None) -> dict[str, bytes]:
     """The Space repo's files by path: card, Dockerfile, requirements.txt, LICENSE and the package."""
     # A JSON string is a quoted YAML string, so `true`, `null`, `2024`, ':' or '#' stay the title as written.
-    title = json.dumps(title or space_id.split("/")[1])
+    # ensure_ascii=False keeps an emoji whole (YAML reads JSON's surrogate pair as two lone halves). YAML
+    # reads U+0085/U+2028/U+2029 as line breaks and refuses DEL and C1 controls, so those stay escaped.
+    title = re.sub(r"[\x7f-\x9f\u2028\u2029]", lambda m: f"\\u{ord(m[0]):04x}",
+                   json.dumps(title or space_id.split("/")[1], ensure_ascii=False))
     card = (_HERE / "README.md").read_text().replace("title: msgboard\n", f"title: {title}\n", 1)
     files = {"README.md": card.encode(), "Dockerfile": (_HERE / "Dockerfile").read_bytes(),
              "requirements.txt": _requirements(dist).encode(), "LICENSE": _license(dist)}

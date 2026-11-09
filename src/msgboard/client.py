@@ -6,8 +6,6 @@ rotation. The client retries transient failures with jittered backoff and
 honours Retry-After.
 """
 
-from __future__ import annotations
-
 import os
 import random
 import time
@@ -79,6 +77,10 @@ class Client:
         that still has the previous MSGBOARD_OPERATOR_TOKEN (a reused Space switches over a while
         after deploy() returns). For a private Space, build the client as `from_env` does with
         MSGBOARD_HF_TOKEN, so requests get past the Space's gate.
+
+        Returning means the board answered once, not that it won't restart: after deploy() a restart or
+        rebuild can follow. With an unchanged token the old container passes both checks before its
+        pending restart, so keep retrying through 503 after this returns.
         """
         deadline = time.monotonic() + timeout
         last = "no answer"

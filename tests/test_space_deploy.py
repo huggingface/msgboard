@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 pytest.importorskip("huggingface_hub")
+from huggingface_hub import SpaceCard  # noqa: E402
 from huggingface_hub.errors import BucketNotFoundError, RepositoryNotFoundError  # noqa: E402
 
 from msgboard.auth import new_token  # noqa: E402
@@ -191,13 +192,17 @@ def test_card_title_override(fake):
 
 
 @pytest.mark.parametrize("space_id, title", [("alice/board", "true"), ("alice/board", "No"), ("alice/board", "null"),
-                                             ("alice/board", "1.5"), ("alice/2024", None), ("alice/board", "a: b # c")])
+                                             ("alice/board", "1.5"), ("alice/2024", None), ("alice/board", "a: b # c"),
+                                             ("alice/board", "Team 😀"), ("alice/board", "a\x85b\u2028c\u2029d\x7f")])
 def test_card_title_reads_back_as_written(fake, space_id, title):
-    # YAML reads bare true/No as booleans, null as None and 2024 as a number
+    # YAML reads bare true/No as booleans, null as None and 2024 as a number, an emoji's JSON escape as
+    # two lone surrogates, and U+0085/U+2028/U+2029 as line breaks
     yaml = pytest.importorskip("yaml")
     deploy(space_id, operator_token=new_token()[1], title=title)
     card = fake.spaces[space_id]["files"]["README.md"].decode()
-    assert yaml.safe_load(card.split("---")[1])["title"] == (title or space_id.split("/")[1])
+    expected = title or space_id.split("/")[1]
+    assert yaml.safe_load(card.split("---")[1])["title"] == expected
+    assert SpaceCard(card).data.title == expected
 
 
 def test_symlinks_out_of_the_package_are_not_uploaded(monkeypatch, tmp_path):

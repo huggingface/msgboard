@@ -59,15 +59,19 @@ What `deploy()` does:
   lack the LICENSE (`DeployError` says so) or a dependency added since, which the Space then misses.
 - **Secrets and variables.** `MSGBOARD_OPERATOR_TOKEN` (the app makes it the admin credential on
   every boot, so a new token takes over the board once the Space restarts) and `HF_TOKEN`, the
-  deployer's token by default, which the Space needs to write to the bucket. Anyone who can push
-  to the Space can read that secret: for anything beyond a test, pass `hf_token=` a token limited
-  to the bucket. Variables: `MSGBOARD_REPLICA=hf://buckets/<bucket>` and
-  `MSGBOARD_SNAPSHOT_INTERVAL=15` (an existing value is kept).
+  deployer's token by default, which the Space needs to write to the bucket. `deploy()` makes its
+  Hub calls with the same token, so it needs write access to both the Space and its bucket. Anyone
+  who can push to the Space can read that secret. Variables: `MSGBOARD_REPLICA=hf://buckets/<bucket>`
+  and `MSGBOARD_SNAPSHOT_INTERVAL=15` (an existing value is kept).
 
 The Space then builds, which takes a few minutes, or restarts. `Client.wait_ready(timeout)` polls
 `/v1/health` until it says `ok` and, for a client with a token, until the board accepts that
 token: a reused Space keeps answering from its previous container, with the previous operator
 token, for a while after `deploy()` returns. It raises `TimeoutError` with the last answer it got.
+
+A restart or rebuild can still follow after `wait_ready()` returns. When the operator token is
+reused, the old healthy container already accepts it, so `wait_ready()` can return before the
+pending restart. Callers must keep retrying through `503` after `wait_ready()`.
 
 ## Why not put SQLite on a mounted bucket
 
@@ -192,5 +196,5 @@ For a multi-GB board, raise the interval or switch to WAL streaming (below).
   `msgboard` tag; `deploy()` recognises it by its `MSGBOARD_REPLICA` variable and keeps that
   replica, prefix included.
 
-The Space holds `HF_TOKEN` as a secret so it can write to the bucket. Use a
-fine-grained token limited to that bucket for anything beyond a test.
+The Space holds `HF_TOKEN` as a secret so it can write to the bucket. `deploy()` uses the same
+token for its Space calls, so it needs write access to both the Space and its bucket.
