@@ -24,8 +24,11 @@ after `stale_after` seconds in which nothing from it landed. After SIGTERM there
 is a deadline: HF Spaces kill a container about 10 s later. If the instance it
 released the replica to goes as quiet as that before it serves (it uploads
 heartbeats while it claims and restores), the owner takes the replica back by
-winning a newer epoch the same way; it gives way if that instance started
-serving meanwhile, so a slow successor keeps what it acknowledged.
+winning a newer epoch the same way. It does so only while no instance after it
+has served: once one has (a slow successor, or one that served and handed the
+replica on), it may have taken writes this owner's board lacks, so that board
+never serves again. The last instance that served takes the replica back the
+same way, or a new instance restores its snapshot.
 
 The one timing assumption is that window: an owner that was serving when nothing
 from it landed for `stale_after` seconds counts as dead. If it was alive after
@@ -290,6 +293,16 @@ def _authority(claims: dict, lease: dict | None) -> tuple[int, float, str] | Non
     which writes one only once it owns the replica (and owners from before won markers wrote none)."""
     won = [rank for rank, kinds in claims.items() if "won" in kinds and "withdrawn" not in kinds]
     return max(won + ([_lease_rank(lease)] if lease and lease.get("instance") else []), default=None)
+
+
+def _served_after(claims: dict, lease: dict | None, rank: tuple) -> tuple | None:
+    """The best instance ranked above `rank` that started serving, if any: it may have taken writes since, so
+    a board that served under `rank` is behind for good. Any such instance counts, not only the newest owner,
+    which may be one that won and died before serving: an owner never withdraws once it serves."""
+    served = [other for other, kinds in claims.items() if other > rank and "serving" in kinds]
+    if lease is not None and lease.get("instance") and lease.get("serving") and _lease_rank(lease) > rank:
+        served.append(_lease_rank(lease))
+    return max(served, default=None)
 
 
 def _contenders(claims: dict, parent: int) -> dict[tuple[int, float, str], set[str]]:
@@ -616,7 +629,8 @@ class Replicator:
         return self._acquire(owner[0] if owner else 0, claims, lease, stale_after or self.stale_after,
                              silent=expect[2] if expect is not None else ())
 
-    def _acquire(self, parent: int, claims: dict, lease: dict | None, stale_after: float, silent=()) -> bool:
+    def _acquire(self, parent: int, claims: dict, lease: dict | None, stale_after: float, silent=(),
+                 served_after: tuple | None = None) -> bool:
         """Win the epoch after `parent` against every other instance claiming it.
 
         A bucket has no compare-and-swap, but each instance reads only after its own upload has
@@ -630,6 +644,9 @@ class Replicator:
         before it checks the claims (start()), so the same argument applies: of its marker and this
         won marker, the later to land is seen by the other's check, so they never both go on.
         `silent`: claims already seen silent for stale_after s (they count as dead unless they change).
+        `served_after`: the rank under which this instance's board last served, when it takes the replica back
+        with that board. Then it withdraws if any instance ranked above that rank has a .serving marker,
+        whenever it started serving: the board would miss what that instance took.
         """
         epoch = max([rank[0] for rank in claims] + [(lease or {}).get("epoch") or 0, parent]) + 1
         mine = (epoch, *self._started())
@@ -645,13 +662,16 @@ class Replicator:
                 rival = next((rank for rank, kinds in _contenders(now, parent).items()
                               if rank != mine and "won" in kinds), None)
                 started = next((rank for rank, kinds in now.items() if rank != mine and "serving" in kinds
-                                and "serving" not in claims.get(rank, ())), None)
+                                and (rank > served_after if served_after is not None
+                                     else "serving" not in claims.get(rank, ()))), None)
                 if rival is None and started is None:
                     self.epoch = self.status["epoch"] = epoch
                     log.info("took the replica: epoch %s", epoch)
                     return True
                 if rival is not None:
                     log.warning("instance %s won the replica too; this one withdraws", rival[2])
+                elif served_after is not None:
+                    log.warning("instance %s served after this one; this one withdraws", started[2])
                 else:
                     log.warning("instance %s started serving meanwhile (it was slow, not dead); this one "
                                 "withdraws", started[2])
@@ -812,9 +832,9 @@ class Replicator:
                 claims = _claims(self.store)
                 owner = _authority(claims, lease)
                 taken = owner is not None and owner > self._rank()
-                if taken and ("serving" in claims.get(owner, ()) or (
-                        lease is not None and _lease_rank(lease) == owner and lease.get("serving"))):
-                    log.info("instance %s took the replica over", owner[2])
+                served = _served_after(claims, lease, self._rank())
+                if served is not None:  # for good: this board may lack what it took (_served_after)
+                    log.info("instance %s took the replica over and served", served[2])
                     return True
                 # Until a new owner serves, watch for signs of life from instances that may take it over.
                 after = _contenders(claims, self.epoch)
@@ -846,11 +866,13 @@ class Replicator:
         return True
 
     def _reclaim(self, request: dict, claims: dict, lease: dict | None, silent) -> bool:
-        # Nothing from any instance that could take the replica over has landed for reclaim_after s.
-        # Returns True if this instance took the replica back (or, if one outranked it meanwhile, is fenced).
+        # Nothing from any instance that could take the replica over has landed for reclaim_after s, and none
+        # of the instances after this one has served. Returns True if this instance took the replica back
+        # (or, if one outranked it meanwhile, is fenced).
         log.warning("nobody took the replica over and served in %.0f s; taking it back", self.reclaim_after)
         owner = _authority(claims, lease)
-        if not self._acquire(owner[0] if owner else self.epoch, claims, lease, self.reclaim_after, silent=silent):
+        if not self._acquire(owner[0] if owner else self.epoch, claims, lease, self.reclaim_after, silent=silent,
+                             served_after=self._rank()):
             return False
         self._refused.add((request["instance"], request.get("at")))
         # serving again: the lease with a .serving marker, then the claims once more, as start() does

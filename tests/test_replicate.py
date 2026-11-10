@@ -1294,6 +1294,63 @@ def test_a_requester_does_not_take_the_replica_from_an_owner_that_started_servin
     assert "acknowledged by W" in _bodies(tmp_path / "m", ch, token)
 
 
+class DelayedListing(DirStore):
+    """The bucket as one instance sees it, with its next listing of claims/ held until the gate opens, as a
+    slow Hub call would be. Other instances use the same bucket meanwhile."""
+
+    def __init__(self, root):
+        super().__init__(root)
+        self.armed = False
+        self.reached, self.gate = threading.Event(), threading.Event()
+
+    def list(self, prefix):
+        if prefix == "claims/" and self.armed:
+            self.armed = False
+            self.reached.set()
+            assert self.gate.wait(30), "the listing was never let through"
+        return super().list(prefix)
+
+
+def test_an_owner_never_serves_its_board_again_once_a_later_owner_served(tmp_path):
+    # Review #1 (Codex) #1: A released the replica to B, and A's next look at the claims was slow. Meanwhile
+    # B served, acknowledged a post and handed the replica on to C, which died before it served. A looked
+    # only at C, the newest owner, saw no .serving marker, took the replica back and served its board from
+    # before B: its next snapshot outranked B's, and B's post was gone. B, whose board has that post, must
+    # be the one to take the replica back, and A must never serve again.
+    bucket = DirStore(tmp_path / "bucket")
+    seen_by_a = DelayedListing(bucket.root)
+    token = init_board(tmp_path / "a")
+    a = Replicator(seen_by_a, tmp_path / "a", interval=3600, poll=0.02, heartbeat=3600, reclaim_after=0.3)
+    time.sleep(0.01)
+    b = Replicator(bucket, tmp_path / "b", interval=3600, poll=0.02, heartbeat=3600, reclaim_after=2)
+    time.sleep(0.01)
+    c = Replicator(bucket, tmp_path / "c", interval=3600, poll=0.02, heartbeat=3600)
+    try:
+        with ThreadedServer(tmp_path / "a", replicator=a) as sa, Client(sa.url, token, max_retries=0) as ca:
+            ch = ca.create_channel("x")["id"]
+            ca.post(ch, "before the restarts")
+            assert b.take_over(poll=0.02) == "released"
+            seen_by_a.armed = True                          # A's next look at the claims is slow
+            assert seen_by_a.reached.wait(5)
+            restore(bucket, tmp_path / "b")
+            with ThreadedServer(tmp_path / "b", replicator=b) as sb, Client(sb.url, token, max_retries=0) as cb:
+                cb.post(ch, "acknowledged by B")
+                assert c.take_over(poll=0.02) == "released"  # B hands the replica on to C ...
+                c.stop(final_push=False)                     # ... which dies before it serves
+                seen_by_a.gate.set()                         # A's look at the claims comes back
+                wait_for(lambda: not b.handed_over)          # B takes the replica back
+                cb.post(ch, "acknowledged by B after C died")
+                assert b.push_if_changed()
+                claims_of_a = [path for path in bucket.list("claims/") if a.instance in path]
+                assert a.handed_over and all(path.startswith("claims/00000001-") for path in claims_of_a), claims_of_a
+    finally:
+        seen_by_a.gate.set()
+        c.stop(final_push=False)
+    restore(bucket, tmp_path / "restored")
+    assert _bodies(tmp_path / "restored", ch, token) == [
+        "before the restarts", "acknowledged by B", "acknowledged by B after C died"]
+
+
 @pytest.mark.parametrize("later", ["in the same millisecond", "at the same instant, by instance id"])
 def test_a_requester_that_started_just_after_the_owner_gets_the_replica(tmp_path, later):
     # Review #1 (Codex) #3: start times were cut to milliseconds before they were compared. A requester that
