@@ -127,11 +127,18 @@ class Dispatcher:
     def _prepare(self) -> Board:
         operator_token = os.environ["MSGBOARD_OPERATOR_TOKEN"].strip()
         if self.replicator is not None:
-            if self.handover == "legacy":  # it hands over on SIGTERM, which comes now that the port answers
+            while self.handover == "legacy":  # it hands over on SIGTERM, which comes now that the port answers
                 why = wait_for_release(self.replica, stop=self.stop, stale_after=STALE_AFTER)
                 log.info("replica handover: %s", why)
                 if why == "stopped":
                     raise RuntimeError("stopped before the replica was handed over")
+                # claim it before restoring, as take_over does; if another container took it meanwhile, ask it
+                if self.replicator.claim():
+                    break
+                self.handover = self.replicator.take_over(stale_after=STALE_AFTER)
+                log.info("replica handover: %s", self.handover)
+            if self.handover == "stopped":
+                raise RuntimeError("stopped before the replica was handed over")
             while not (DATA_DIR / "board.db").exists():
                 try:
                     manifest = restore(self.replica, DATA_DIR)
