@@ -38,6 +38,29 @@ class NotInitialized(RuntimeError):
     pass
 
 
+async def _finish(future):
+    """Await `future` (a task, or a call on a thread) until it has ended, however often the task awaiting it is
+    cancelled meanwhile; then re-raise the cancellation, if there was one.
+
+    A request is cancelled at uvicorn's shutdown deadline, and again by the event loop's teardown, while a
+    storage change it started goes on: a thread cannot be stopped, and a bucket call already on its way still
+    lands. Until that change has landed the request must keep what the hand-over and shutdown wait for
+    (storage_write), its path's reservation and its staged files; only then may the replica be released.
+    """
+    cancelled = False
+    while not future.done():
+        try:
+            await asyncio.shield(future)
+        except asyncio.CancelledError:
+            cancelled = True
+        except BaseException:
+            if not future.done():
+                raise
+    if cancelled:
+        raise asyncio.CancelledError
+    return future.result()
+
+
 class AlreadyRunning(RuntimeError):
     pass
 
@@ -122,6 +145,7 @@ class Database:
             conn.execute("ROLLBACK")
             raise
         conn.execute("COMMIT")
+        self.generation += 1  # here, not after the await in write(): a cancellation can end that first
         return result
 
     async def write(self, fn, *args):
@@ -133,12 +157,21 @@ class Database:
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(self._writer, self._run_write, fn, args)
-            self.generation += 1
             if fn not in AUTH_SAFE_WRITES:
                 self.auth_cache.clear()
             return result
         finally:
             self.pending_writes -= 1
+
+    def write_now(self, fn, *args):
+        """write() for a thread off the event loop, such as a storage call's (Board.storage_call): the same
+        refusal once writes are closed, then the result once committed."""
+        if self.closing:
+            raise ApiError(503, "shutting_down", "server is shutting down; retry shortly", {"Retry-After": "2"})
+        result = self._writer.submit(self._run_write, fn, args).result()
+        if fn not in AUTH_SAFE_WRITES:
+            self.auth_cache.clear()
+        return result
 
     def close(self) -> None:
         self._writer.shutdown(wait=True)
@@ -241,6 +274,9 @@ class Board:
         self.commit_lock: asyncio.Lock | None = None
         self.storage_reservations = Reservations(paths=True)
         self.storage_writes = 0   # admitted operations that change storage objects in the bucket
+        self.storage_calls = 0    # their changes on the way to the bucket (storage_call), until they end
+        self._storage_threads = ThreadPoolExecutor(8, thread_name_prefix="msgboard-storage")
+        self._storage_lock = threading.Lock()
         self.import_reservations = Reservations()
         self.started = time.time()
         self.counters = {"posts": 0, "posts_replayed": 0, "edits": 0, "polls": 0, "errors_5xx": 0}
@@ -269,9 +305,26 @@ class Board:
             close_writes()
         drained.wait()
         # Storage objects live in the shared bucket itself: an upload, a delete or a rollback that lands
-        # after the hand-over would overwrite the next owner's.
-        while self.storage_writes:
+        # after the hand-over would overwrite the next owner's. Wait for the operations that may still make
+        # one, and for the changes on their way.
+        while self.storage_writes or self.storage_calls:
             time.sleep(0.05)
+
+    def storage_call(self, fn, *args) -> asyncio.Future:
+        """Start fn, a change to storage objects in the bucket, on a thread, and return a future for its result.
+
+        Await it with _finish(). It runs to its end whatever happens to the request, and the hand-over and
+        shutdown wait until it has (_quiesce, close). Put a change and what depends on it, such as its rollback,
+        in one fn: then the rollback cannot start before the change it undoes has landed."""
+        with self._storage_lock:
+            self.storage_calls += 1
+        call = self._storage_threads.submit(fn, *args)
+        call.add_done_callback(self._storage_call_ended)
+        return asyncio.wrap_future(call)
+
+    def _storage_call_ended(self, _call) -> None:
+        with self._storage_lock:
+            self.storage_calls -= 1
 
     @asynccontextmanager
     async def storage_write(self):
@@ -342,13 +395,14 @@ class Board:
         if records or history:
             try:
                 self.db._writer.submit(self.db._run_write, store.save_presence, (records, history)).result()
-                self.db.generation += 1
                 self.presence.saved(versions)
                 self.presence.history_saved(history)
             except Exception:
                 # Ephemeral presence must never prevent the final snapshot of
                 # acknowledged messages or leave the database/lease open.
                 logging.getLogger(__name__).exception("could not persist final agent presence")
+        # storage changes still on their way to the bucket land before the final snapshot and the release
+        self._storage_threads.shutdown(wait=True)
         if self.replicator is not None:
             self.replicator.stop(final_push=True)  # after in-flight writes, before closing
         self.db.close()
@@ -648,13 +702,8 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             else:
                 # A disconnected caller must not remove staged local files while
                 # its publication task is still using them. Retries are idempotent.
-                task = asyncio.create_task(apply_history(p, channel_id, manifest, digest, files, keep_target_doc))
-                try:
-                    report = await asyncio.shield(task)
-                except asyncio.CancelledError:
-                    with suppress(Exception):
-                        await task
-                    raise
+                report = await _finish(asyncio.create_task(
+                    apply_history(p, channel_id, manifest, digest, files, keep_target_doc)))
             return {**report, "dry_run": dry_run}
 
     async def apply_history(p, channel_id, manifest, digest, files, keep_target_doc):
@@ -662,26 +711,31 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         async with board.import_reservations.hold(keys):
             prepared = await db.write(transfer.prepare_import, p, channel_id, manifest, digest, time.time(), keep_target_doc)
             paths = [(prepared["people"][f["owner_id"]], f["path"]) for f in manifest["storage_files"]]
-            published = False
-            uploaded_storage, uploaded_attachments = [], []
+            published = []
+
+            def publish():
+                # the files, then their record, or their removal: one storage call (Board.storage_call)
+                uploaded_storage, uploaded_attachments = [], []
+                try:
+                    transfer.stage_import(channel_id, manifest, files, prepared, board.blobs, board.storage,
+                                          uploaded_storage, uploaded_attachments)
+                    report = db.write_now(transfer.import_channel, p, channel_id, manifest, digest, prepared, time.time())
+                except BaseException:
+                    if uploaded_storage:
+                        try:
+                            board.storage.delete(uploaded_storage)
+                        except Exception:
+                            logging.getLogger(__name__).exception("could not remove unindexed import files")
+                    for key in uploaded_attachments:
+                        board.blobs.discard(board.blobs.path_for(key))
+                    raise
+                published.append(True)
+                return report
+
             try:
                 async with board.storage_write(), board.storage_reservations.hold(paths):
-                    try:
-                        prepared["report"] = await db.read(transfer.checked_import_plan, p, channel_id, manifest, digest, prepared)
-                        await anyio.to_thread.run_sync(transfer.stage_import, channel_id, manifest, files, prepared,
-                                                      board.blobs, board.storage, uploaded_storage, uploaded_attachments)
-                        report = await db.write(transfer.import_channel, p, channel_id, manifest, digest, prepared, time.time())
-                        published = True
-                        return report
-                    finally:
-                        if not published:
-                            if uploaded_storage:
-                                try:
-                                    await anyio.to_thread.run_sync(board.storage.delete, uploaded_storage)
-                                except Exception:
-                                    logging.getLogger(__name__).exception("could not remove unindexed import files")
-                            for key in uploaded_attachments:
-                                board.blobs.discard(board.blobs.path_for(key))
+                    prepared["report"] = await db.read(transfer.checked_import_plan, p, channel_id, manifest, digest, prepared)
+                    return await _finish(board.storage_call(publish))
             finally:
                 if not published:
                     await db.write(transfer.cleanup_ghosts, prepared)
@@ -1145,13 +1199,10 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             expected = request.headers.get("x-checksum-sha256")
             if expected and expected.lower() != digest:
                 raise bad_request("X-Checksum-Sha256 does not match the uploaded content")
-            task = asyncio.create_task(publish_storage(p, owner, path, size, digest, content_type, tmp_path))
-            try:
-                result = await asyncio.shield(task)
-            except asyncio.CancelledError:
-                with suppress(Exception):
-                    await task
-                raise
+            # its own task, so that a disconnected caller does not stop it; _finish() keeps the staged file until
+            # it is done
+            result = await _finish(asyncio.create_task(
+                publish_storage(p, owner, path, size, digest, content_type, tmp_path)))
             tmp_path = None
             return JSONResponse(result, status_code=201)
         finally:
@@ -1174,21 +1225,22 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             with tempfile.TemporaryDirectory(prefix="msgboard-replace-") as scratch:
                 backup = Path(scratch) / "old"
                 backed_up = replacing and await anyio.to_thread.run_sync(board.storage.get, key, backup)
-                changed = recorded = False
-                try:
-                    changed = True
-                    await anyio.to_thread.run_sync(lambda: board.storage.put([(tmp_path, key)]))
-                    await anyio.to_thread.run_sync(_cache_put, tmp_path, digest)
-                    result = await db.write(store.storage_record_checked, p, owner["id"], path, size,
+
+                def publish():
+                    # the upload, then its record, or its rollback: one storage call (Board.storage_call)
+                    try:
+                        board.storage.put([(tmp_path, key)])
+                        _cache_put(tmp_path, digest)
+                        return db.write_now(store.storage_record_checked, p, owner["id"], path, size,
                                             digest, content_type, time.time())
-                    recorded = True
-                    return result
-                finally:
-                    if changed and not recorded:
+                    except BaseException:
                         if backed_up:
-                            await anyio.to_thread.run_sync(lambda: board.storage.put([(backup, key)]))
+                            board.storage.put([(backup, key)])
                         else:
-                            await anyio.to_thread.run_sync(board.storage.delete, [key])
+                            board.storage.delete([key])
+                        raise
+
+                return await _finish(board.storage_call(publish))
 
     @app.get("/v1/storage/{handle}")
     async def storage_root(handle: str, request: Request, prefix: str = ""):
@@ -1243,15 +1295,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         path = store.storage_path(path)
         async with board.storage_write(), board.storage_reservations.hold([(owner["id"], path)]):
             out = await db.write(store.storage_remove, p, handle, path, time.time())
-            keys = out.pop("keys")
-            # shielded like uploads: a hand-over waits for it, so it must not leave storage_write early
-            task = asyncio.ensure_future(anyio.to_thread.run_sync(lambda: board.storage.delete(keys)))
-            try:
-                await asyncio.shield(task)
-            except asyncio.CancelledError:
-                with suppress(Exception):
-                    await task
-                raise
+            await _finish(board.storage_call(board.storage.delete, out.pop("keys")))
         return out
 
     if dashboard:

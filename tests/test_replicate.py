@@ -3,6 +3,7 @@ import sqlite3
 import threading
 import time
 from contextlib import ExitStack
+from pathlib import Path
 
 import httpx
 import pytest
@@ -1374,3 +1375,165 @@ def test_a_requester_that_started_just_after_the_owner_gets_the_replica(tmp_path
         finally:
             timer.cancel()
 
+
+# A board served by the CLI's run_board in its own process, as `msgboard serve` and the Space app do: SIGTERM,
+# uvicorn's 5-second shutdown deadline, the event loop's teardown, then the final snapshot and the release.
+# Once bucket/armed exists, storage call n is held if bucket/hold-<n> exists: it is on its way to a slow Hub,
+# and lands when the test lands it (_land), whether or not this process still runs by then, as a request
+# already sent would. bucket/trace notes the storage calls and the release.
+HELD_STORAGE_BOARD = '''
+import json
+import shutil
+import sys
+import threading
+import time
+from pathlib import Path
+
+from msgboard.cli import run_board
+from msgboard.replicate import DirStore, Replicator
+from msgboard.server import Board
+
+data, root, port = Path(sys.argv[1]), Path(sys.argv[2]), int(sys.argv[3])
+count, lock = [0], threading.Lock()
+
+
+class HeldStorage(DirStore):
+    def note(self, line):
+        with lock, (self.root / "trace").open("a") as f:
+            f.write(line + "\\n")
+
+    def storage_call(self, call, apply):
+        if not (self.root / "armed").exists():
+            return apply()
+        with lock:
+            count[0] += 1
+            n = count[0]
+        self.note(f"{call['what']} {n} start")
+        if (self.root / f"hold-{n}").exists():
+            (self.root / f"call-{n}.json").write_text(json.dumps(call))
+            while not (self.root / f"landed-{n}").exists():
+                time.sleep(0.02)
+        else:
+            apply()
+        self.note(f"{call['what']} {n} end")
+
+    def put(self, items):
+        if any(dest.startswith("storage/") for _, dest in items):
+            (source, dest), = items
+            kept = self.root / f"source-{dest.replace('/', '_')}-{time.monotonic_ns()}"
+            shutil.copyfile(source, kept)
+            return self.storage_call({"what": "put", "source": str(kept), "dest": dest},
+                                     lambda: DirStore.put(self, items))
+        super().put(items)
+        if any(dest == "LEASE.json" and json.loads(source)["released"] for source, dest in items):
+            self.note("release")
+
+    def delete(self, paths):
+        if any(path.startswith("storage/") for path in paths):
+            return self.storage_call({"what": "delete", "paths": paths}, lambda: DirStore.delete(self, paths))
+        super().delete(paths)
+
+
+replicator = Replicator(HeldStorage(root), data, interval=3600, poll=0.05, heartbeat=0.2)
+run_board(Board(data, replicator=replicator), "127.0.0.1", port, "warning")
+'''
+
+
+def _land(bucket, n):
+    """Held storage call n reaches the bucket."""
+    if (bucket.root / f"landed-{n}").exists():
+        return
+    call = json.loads((bucket.root / f"call-{n}.json").read_text())
+    if call["what"] == "put":
+        bucket.put([(Path(call["source"]), call["dest"])])
+    else:
+        bucket.delete(call["paths"])
+    (bucket.root / f"landed-{n}").touch()
+
+
+def _trace(bucket):
+    path = bucket.root / "trace"
+    return path.read_text() if path.exists() else ""
+
+
+def _ignoring_errors(call):
+    try:
+        call()
+    except Exception:
+        pass  # the shutdown may refuse or cut off the request: what it leaves in the bucket is checked
+
+
+@pytest.mark.parametrize("held", ["delete", "upload", "rollback"])
+def test_a_stopped_board_releases_the_replica_only_once_its_storage_calls_have_landed(tmp_path, held):
+    # Review #1 (Codex) #2: the storage routes waited for their bucket call through one cancellation only.
+    # On SIGTERM, uvicorn cancels a request at its 5-second shutdown deadline and the event loop's teardown
+    # cancels it again; the bucket call was still on its way, but the route let go of storage_write, so the
+    # board released the replica first. A successor that took over and stored a file at the same path then
+    # lost it to the late call: a delete removed it, a late upload or a rollback overwrote it.
+    import signal
+    import subprocess
+    import sys
+
+    from .conftest import free_port
+
+    bucket = DirStore(tmp_path / "bucket")
+    token = init_board(tmp_path / "a")
+    (tmp_path / "board.py").write_text(HELD_STORAGE_BOARD)
+    port = free_port()
+    url = f"http://127.0.0.1:{port}"
+    proc = subprocess.Popen([sys.executable, str(tmp_path / "board.py"), str(tmp_path / "a"), str(bucket.root),
+                             str(port)], stderr=subprocess.PIPE, text=True)
+    stop = threading.Event()
+    successor = Replicator(bucket, tmp_path / "s", interval=3600, poll=0.05, stop=stop)
+    held_calls = [1, 2] if held == "rollback" else [1]
+    taken, threads = {}, []
+    try:
+        wait_for(lambda: _up(url), timeout=30)
+        with Client(url, token, max_retries=0) as c:
+            if held != "upload":
+                c.storage_put("notes.txt", b"first version")
+            for n in held_calls:
+                (bucket.root / f"hold-{n}").touch()
+            (bucket.root / "armed").touch()
+            request = (lambda: c.storage_delete("notes.txt")) if held == "delete" else \
+                (lambda: c.storage_put("notes.txt", b"second version"))
+            threads.append(threading.Thread(target=_ignoring_errors, args=(request,)))
+            threads[0].start()
+            wait_for(lambda: "1 start" in _trace(bucket))       # the bucket call is on its way
+            proc.send_signal(signal.SIGTERM)
+            if held == "rollback":                              # the upload lands, but shutdown refuses its record,
+                _land(bucket, 1)
+                wait_for(lambda: "put 2 start" in _trace(bucket))   # so it puts the first version back
+            threads.append(threading.Thread(target=_take_over, args=(successor, taken, "s"),
+                                            kwargs={"stale_after": 2}))
+            threads[1].start()
+            time.sleep(7)                                       # past uvicorn's shutdown deadline
+            with ExitStack() as stack:
+                def successor_stores_the_file():
+                    restore(bucket, tmp_path / "s")
+                    server = stack.enter_context(ThreadedServer(tmp_path / "s", replicator=successor))
+                    stack.enter_context(Client(server.url, token, max_retries=0)).storage_put(
+                        "notes.txt", b"the successor's")
+
+                early = "s" in taken                            # it took over while the old call was on its way
+                if early:
+                    successor_stores_the_file()
+                for n in held_calls:
+                    _land(bucket, n)
+                assert proc.wait(timeout=30) == 0
+                wait_for(lambda: "s" in taken, timeout=20)
+                if not early:
+                    successor_stores_the_file()
+                stored = [(bucket.root / path).read_bytes() for path in bucket.list("storage/")]
+                assert stored == [b"the successor's"], _trace(bucket)
+    finally:
+        for n in held_calls:
+            (bucket.root / f"landed-{n}").touch()
+        stop.set()
+        if proc.poll() is None:
+            proc.kill()
+        proc.communicate(timeout=30)
+        for thread in threads:
+            thread.join(timeout=30)
+    trace = _trace(bucket).splitlines()
+    assert not [line for line in trace[trace.index("release"):] if line.startswith(("put", "delete"))], trace
