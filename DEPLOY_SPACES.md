@@ -150,7 +150,8 @@ happens before SIGTERM:
    bucket by writing `HANDOVER.json`.
 2. The old container sees the request within 5 s. It stops accepting writes (`503`,
    `Retry-After: 2`), waits for the writes it already accepted (storage-folder
-   uploads and deletes included, with their rollbacks), pushes a final snapshot and
+   uploads and deletes included, with their rollbacks: each until its bucket call has
+   ended, even if the request was cancelled meanwhile), pushes a final snapshot and
    releases the lease to the new container. It still serves reads, and the platform
    has not stopped it. There is no deadline as long as something from it reaches
    the bucket: while an upload is slow it also uploads a small heartbeat
@@ -176,7 +177,11 @@ writes during the switch are delayed, not lost or doubled. The SDK keeps retryin
   uploads a heartbeat every 30 s. If nothing from it (claim markers, heartbeat or
   lease) lands for 5 minutes, the stale window below, the old one takes the bucket
   back by claiming it as any container does, accepts writes again, and the containers
-  still waiting ask it again. A new container stopped before it serves (SIGTERM, as
+  still waiting ask it again. It does that only while no container after it has
+  served. Once one has, even one that then handed the bucket on to a container that
+  died before serving, the old one's board may lack what that container accepted, so
+  it never serves again: the last container that served takes the bucket back the
+  same way, or a new container restores its snapshot. A new container stopped before it serves (SIGTERM, as
   when the platform replaces it in a double restart) releases the bucket at once, or
   withdraws its claim if it is still claiming, so the old one hands it on at once.
 - **An old container that crashed:** the new one stops waiting once nothing from the
@@ -189,6 +194,13 @@ writes during the switch are delayed, not lost or doubled. The SDK keeps retryin
   replace newer data. Its storage-folder files can: an upload, delete or rollback it
   still had running can land over the new container's file at the same path, and
   reading that file then fails with `409 storage_mismatch` until it is written again.
+- **SIGTERM while a storage-folder change is on its way** (an upload, a delete or a
+  rollback): uvicorn cancels the request at its 5-second shutdown deadline, and the
+  event loop's teardown cancels it again, but the change runs on, and the container
+  pushes its final snapshot and releases the bucket only once it has landed. If the
+  platform kills the container first (about 10 s after SIGTERM), nothing is released:
+  the next container waits out the 5-minute stale window, and the change, if still on
+  its way, can land after all (the storage-folder caveat above).
 - **A container that finds another owner while it serves** stops taking writes,
   answers `503` `fenced` on `/v1/health` and `/v1/ready`, and exits, so the
   platform starts it again. Measured: a fresh container about 3 s later, which asks
@@ -205,7 +217,9 @@ is a little election with two uploads, each followed by a listing of `claims/`:
 
 1. Upload a claim, `claims/<epoch>-<start time>-<instance>.json`, and wait out the
    other claims: give way to one that won or to a newer container, and wait for
-   older ones to withdraw (or to go 5 minutes without anything landing).
+   older ones to withdraw (or to go 5 minutes without anything landing). The newer
+   container is the one that started later, by its full `time.time()`; the instance
+   id decides between two equal start times, so all containers agree which is newer.
 2. Upload a `.won` marker next to the claim, then list `claims/` again. If another
    `.won` marker shows, withdraw (a `.withdrawn` marker). Of two won markers, the
    later one to land sees the earlier one, so at most one container wins an epoch,
@@ -213,8 +227,10 @@ is a little election with two uploads, each followed by a listing of `claims/`:
 3. Before taking writes, the winner uploads a `.serving` marker with its lease and
    lists `claims/` once more; if a newer epoch has won meanwhile, it does not serve.
    A container that judged a slow owner dead (below) also withdraws if that owner's
-   `.serving` marker appeared while it claimed. Again the later upload is seen by the
-   other's listing, so the two never both take writes.
+   `.serving` marker appeared while it claimed, and an old owner taking the bucket
+   back withdraws if any container after it has a `.serving` marker, whenever it
+   appeared. Again the later upload is seen by the other's listing, so the two never
+   both take writes.
 
 An upload from a container that was replaced (a heartbeat, a release, a final
 snapshot) can still land late, but it never outranks the newer claim: other
