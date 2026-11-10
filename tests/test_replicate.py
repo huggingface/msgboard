@@ -666,7 +666,7 @@ def test_take_over_claims_the_replica_before_serving(tmp_path):
     with ThreadedServer(data, replicator=rep):
         new = Replicator(replica, tmp_path / "b", interval=3600)
         assert new.take_over(poll=0.05) == "released"
-        name = f"claims/{new.epoch:08d}-{int(new.since * 1000)}-{new.instance}"
+        name = f"claims/{new.epoch:08d}-{new.since!r}-{new.instance}"
         assert [p for p in replica.list("claims/") if new.instance in p] == [name + ".json", name + ".won"]
         assert new.epoch == rep.epoch + 1
         lease = _json(tmp_path / "bucket" / "LEASE.json")   # its lease comes once it serves (start())
@@ -770,7 +770,7 @@ def test_a_dead_owner_behind_a_late_lease_write_is_taken_over(tmp_path):
     # B claimed the replica, a late write from A replaced its lease, and both died: the next instance
     # takes over above B's epoch instead of waiting for B forever.
     replica = DirStore(tmp_path / "bucket")
-    replica.put([(b"{}", "claims/00000002-2000-b.json"),
+    replica.put([(b"{}", "claims/00000002-2.0-b.json"),
                  (json.dumps({"protocol": 2, "instance": "a", "since": 1.0, "epoch": 1,
                               "released": False}).encode(), "LEASE.json")])
     stop = threading.Event()
@@ -1167,7 +1167,7 @@ def test_a_space_app_stopped_while_it_claims_withdraws_its_claim(tmp_path):
     a = Replicator(bucket, tmp_path / "a", interval=3600, poll=0.05)
     with ThreadedServer(tmp_path / "a", replicator=a):
         # an older instance's claim on the next epoch, alive as far as anyone knows: the app waits for it
-        bucket.put([(b"{}", f"claims/00000002-{int(a.since * 1000) + 1}-older.json")])
+        bucket.put([(b"{}", f"claims/00000002-{a.since + 0.001!r}-older.json")])
         port = free_port()
         proc = subprocess.Popen([sys.executable, "-m", "msgboard.space.app"], stderr=subprocess.PIPE, text=True,
                                 env={**os.environ, "MSGBOARD_OPERATOR_TOKEN": token, "PORT": str(port),
@@ -1292,3 +1292,28 @@ def test_a_requester_does_not_take_the_replica_from_an_owner_that_started_servin
     assert results["m"] == "released" and m.epoch == 3
     restore(store, tmp_path / "m")
     assert "acknowledged by W" in _bodies(tmp_path / "m", ch, token)
+
+
+@pytest.mark.parametrize("later", ["in the same millisecond", "at the same instant, by instance id"])
+def test_a_requester_that_started_just_after_the_owner_gets_the_replica(tmp_path, later):
+    # Review #1 (Codex) #3: start times were cut to milliseconds before they were compared. A requester that
+    # started after the owner within the same millisecond never asked for the replica, and while the owner's
+    # heartbeats kept landing it waited for ever. Start times are now compared in full, and the instance id
+    # orders two that are equal.
+    store = DirStore(tmp_path / "bucket")
+    init_board(tmp_path / "a")
+    owner = Replicator(store, tmp_path / "a", interval=3600, poll=0.01, heartbeat=0.02)
+    with ThreadedServer(tmp_path / "a", replicator=owner):
+        if later == "in the same millisecond":
+            since, instance = (owner.since + (int(owner.since * 1000) + 1) / 1000) / 2, "requester"
+            assert owner.since < since and int(owner.since * 1000) == int(since * 1000)
+        else:
+            since, instance = owner.since, owner.instance + "0"   # ids are 12 hex digits: this one sorts after
+        stop = threading.Event()
+        timer = threading.Timer(5, stop.set)
+        timer.start()
+        try:
+            assert request_handover(store, instance, since, stale_after=1, poll=0.01, stop=stop) == "released"
+        finally:
+            timer.cancel()
+

@@ -56,7 +56,7 @@ log = logging.getLogger("msgboard.replicate")
 LATEST = "LATEST.json"
 LEASE = "LEASE.json"
 HANDOVER = "HANDOVER.json"
-CLAIMS = "claims/"   # claims/<epoch>-<since, ms>-<instance>.json, one per owner
+CLAIMS = "claims/"   # claims/<epoch>-<since>-<instance>.json, one per owner
 BEATS = "beats/"     # beats/<instance>.json, uploaded while an upload is slow
 KEEP_CLAIMS = 20    # epochs of claims kept below the owner's
 # Lease protocol. 2: owners answer HANDOVER.json requests. 1 (leases without "protocol"): an owner
@@ -234,54 +234,79 @@ class _Watch:
         return out
 
 
-# Ownership. An instance takes the replica in two uploads: a claim, claims/<epoch>-<since ms>-<instance>.json,
+# Ownership. An instance takes the replica in two uploads: a claim, claims/<epoch>-<since>-<instance>.json,
 # then, once no other claim stands in its way, a .won marker next to it; one that gives way uploads a
-# .withdrawn marker instead. Ranks are (epoch, since in ms, instance), and the owner is the best claim that
-# won and was not withdrawn. An owner uploads a .serving marker with its lease before it takes writes, then
-# checks the claims once more: see Replicator._acquire for why that pair of steps needs no timing.
+# .withdrawn marker instead. Ranks are (epoch, since, instance), and the owner is the best claim that won and
+# was not withdrawn. An owner uploads a .serving marker with its lease before it takes writes, then checks the
+# claims once more: see Replicator._acquire for why that pair of steps needs no timing.
+#
+# Instances are ordered by when they started: (since, instance), `since` being time.time() in full (names
+# carry its repr, which reads back as the same float) and the instance id ordering two equal ones. Every
+# comparison of start times uses that order, so of two instances exactly one is the newer, as all agree.
+
+
+def _started(since: float, instance: str) -> tuple[float, str]:
+    return float(since), instance
+
+
+def _rank_name(rank: tuple) -> str:
+    return f"{rank[0]:08d}-{float(rank[1])!r}-{rank[2]}"
+
+
+def _parse_rank(parts: list[str]) -> tuple[int, float, str] | None:
+    # [epoch, since, instance] as _rank_name writes them
+    epoch, since, instance = parts
+    if not epoch.isdigit() or not since.replace(".", "", 1).isdigit():
+        return None
+    return int(epoch), float(since), instance
 
 
 def _claim_path(rank: tuple, kind: str = "json") -> str:
-    return f"{CLAIMS}{rank[0]:08d}-{rank[1]}-{rank[2]}.{kind}"
+    return f"{CLAIMS}{_rank_name(rank)}.{kind}"
 
 
-def _lease_rank(lease: dict) -> tuple[int, int, str]:
-    return lease.get("epoch") or 0, int(lease.get("since", 0) * 1000), lease.get("instance", "")
+def _lease_rank(lease: dict) -> tuple[int, float, str]:
+    return lease.get("epoch") or 0, *_started(lease.get("since", 0), lease.get("instance", ""))
 
 
-def _claims(store) -> dict[tuple[int, int, str], set[str]]:
+def _request_started(request: dict) -> tuple[float, str]:
+    return _started(request.get("since", 0), request.get("instance", ""))
+
+
+def _claims(store) -> dict[tuple[int, float, str], set[str]]:
     """claims/ as {rank: the markers it has ("json", "won", "withdrawn", "serving")}."""
-    claims: dict[tuple[int, int, str], set[str]] = {}
+    claims: dict[tuple[int, float, str], set[str]] = {}
     for path in store.list(CLAIMS):
         stem, _, kind = path[len(CLAIMS):].rpartition(".")
         parts = stem.split("-", 2)
-        if (kind in ("json", "won", "withdrawn", "serving") and len(parts) == 3 and parts[0].isdigit()
-                and parts[1].isdigit()):
-            claims.setdefault((int(parts[0]), int(parts[1]), parts[2]), set()).add(kind)
+        rank = _parse_rank(parts) if len(parts) == 3 and kind in ("json", "won", "withdrawn", "serving") else None
+        if rank is not None:
+            claims.setdefault(rank, set()).add(kind)
     return claims
 
 
-def _authority(claims: dict, lease: dict | None) -> tuple[int, int, str] | None:
+def _authority(claims: dict, lease: dict | None) -> tuple[int, float, str] | None:
     """The owner's rank: the best claim that won and was not withdrawn. The lease counts as its writer's,
     which writes one only once it owns the replica (and owners from before won markers wrote none)."""
     won = [rank for rank, kinds in claims.items() if "won" in kinds and "withdrawn" not in kinds]
     return max(won + ([_lease_rank(lease)] if lease and lease.get("instance") else []), default=None)
 
 
-def _contenders(claims: dict, parent: int) -> dict[tuple[int, int, str], set[str]]:
+def _contenders(claims: dict, parent: int) -> dict[tuple[int, float, str], set[str]]:
     # claims on the epochs after `parent` that still stand
     return {rank: kinds for rank, kinds in claims.items() if rank[0] > parent and "withdrawn" not in kinds}
 
 
 def _snapshot_order(name: str) -> tuple:
-    # snapshots/<epoch>-<since, ms>-<instance>-<generation>.db: by owner rank, then by generation, which
-    # counts one instance's writes. Names from before epochs (<UTC time>-<instance>-<generation>) come first.
+    # snapshots/<epoch>-<since>-<instance>-<generation>.db: by owner rank, then by generation, which counts
+    # one instance's writes. Names from before epochs (<UTC time>-<instance>-<generation>) come first.
     stem = name.rsplit("/", 1)[-1].removesuffix(".db")
     parts = stem.split("-")
     generation = int(parts[-1]) if parts[-1].isdigit() else -1
-    if len(parts) == 4 and parts[0].isdigit() and parts[1].isdigit():
-        return int(parts[0]), int(parts[1]), parts[2], generation, stem
-    return 0, 0, parts[0], generation, stem
+    rank = _parse_rank(parts[:3]) if len(parts) == 4 else None
+    if rank is not None:
+        return *rank, generation, stem
+    return 0, 0.0, parts[0], generation, stem
 
 
 def restore(store, data_dir: Path) -> dict | None:
@@ -332,7 +357,7 @@ def _await_owner(store, instance: str, since: float, stale_after: float, poll: f
                  stop: threading.Event | None) -> tuple[str, tuple | None]:
     # request_handover, plus what ended the wait: (lease, owner rank, the claims above it) for "stale"
     watch = _Watch(store)
-    me = int(since * 1000)
+    me = _started(since, instance)
     last_log = 0.0
     seen, quiet_since = None, time.monotonic()
     while stop is None or not stop.is_set():
@@ -358,8 +383,8 @@ def _await_owner(store, instance: str, since: float, stale_after: float, poll: f
             if time.monotonic() - quiet_since > stale_after:
                 return "stale", (lease, owner, set(above))
             mine = request is not None and request.get("instance") == instance
-            newer = request is not None and request.get("since", 0) > since
-            if owner[1] < me and not mine and not newer:
+            newer = request is not None and _request_started(request) > me
+            if owner[1:] < me and not mine and not newer:
                 store.put([(json.dumps({"instance": instance, "since": since, "at": time.time()}).encode(),
                             HANDOVER)])
                 quiet_since = time.monotonic()  # the owner can answer only now, however long the upload took
@@ -381,7 +406,8 @@ def request_handover(store, instance: str, since: float, *, stale_after: float =
 
     The owner (a Replicator) sees the request in HANDOVER.json within its `poll` interval, stops
     taking writes, pushes a final snapshot and releases the lease to `instance`. Only an instance
-    that started after the owner (`since`) can ask, and the newest one asking wins.
+    that started after the owner can ask, and the newest one asking wins: by `since` (time.time()
+    when it started), and by instance id if two are equal.
 
     Returns why waiting ended: "free" (no owner), "released", "stale" (nothing from the owner, or from
     an instance claiming after it, has changed for `stale_after` s by this caller's clock: they crashed
@@ -471,8 +497,11 @@ class Replicator:
 
     # Ownership (see "Ownership" above). An instance that finds a better owner than itself stops pushing
     # and taking writes instead of overwriting.
-    def _rank(self) -> tuple[int, int, str]:
-        return self.epoch, int(self.since * 1000), self.instance
+    def _rank(self) -> tuple[int, float, str]:
+        return self.epoch, *self._started()
+
+    def _started(self) -> tuple[float, str]:
+        return _started(self.since, self.instance)
 
     def _owns(self, lease: dict | None) -> bool:
         return lease is not None and lease.get("instance") == self.instance and lease.get("epoch") == self.epoch
@@ -575,7 +604,7 @@ class Replicator:
                     if lease.get("handover_to") not in (None, self.instance):
                         log.warning("the replica was released to instance %s", lease["handover_to"])
                         return False
-                elif owner[1] > int(self.since * 1000):
+                elif owner[1:] > self._started():
                     log.warning("newer instance %s has the replica", owner[2])
                     return False
             return claims, owner, lease
@@ -603,7 +632,7 @@ class Replicator:
         `silent`: claims already seen silent for stale_after s (they count as dead unless they change).
         """
         epoch = max([rank[0] for rank in claims] + [(lease or {}).get("epoch") or 0, parent]) + 1
-        mine = (epoch, int(self.since * 1000), self.instance)
+        mine = (epoch, *self._started())
         self._acquiring = True
         self._start_beats()
         try:
@@ -724,7 +753,7 @@ class Replicator:
                         return
                     self._put_lease()  # a late write from an instance this one replaced
                     continue
-                if (request is not None and request.get("since", 0) > self.since
+                if (request is not None and _request_started(request) > self._started()
                         and (request.get("instance"), request.get("at")) not in self._refused):
                     if self._hand_over(request):
                         return
@@ -797,7 +826,7 @@ class Replicator:
                 if not taken:
                     if not self._owns(lease) or not lease.get("released") or lease.get("handover_to") != request["instance"]:
                         self._put_lease(released=True, handover_to=request["instance"])  # a late write hid it
-                    elif (newer is not None and newer.get("since", 0) > request.get("since", 0)
+                    elif (newer is not None and _request_started(newer) > _request_started(request)
                             and (newer.get("instance"), newer.get("at")) not in self._refused
                             and time.monotonic() - released_at > self.regrant_after
                             and request["instance"] not in {rank[2] for rank in after}):  # it has not even claimed
@@ -893,7 +922,7 @@ class Replicator:
                     self._upload(batch)
                 self._uploaded_blobs.update(new[i:i + 50])
             # 2. the snapshot, the pointer to it and the lease, in one upload
-            name = f"snapshots/{self.epoch:08d}-{int(self.since * 1000)}-{self.instance}-{generation}.db"
+            name = f"snapshots/{_rank_name(self._rank())}-{generation}.db"
             manifest = {"snapshot": name, "sha256": _sha256(snap), "size": snap.stat().st_size,
                         "created_at": time.time(), "instance": self.instance, "epoch": self.epoch,
                         "generation": generation}
