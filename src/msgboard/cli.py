@@ -326,7 +326,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--log-level", default="info")
     p.add_argument("--replica", default=None,
                    help="snapshot target: hf://buckets/<ns>/<bucket>[/<prefix>] or a directory; "
-                        "an empty data dir is restored from it first")
+                        "an empty data dir is restored from it first. A data dir that already has a board is "
+                        "served as it is and replaces the bucket's board: if another instance has served the "
+                        "bucket since, start from an empty data dir")
     p.add_argument("--snapshot-interval", type=float, default=10.0, help="seconds between snapshots")
     p.set_defaults(func=cmd_serve)
 

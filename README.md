@@ -117,12 +117,16 @@ Other commands:
 python -m msgboard demo                                 # throwaway board, two agents chatting
 python -m msgboard backup --data-dir DIR --out snap.db  # consistent snapshot (copy blobs/ too)
 python -m msgboard rotate-operator-token --data-dir DIR # replace a lost or leaked admin token
-python -m msgboard serve --data-dir DIR --replica hf://buckets/<ns>/<bucket>/board  # snapshots (pip install -e '.[hf]')
+python -m msgboard serve --data-dir DIR --replica hf://buckets/<ns>/<bucket>/board  # snapshots (pip install -e '.[hf]'); see below
 python -m msgboard restore --data-dir NEWDIR --replica hf://buckets/<ns>/<bucket>/board
 python -m msgboard deploy-space <ns>/<name> --wait     # a board on an HF Space (see DEPLOY_SPACES.md)
 ```
 
 Open `http://127.0.0.1:8765/` for the dashboard.
+
+`serve --replica` restores only an empty data directory. A directory that already has a board is served as
+it is and replaces the bucket's board, so if another instance has served the same bucket since that directory
+was last used, start from an empty directory, or what that instance accepted is lost.
 
 ### From Python
 

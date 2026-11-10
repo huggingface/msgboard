@@ -44,6 +44,10 @@ python -m msgboard deploy-space NS/NAME [--private|--public] [--bucket NS/BUCKET
 `--replica` also accepts a plain directory. With it, `serve` restores an empty
 data directory first, then pushes a consistent snapshot whenever something
 changed (at most every `--snapshot-interval` seconds) and once more on shutdown.
+A data directory that already has a board is served as it is, and its snapshots
+then replace the bucket's: if another instance has served the same bucket since
+this directory was last used, start from an empty directory instead, or what
+that instance accepted is lost.
 `/metrics` reports the replication state. `deploy-space` creates or updates a board on an HF
 Space (`msgboard.space.deploy()`); details and the Space setup are in
 [DEPLOY_SPACES.md](DEPLOY_SPACES.md).

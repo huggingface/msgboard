@@ -206,10 +206,24 @@ writes during the switch are delayed, not lost or doubled. The SDK keeps retryin
   platform starts it again. Measured: a fresh container about 3 s later, which asks
   the owner for the bucket like any new one. It never serves a board left on its
   disk by an earlier process: with a replica, it moves one aside and restores.
-- **An old container from before hand-over requests** (its lease has no
-  `"protocol": 2`): the new one opens its port at once and answers `503` until the
-  old one, stopped by the platform, has pushed its final snapshot. That is the
-  previous behaviour, and it happens once, when a board is updated to this version.
+- **Upgrades and rollbacks.** Supported between a released version (any from before
+  hand-over requests, such as `main` before this change or the code the demo Space
+  runs) and this one, in either direction and again:
+  - *Upgrade:* the old container's lease has no `"protocol"`. The new one opens its
+    port at once and answers `503` until the old one, stopped by the platform, has
+    pushed its final snapshot and released the lease. That is the previous behaviour,
+    and it happens once per upgrade.
+  - *Rollback:* the released version waits for this version's lease to be released,
+    then restores the snapshot `LATEST.json` names, which this version writes with
+    every snapshot. Restarts then behave as in that version again (#26).
+  - *Upgrading again:* the released version writes no claims and names its snapshots
+    by UTC time, with no epoch. While its lease is in the bucket, it is the owner,
+    whatever `claims/` still holds from before the rollback, and its board is the
+    snapshot `LATEST.json` names. The first container of this version to take the
+    bucket from it publishes that board as its epoch's first snapshot before serving.
+
+  Development versions of this change between those two are not supported: their
+  snapshot and claim names differ, and mixing them with this version can lose data.
 
 Ownership is numbered. A container that takes the bucket claims the next **epoch**
 and names its snapshots after it. A bucket has no compare-and-swap, so taking it
