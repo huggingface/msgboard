@@ -3031,11 +3031,14 @@ function setZoomLabel() {
   const z = viewer.zoom; if (!z) return;
   $("v-zoom-level").textContent = z.fit ? "fit" : z.axis === "w" ? "width" : z.axis === "h" ? "height" : Math.round(z.scale * 100) + "%";
   $("v-zoom-fit").disabled = !!z.fit;
+  const cur = z.scale;
+  $("v-zoom-in").disabled = nextStep(cur, 1) === cur; $("v-zoom-out").disabled = nextStep(cur, -1) === cur;   // nowhere to go that way
   $("v-fit-w").disabled = z.axis === "w"; $("v-fit-h").disabled = z.axis === "h";
 }
+// the next zoom step in that direction; past the ends (an exact fit can be beyond them) the scale stays
 function nextStep(scale, dir) {
-  return dir > 0 ? (ZOOM_STEPS.find((s) => s > scale + 1e-3) || ZOOM_STEPS.at(-1))
-                 : ([...ZOOM_STEPS].reverse().find((s) => s < scale - 1e-3) || ZOOM_STEPS[0]);
+  return dir > 0 ? (ZOOM_STEPS.find((s) => s > scale + 1e-3) ?? scale)
+                 : ([...ZOOM_STEPS].reverse().find((s) => s < scale - 1e-3) ?? scale);
 }
 // image: fit to the window, or a scale of its real size; zooming keeps the point under the cursor still
 function setupImageZoom(body, img) {
@@ -3063,7 +3066,10 @@ function setupImageZoom(body, img) {
     }
     setZoomLabel();
   };
-  z.step = (dir, at) => z.apply(nextStep(z.fit ? fitScale() : z.scale, dir), at);
+  z.step = (dir, at) => {
+    const cur = z.fit ? fitScale() : z.scale, next = nextStep(cur, dir);
+    if (next !== cur) z.apply(next, at);
+  };
   // a resize or a phone rotation changes what "fit width/height" means: fit again
   if (viewer.resize) viewer.resize.disconnect();
   let lastBox = `${body.clientWidth}x${body.clientHeight}`;
