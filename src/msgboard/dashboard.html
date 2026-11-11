@@ -3047,13 +3047,13 @@ function setupImageZoom(body, img) {
   // fit one side: the image fills the window's width (or height) and scrolls along the other side
   const axisScale = (axis) => axis === "w" ? (body.clientWidth - 24) / img.naturalWidth : (body.clientHeight - 24) / img.naturalHeight;
   ["v-fit-w", "v-fit-h"].forEach((id) => $(id).classList.remove("hidden"));
-  z.apply = (scale, at) => {
+  z.apply = (scale, at, exact = false) => {
     const before = img.getBoundingClientRect(), box = body.getBoundingClientRect();
     const px = at ? (at.x - before.left) / before.width : 0.5, py = at ? (at.y - before.top) / before.height : 0.5;
     const fit = scale === "fit", axis = scale === "fit-w" ? "w" : scale === "fit-h" ? "h" : null;
     if (axis) { scale = axisScale(axis); at = null; }
     // a fit to one side uses its exact scale, even past the manual zoom range (a very tall screenshot needs < 10%)
-    z.fit = fit; z.axis = axis; z.scale = fit ? fitScale() : axis ? scale : Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS.at(-1), scale));
+    z.fit = fit; z.axis = axis; z.scale = fit ? fitScale() : axis || exact ? scale : Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS.at(-1), scale));
     body.classList.toggle("zoomed", !fit);
     img.style.width = fit ? "" : Math.round(img.naturalWidth * z.scale) + "px";
     img.style.height = fit ? "" : Math.round(img.naturalHeight * z.scale) + "px";
@@ -3105,7 +3105,11 @@ $("v-body").addEventListener("wheel", (e) => {
   e.preventDefault();
   if (z.kind === "image") {
     const cur = z.fit ? z.img.getBoundingClientRect().width / z.img.naturalWidth : z.scale;
-    z.apply(cur * Math.exp(-Math.max(-150, Math.min(150, e.deltaY)) * 0.002), { x: e.clientX, y: e.clientY });   // ~1.2x per wheel notch; pinch is smooth
+    // ~1.2x per wheel notch (pinch is smooth); kept inside the zoom range, or where it is now if a fit is past it,
+    // so zooming in never shrinks the picture and zooming out never grows it
+    const want = cur * Math.exp(-Math.max(-150, Math.min(150, e.deltaY)) * 0.002);
+    const next = Math.max(Math.min(cur, ZOOM_STEPS[0]), Math.min(Math.max(cur, ZOOM_STEPS.at(-1)), want));
+    if (Math.abs(next - cur) > 1e-6) z.apply(next, { x: e.clientX, y: e.clientY }, true);
   } else z.step(e.deltaY < 0 ? 1 : -1);
 }, { passive: false });
 $("v-zoom-in").onclick = () => viewer.zoom && viewer.zoom.step(1);
