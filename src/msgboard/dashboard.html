@@ -586,7 +586,8 @@ button.fchip:hover { border-color: var(--ink); }
 /* an attached image shows as a preview, sized to the image (small screenshots stay small), not as a file chip */
 .fchip.img { height: auto; padding: 0; background: #fff; cursor: zoom-in; justify-self: start; flex: none; width: fit-content; min-width: 0; max-width: 100%; }
 .fchip.img { overflow: hidden; }
-.fchip.img img { display: block; max-width: min(360px, calc(100vw - 96px)); max-height: 300px; }   /* not a % width: the box takes the picture's size */
+.files { container-type: inline-size; }   /* previews shrink to the feed or thread they sit in */
+.fchip.img img { display: block; max-width: min(360px, 100cqw - 2px); max-height: 300px; }   /* not a % width: the box takes the picture's size */
 /* with pictures in it, the row wraps freely so each picture keeps its own width */
 .files:has(.fchip.img) { display: flex; flex-wrap: wrap; align-items: flex-start; }
 .files:has(.fchip.img) .fchip:not(.img) { width: min(230px, 100%); }
@@ -3048,7 +3049,8 @@ function setupImageZoom(body, img) {
     const px = at ? (at.x - before.left) / before.width : 0.5, py = at ? (at.y - before.top) / before.height : 0.5;
     const fit = scale === "fit", axis = scale === "fit-w" ? "w" : scale === "fit-h" ? "h" : null;
     if (axis) { scale = axisScale(axis); at = null; }
-    z.fit = fit; z.axis = axis; z.scale = fit ? fitScale() : Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS.at(-1), scale));
+    // a fit to one side uses its exact scale, even past the manual zoom range (a very tall screenshot needs < 10%)
+    z.fit = fit; z.axis = axis; z.scale = fit ? fitScale() : axis ? scale : Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS.at(-1), scale));
     body.classList.toggle("zoomed", !fit);
     img.style.width = fit ? "" : Math.round(img.naturalWidth * z.scale) + "px";
     img.style.height = fit ? "" : Math.round(img.naturalHeight * z.scale) + "px";
@@ -3062,6 +3064,16 @@ function setupImageZoom(body, img) {
     setZoomLabel();
   };
   z.step = (dir, at) => z.apply(nextStep(z.fit ? fitScale() : z.scale, dir), at);
+  // a resize or a phone rotation changes what "fit width/height" means: fit again
+  if (viewer.resize) viewer.resize.disconnect();
+  let lastBox = `${body.clientWidth}x${body.clientHeight}`;
+  viewer.resize = new ResizeObserver(() => {
+    const box = `${body.clientWidth}x${body.clientHeight}`;
+    if (box === lastBox || viewer.zoom !== z || !img.isConnected) return;
+    lastBox = box;
+    if (z.axis) z.apply(z.axis === "w" ? "fit-w" : "fit-h"); else if (z.fit) z.apply("fit");
+  });
+  viewer.resize.observe(body);
   // click toggles fit <-> real size at that spot; drag pans when zoomed
   let drag = null, moved = false;
   img.addEventListener("pointerdown", (e) => {
