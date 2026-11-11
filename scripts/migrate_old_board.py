@@ -139,8 +139,6 @@ def main() -> None:
     ap.add_argument("--secrets", required=True, help="directory holding the board's operator.token")
     ap.add_argument("--title", default=None)
     ap.add_argument("--go", action="store_true", help="really migrate (default: checks only)")
-    ap.add_argument("--quiet-minutes", type=float, default=3,
-                    help="before pausing, the board must take no writes for this long, with a snapshot newer than the last one")
     a = ap.parse_args()
     api, url = HfApi(), f"hf://buckets/{a.bucket}"
     host = f"https://{a.space.replace('/', '-').lower()}.hf.space"
@@ -187,29 +185,8 @@ def main() -> None:
         say("restarted on the old prefix; the root copy (if any) can be deleted")
 
     try:
-        # 1a. writers stopped (announced beforehand): no new messages for --quiet-minutes, and LATEST unchanged
-        # through the last minute of it. A change is snapshotted within MSGBOARD_SNAPSHOT_INTERVAL (15 s), so by
-        # then the bucket already holds everything and the pause has nothing left to lose, even if cut off
-        say(f"waiting for {a.quiet_minutes:g} quiet minutes (no posts, no new snapshot)")
-        seen, since, end = api_view(host, operator), time.time(), time.time() + 3600
-        prev = (replicate._read_json(old, replicate.LATEST) or {}).get("snapshot")
-        while True:
-            time.sleep(60)
-            now_view = api_view(host, operator)
-            if now_view["last_seq"] != seen["last_seq"] or now_view["channels"] != seen["channels"]:
-                seen, since = now_view, time.time()
-                say("the board took writes; waiting again")
-            latest = replicate._read_json(old, replicate.LATEST) or {}
-            if latest.get("snapshot") != prev:   # something was written (a post, an upload, a read marker)
-                prev, since = latest.get("snapshot"), time.time()
-            elif time.time() - since >= a.quiet_minutes * 60:
-                break
-            if time.time() > end:
-                raise RuntimeError("the board did not go quiet within an hour; ask its writers to stop and retry")
-        final_api = seen   # the last thing people saw, to compare the new board with
-        say(f"quiet since {time.strftime('%H:%M:%S', time.localtime(since))}; latest snapshot {prev}")
-
-        # 1b. stop the Space; proof of a clean stop: the running instance released its lease naming LATEST
+        # 1. stop writes; proof of a clean stop: the running instance released its lease naming LATEST
+        final_api = api_view(host, operator)   # the last thing people saw, to compare the new board with
         say(f"pausing {a.space}")
         api.pause_space(a.space)
         wait_stage(api, a.space, {"PAUSED"})
