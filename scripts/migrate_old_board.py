@@ -79,7 +79,8 @@ def inspect(store) -> dict:
                       "attachments": one("SELECT COUNT(*) FROM attachments WHERE state = 'ready'"),
                       "storage_files": one("SELECT COUNT(*) FROM storage_files"),
                       "max_message_id": one("SELECT COALESCE(MAX(id), 0) FROM messages"),
-                      "schema": one("PRAGMA user_version")}
+                      "schema": one("PRAGMA user_version"),
+                      "operator": one("SELECT COALESCE(MAX(id), 0) FROM principals WHERE issuer = 'local' AND external_id = 'operator'")}
             refs = [(f"blobs/{k}", h) for k, h in conn.execute("SELECT storage_key, sha256 FROM attachments WHERE state = 'ready'")]
             refs += [(f"storage/{o}/{p}", h) for o, p, h in conn.execute("SELECT owner_id, path, sha256 FROM storage_files")]
         finally:
@@ -156,13 +157,15 @@ def main() -> None:
         before_api = api_view(host, operator)
     except Exception as exc:
         raise SystemExit(f"the operator token does not work on {host}: {exc}")
-    if before_api["role"] != "admin":
-        raise SystemExit(f"the token in {a.secrets} is not an admin on {host} (role {before_api['role']!r})")
     root = {k: v for k, v in objects(a.bucket, "").items() if not k.startswith(a.prefix + "/")}
     if root:
         raise SystemExit(f"the bucket root is not empty ({len(root)} objects, e.g. {sorted(root)[:3]}); refusing")
     old = replicate.store_from_url(f"{url}/{a.prefix}")
     before = inspect(old)
+    # an admin is not enough: the Space binds MSGBOARD_OPERATOR_TOKEN to the local operator and revokes its old token
+    if not before["operator"] or before_api["me"] != before["operator"]:
+        raise SystemExit(f"the token in {a.secrets} belongs to principal #{before_api['me']}, not this board's "
+                         f"operator (#{before['operator']}); refusing")
     lease0 = replicate._read_json(old, replicate.LEASE) or {}
     say(f"checks pass: operator #{before_api['me']}, {len(before_api['channels'])} channels via the API, "
         f"lease held by {lease0.get('instance')}; snapshot {json.dumps(before)}")
@@ -225,22 +228,30 @@ def main() -> None:
             raise RuntimeError(f"the root copy differs: {after} vs {final}")
         say(f"root copy restores to the same board ({after['files_checked']} files checked)")
 
-        # 4. switch: tag, point at the root, deploy with the board's own operator token
-        say("switching the Space to the bucket root")
+        # 4a. settings: tag, point at the root (the Space is still paused, nothing runs on the root yet)
+        say("switching the Space's settings to the bucket root")
         switched = True
         metadata_update(a.space, {"tags": card_tags + [TAG]}, repo_type="space", overwrite=True)
         api.add_space_variable(a.space, "MSGBOARD_REPLICA", url)
+    except BaseException as exc:
+        put_back(repr(exc))
+        raise
+
+    # 4b. from deploy() on, the board may start on the root and take writes that demo/ never sees: past this
+    # point nothing is undone automatically, because flipping back to demo/ would lose those writes
+    say(f"POINT OF NO RETURN at {time.strftime('%H:%M:%S')}: deploying; the root may serve writes from now on")
+    try:
         result = deploy(a.space, operator_token=operator, title=a.title)
         say(f"deployed {result.commit[:8]}; starting")
         api.restart_space(a.space)
         wait_stage(api, a.space, {"RUNNING"})
         wait_healthy(host)
     except BaseException as exc:
-        put_back(repr(exc))
+        say(f"FAILED after the point of no return ({exc!r}). Left as it is: the board's data is on {url}. "
+            f"Fix and restart the Space there; going back to {a.prefix}/ needs the root copied back first.")
         raise
 
     # 5. the live board must show what it showed before the pause; from here on the root has new writes
-    say(f"the board runs on {url} since {time.strftime('%H:%M:%S')}; {a.prefix}/ is now behind it")
     live = api_view(host, operator)
     problems = ["operator"] if live["me"] != final_api["me"] else []
     problems += [f"{k} missing: {sorted(set(final_api[k]) - set(live[k]))[:5]}" for k in ("channels", "principals")
