@@ -1,0 +1,45 @@
+{
+  "half_second_after_first_click": {
+    "button_label": "Download",
+    "button_disabled": false,
+    "browser_downloads": 0
+  },
+  "throttled_download": {
+    "test_bytes": 16777216,
+    "configured_bytes_per_second": 1048576,
+    "requests": [
+      0.069
+    ],
+    "events": [
+      {
+        "event": "headers",
+        "seconds": 0.112
+      },
+      {
+        "event": "body_finished",
+        "seconds": 16.013
+      },
+      {
+        "event": "browser_download",
+        "seconds": 16.014
+      },
+      {
+        "event": "browser_download",
+        "seconds": 16.014
+      }
+    ],
+    "clicks": 2,
+    "downloads": 2,
+    "downloaded_bytes_match": [
+      true,
+      true
+    ]
+  },
+  "deleted_file_click": {
+    "button_label": "Download",
+    "button_disabled": false,
+    "viewer_text": "deleted.mp4\n10 B \u00b7 mp4\nCopy link\nDownload\n\u00d7\nMP4\nNo preview for this kind of file.\n\nDownload",
+    "page_errors": []
+  },
+  "page_errors": []
+}

@@ -1,0 +1,41 @@
+{
+  "half_second_after_first_click": {
+    "button_label": "Preparing\u2026",
+    "button_disabled": true,
+    "browser_downloads": 0
+  },
+  "native_handoff": {
+    "download_started_s": 0.716,
+    "file_complete_s": 16.692,
+    "prepare_requests": [
+      0.025
+    ],
+    "renderer_file_GETs": [],
+    "page_blob_cache_entries": 0
+  },
+  "throttled_download": {
+    "test_bytes": 16777216,
+    "http_proxy_file_bytes_per_second": 1048576,
+    "requests": [],
+    "events": [
+      {
+        "event": "browser_download",
+        "seconds": 0.716
+      }
+    ],
+    "click_attempts": 2,
+    "downloads": 1,
+    "downloaded_bytes_match": [
+      true
+    ]
+  },
+  "deleted_file_click": {
+    "button_label": "Download",
+    "button_disabled": false,
+    "viewer_text": "deleted.mp4\n10 B \u00b7 mp4\nCopy link\nDownload\n\u00d7\nDownload failed: no file `video/deleted.mp4` in operator's storage\nMP4\nNo preview for this kind of file.\n\nDownload",
+    "page_errors": []
+  },
+  "retry_after_error": true,
+  "combined_image_preview_download": true,
+  "page_errors": []
+}
