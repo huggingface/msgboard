@@ -1,4 +1,4 @@
-"""Tokens and roles."""
+"""Tokens, roles and short-lived browser download links."""
 
 from __future__ import annotations
 
@@ -6,7 +6,10 @@ import base64
 import hashlib
 import hmac
 import secrets
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
+
+from .errors import ApiError
 
 TOKEN_PREFIX = "fbt_"
 
@@ -92,3 +95,43 @@ def parse_token(token: str) -> tuple[str, bytes] | None:
 
 def secret_matches(secret: bytes, stored_hash: bytes) -> bool:
     return hmac.compare_digest(hashlib.sha256(secret).digest(), bytes(stored_hash))
+
+
+DOWNLOAD_TTL_SECONDS = 120
+
+
+@dataclass(frozen=True)
+class DownloadLink:
+    principal_id: int
+    token: str = field(repr=False)
+    file_id: str
+    sha256: str
+    expires: float
+
+
+class DownloadLinks:
+    def __init__(self, ttl_seconds: float = DOWNLOAD_TTL_SECONDS, max_links: int = 2048):
+        self.ttl_seconds = ttl_seconds
+        self.max_links = max_links
+        self.links: dict[str, DownloadLink] = {}
+
+    def _prune(self) -> None:
+        now = time.monotonic()
+        for key in [key for key, link in self.links.items() if link.expires <= now]:
+            del self.links[key]
+
+    def issue(self, principal_id: int, token: str, file_id: str, sha256: str) -> str:
+        self._prune()
+        if len(self.links) >= self.max_links or sum(link.principal_id == principal_id for link in self.links.values()) >= 32:
+            raise ApiError(429, "too_many_downloads", "too many recent downloads; try again shortly",
+                           {"Retry-After": str(DOWNLOAD_TTL_SECONDS)})
+        key = secrets.token_urlsafe(24)
+        self.links[key] = DownloadLink(principal_id, token, file_id, sha256, time.monotonic() + self.ttl_seconds)
+        return key
+
+    def get(self, key: str) -> DownloadLink:
+        self._prune()
+        link = self.links.get(key)
+        if link is None:
+            raise ApiError(404, "download_expired", "download link expired; click Download again")
+        return link

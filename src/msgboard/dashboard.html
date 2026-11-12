@@ -397,6 +397,8 @@ button.fchip:hover { border-color: var(--ink); }
 .v-title .mono { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
 .v-head .close { background: none; border: 0; font: 20px/1 var(--mono); color: var(--ink-3); padding: 0 2px; }
 .v-head .close:hover { color: var(--ink); }
+.download-status { flex: none; min-width: 0; padding: 7px 14px; border-bottom: 1px solid var(--rule); font-size: 12px; overflow-wrap: anywhere; }
+#viewer.img-mode .download-status { color: #eee; background: rgba(0,0,0,.55); border: 0; }
 .v-nav { display: flex; align-items: center; gap: 6px; font: 11px var(--mono); color: var(--ink-3); }
 .v-nav button { background: none; border: 1px solid var(--rule-2); padding: 1px 8px; font: 13px/1.3 var(--mono); }
 .v-nav button:disabled { opacity: .35; cursor: default; }
@@ -873,9 +875,10 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       <div class="v-zoom hidden" id="v-zoom" role="group" aria-label="Zoom"><button id="v-zoom-out" title="Zoom out (−)" aria-label="Zoom out"><svg class="v-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7"/></svg></button><span id="v-zoom-level">fit</span><button id="v-zoom-in" title="Zoom in (+)" aria-label="Zoom in"><svg class="v-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7M6 2.5v7"/></svg></button><button id="v-zoom-fit" title="Fit to window (0)">fit</button></div>
       <button class="btn ghost small hidden" id="v-open" title="Open in the browser's own viewer">Open in new tab</button>
       <button class="btn ghost small" id="v-link" title="Copy a link to this file">Copy link</button>
-      <button class="btn small" id="v-download">Download</button>
+      <button class="btn small" id="v-download" data-download>Download</button>
       <button class="close" id="v-close" aria-label="Close">×</button>
     </div>
+    <div id="v-download-status" class="download-status hidden" role="status"></div>
     <div class="v-body" id="v-body"></div>
   </div>
 </div>
@@ -2379,11 +2382,33 @@ function typed(blob, info) {
   const type = kind === "image" ? (IMAGE_EXT[ext] || info.content_type) : kind === "pdf" ? "application/pdf" : kind === "html" ? "text/html" : "text/plain";
   return blob.slice(0, blob.size, type);
 }
+const downloadStates = new Map();
+function updateDownloadUI() {
+  const id = viewer.list[viewer.index], d = downloadStates.get(id);
+  $("viewer").querySelectorAll("[data-download]").forEach((b) => {
+    b.disabled = !!(d && d.busy);
+    b.textContent = d && d.phase === "preparing" ? "Preparing…" : d && d.busy ? "Starting…"
+      : d && d.phase === "started" ? "Download again" : "Download";
+  });
+  const status = $("v-download-status");
+  status.textContent = !d ? "" : d.phase === "preparing" ? "Preparing download…"
+    : d.phase === "error" ? "Download failed: " + d.error : "Download requested. Check your browser’s downloads.";
+  status.classList.toggle("hidden", !d);
+  status.setAttribute("role", d && d.phase === "error" ? "alert" : "status");
+}
 async function download(id) {
-  const info = await getInfo(id, true), blob = await getBlob(id, info);
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = (info && info.filename) || id; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  if (downloadStates.get(id)?.busy) return;
+  const d = { phase: "preparing", busy: true }; downloadStates.set(id, d); updateDownloadUI();
+  try {
+    const file = await api("POST", "/downloads", { body: { file_id: id } });
+    // The browser streams the response to its download manager; never buffer it as a Blob in this page.
+    const a = document.createElement("a"); a.href = file.url; a.download = file.filename || "";
+    a.rel = "noreferrer"; a.hidden = true; document.body.append(a); a.click(); a.remove();
+    d.phase = "started";
+    // Absorb a double click across the handoff; subsequent intentional downloads say "Download again".
+    setTimeout(() => { d.busy = false; if (downloadStates.get(id) === d) updateDownloadUI(); }, 1000);
+  } catch (e) { d.phase = "error"; d.error = e.message; d.busy = false; }
+  updateDownloadUI();
 }
 
 // ---------- the preview overlay
@@ -2407,13 +2432,14 @@ async function showInViewer(view = "render") {
   $("v-download").onclick = () => download(id).catch(() => {});
   $("v-link").onclick = () => copyText(boardURL("file/" + id), $("v-link"));
   const info = await getInfo(id, true);
+  updateDownloadUI();
   if (viewer.list[viewer.index] !== id) return;
   if (!info) { body.innerHTML = `<div class="v-empty">This file is not available.</div>`; return; }
   const kind = kindOf(info.filename, info.content_type);
   $("v-name").textContent = info.filename || id;
   $("v-meta").textContent = `${fmtSize(info.size)} · ${typeLabel(info.filename, kind)}`;
   const noPreview = (why) => { body.innerHTML = `<div class="v-empty"><div class="fprev">${esc(typeLabel(info.filename, kind))}</div>${why}<br><br>` +
-    `<button class="btn" onclick="document.getElementById('v-download').click()">Download</button></div>`; };
+    `<button class="btn" data-download onclick="document.getElementById('v-download').click()">Download</button></div>`; updateDownloadUI(); };
   if (kind === "other") return noPreview("No preview for this kind of file.");
   const limit = kind === "text" || kind === "html" ? 2 * 1024 * 1024 : 60 * 1024 * 1024;
   if (info.size > limit) return noPreview(`Too large to preview (${fmtSize(info.size)}).`);

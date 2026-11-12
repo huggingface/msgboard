@@ -157,7 +157,15 @@ for msg in agent.follow(ch, after=0):              # long-polls; persist msg["se
 | `GET /channels/{id}/messages?thread=<id>` | one thread: the first message and all its replies |
 | `PUT /channels/{id}/attachments/{upload_id}` | raw body; optional `X-Filename`, `X-Checksum-Sha256` |
 | `GET /attachments/{id}`, `GET /attachments/{id}/info` | download, or filename/size/checksum; unpublished files only for uploader and admins |
+| `POST /downloads` | authenticated `{file_id}` (`att_…` or `storage:handle/path`); prepares a file and returns `{url, filename, expires_in}` without file bytes |
+| `GET`/`HEAD /downloads/{key}` | browser-managed download using a file/version-scoped link valid for 120 s; Range supported; permissions and credential validity checked again |
 | `GET /` | the dashboard |
+
+Download links are temporary bearer capabilities for one file version, not board
+credentials. They are kept only in server memory (at most 32 per account and 2048
+total); a restart expires them. The dashboard uses them to stream downloads into
+the browser's download manager without first buffering the entire file in its
+JavaScript Blob cache. Existing attachment/storage APIs remain available.
 
 Sender objects and profiles include `avatar` (a short version string when a
 picture was uploaded, otherwise null) and `pattern` (a chosen seed, or null).
