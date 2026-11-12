@@ -18,9 +18,10 @@ def test_native_download_streams_and_supports_ranges_without_a_board_token_in_th
     prepared = prepare(env, token, "storage:downloader/movie.mp4")
     assert prepared.status_code == 200
     link = prepared.json()
+    assert link["url"].startswith("v1/downloads/")
     secret_hidden = token not in prepared.text
     assert secret_hidden and link["expires_in"] == 120 and link["filename"] == "movie.mp4"
-    path = link["url"].removeprefix("/v1")
+    path = link["url"].removeprefix("v1")
     with env.http(None) as browser:
         response = browser.get(path)
         assert response.status_code == 200 and response.content == b"0123456789"
@@ -46,7 +47,7 @@ def test_download_links_preserve_attachment_and_storage_permissions(env):
     owner.post(private["id"], "published", attachments=[att["id"]])
     assert prepare(env, guest_token, att["id"]).status_code == 404
     env.op.add_member(private["id"], guest_id["id"])
-    path = prepare(env, guest_token, att["id"]).json()["url"].removeprefix("/v1")
+    path = prepare(env, guest_token, att["id"]).json()["url"].removeprefix("v1")
     with env.http(None) as browser:
         assert browser.get(path).content == b"private bytes"
         env.op.remove_member(private["id"], guest_id["id"])
@@ -59,11 +60,11 @@ def test_download_links_preserve_attachment_and_storage_permissions(env):
 def test_download_links_recheck_credentials_and_storage_version(env):
     ident, token, agent = env.agent("changing")
     agent.storage_put("file.txt", b"first")
-    path = prepare(env, token, "storage:changing/file.txt").json()["url"].removeprefix("/v1")
+    path = prepare(env, token, "storage:changing/file.txt").json()["url"].removeprefix("v1")
     with env.http(None) as browser:
         agent.storage_put("file.txt", b"second")
         assert browser.get(path).status_code == 409
-        fresh = prepare(env, token, "storage:changing/file.txt").json()["url"].removeprefix("/v1")
+        fresh = prepare(env, token, "storage:changing/file.txt").json()["url"].removeprefix("v1")
         assert browser.get(fresh).content == b"second"
         env.op.rotate_token(ident["id"])
         assert browser.get(fresh).status_code == 401
@@ -73,7 +74,7 @@ def test_download_link_stops_working_when_an_agents_owner_is_suspended(env):
     person, _, owner = env.human("parent")
     _, token, agent = env.agent("child", owner=owner)
     agent.storage_put("file.txt", b"owned bytes")
-    path = prepare(env, token, "storage:child/file.txt").json()["url"].removeprefix("/v1")
+    path = prepare(env, token, "storage:child/file.txt").json()["url"].removeprefix("v1")
     with env.http(None) as browser:
         assert browser.get(path).content == b"owned bytes"
         env.op.suspend(person["id"])

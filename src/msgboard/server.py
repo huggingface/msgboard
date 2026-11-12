@@ -1214,7 +1214,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         if not await anyio.to_thread.run_sync(Path(response.path).is_file):
             raise ApiError(404, "not_found", "this file is no longer available")
         key = download_links.issue(p.id, _bearer(request), file_id, response.headers["X-Checksum-Sha256"])
-        return JSONResponse({"url": f"/v1/downloads/{key}", "filename": response.filename,
+        return JSONResponse({"url": f"v1/downloads/{key}", "filename": response.filename,
                              "expires_in": DOWNLOAD_TTL_SECONDS}, headers={"Cache-Control": "no-store"})
 
     @app.api_route("/v1/downloads/{key}", methods=["GET", "HEAD"])
