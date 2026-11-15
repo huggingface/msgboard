@@ -2486,8 +2486,10 @@ async function showInViewer(view = "render") {
 // minutes; when a later range request fails, fetch a new link and carry on from the same spot.
 async function showVideo(body, id, info, noPreview) {
   const link = async () => (await api("POST", "/downloads", { body: { file_id: id } })).url;
-  // every callback checks that the viewer still shows this video: a late answer must not touch the next file
-  const current = () => !$("viewer").classList.contains("hidden") && viewer.list[viewer.index] === id && (!video || body.contains(video));
+  // every callback checks that the viewer still shows *this opening* of the video: a late answer must not touch
+  // the next file, nor the same file opened again
+  const opening = {}; body.videoOpening = opening;
+  const current = () => !$("viewer").classList.contains("hidden") && body.videoOpening === opening && viewer.list[viewer.index] === id && (!video || body.contains(video));
   const fail = (why) => { if (current()) noPreview(why); };
   let video = null, src;
   try { src = await link(); } catch (e) { return fail(esc(e.message)); }
@@ -2495,11 +2497,17 @@ async function showVideo(body, id, info, noPreview) {
   body.classList.add("center");
   body.innerHTML = `<video controls playsinline preload="metadata" title="${esc(info.filename || "")}"></video>`;
   video = body.querySelector("video");
-  // Chromium pauses the player just before a network error, so "was it playing?" is remembered across that pause:
-  // a pause only counts as the viewer's own once no error has followed it for a moment
-  let wantPlay = false, pauseAt = 0, renewed = 0;
-  video.addEventListener("play", () => { wantPlay = true; });
-  video.addEventListener("pause", () => { const t = pauseAt = performance.now(); setTimeout(() => { if (pauseAt === t && !video.error) wantPlay = false; }, 1500); });
+  // "Was it playing?" Chromium pauses the player itself just before a network error, so a pause right after the
+  // viewer's own click or key is theirs; any other pause only counts once no error has followed it for a moment
+  let wantPlay = false, pauseAt = 0, inputAt = -1e9, renewed = 0;
+  const touched = () => { inputAt = performance.now(); };
+  video.addEventListener("pointerdown", touched); video.addEventListener("keydown", touched);
+  video.addEventListener("play", () => { wantPlay = true; pauseAt = 0; });   // a new play also cancels an old pause's timer
+  video.addEventListener("pause", () => {
+    if (performance.now() - inputAt < 500) { wantPlay = false; pauseAt = 0; return; }
+    const t = pauseAt = performance.now();
+    setTimeout(() => { if (pauseAt === t && !video.error) wantPlay = false; }, 1500);
+  });
   video.onerror = async () => {
     if (!current()) return;
     const at = video.currentTime, playing = wantPlay;
