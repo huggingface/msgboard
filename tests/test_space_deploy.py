@@ -161,7 +161,7 @@ def test_deploy_creates_a_private_board(hf_token, sent, delete_after):
 
 @pytest.mark.vcr
 def test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket(hf_token, sent, delete_after):
-    space, bucket = f"{NAMESPACE}/msgboard-queue-rec-2", f"{NAMESPACE}/msgboard-queue-rec-2-bucket"
+    space, bucket = f"{NAMESPACE}/msgboard-queue-redeploy-rec", f"{NAMESPACE}/msgboard-queue-redeploy-rec-bucket"
     delete_after += [("space", space), ("bucket", bucket)]
     api = HfApi(token=hf_token)
     first_token = new_token()[1]

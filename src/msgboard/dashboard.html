@@ -817,6 +817,8 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 .queue-row.drag-before { box-shadow: inset 0 2px var(--ink); }
 .queue-row.drag-after { box-shadow: inset 0 -2px var(--ink); }
 .queue-row[draggable=true] { cursor: grab; }
+.queue-row.touch-dragging { background: var(--hover); outline: 1px solid var(--rule-2); cursor: grabbing; }
+.queue-row[draggable=true] .queue-row-open { -webkit-touch-callout: none; }
 .queue-row-open { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
 .queue-row-title { display: block; font-size: 15px; line-height: 1.45; font-weight: 500; letter-spacing: -.12px; }
 .queue-row-open:hover .queue-row-title { text-decoration: underline; text-underline-offset: 3px; }
@@ -3058,7 +3060,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
 const queueState = {
   items: [], counts: { open: 0, archived: 0 }, orderVersion: 0, sort: "manual", direction: "asc",
   archived: false, request: 0, loading: false, signature: "", open: null, opening: 0,
-  busy: new Set(), agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmSignature: "", dmHidden: false,
+  busy: new Set(), movePending: false, agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmSignature: "", dmHidden: false,
 };
 const queueCheck = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.5 3.5L13 4.5"/></svg>`;
 const queueCross = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>`;
@@ -3075,6 +3077,7 @@ function queueActions(item, row = false) {
     `<button class="queue-icon" data-queue-action="dismiss" data-qid="${esc(item.id)}" title="Dismiss" aria-label="Dismiss ${row ? esc(item.title) : "item"}"${disabled}>${queueCross}</button></div>`;
 }
 function leaveQueue() {
+  queueCancelTouch(); queueDragged = null; queueClearDrop();
   $("queue").classList.add("hidden");
   queueState.request++; queueState.loading = false; queueState.opening++;
   queueCloseItem(false);
@@ -3130,10 +3133,11 @@ async function queueRefresh() {
   finally { if (request === q.request) q.loading = false; }
 }
 function queueRenderList() {
+  queueCancelTouch();
   const q = queueState, box = $("queue-list"), focus = document.activeElement;
   const focusId = focus && focus.dataset && focus.dataset.queueOpen;
   box.innerHTML = q.items.map((i) => `<article class="queue-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" draggable="${q.sort === "manual" && i.state === "open"}">
-    <button class="queue-row-open" data-queue-open="${esc(i.id)}" aria-haspopup="dialog"><span class="queue-row-title">${i.state !== "open" ? `<span class="queue-row-mark" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? "×" : "✓"}</span>` : ""}${esc(i.title)}</span>
+    <button class="queue-row-open" data-queue-open="${esc(i.id)}" aria-haspopup="dialog"${q.sort === "manual" && i.state === "open" ? ' title="Hold and drag to reorder · Alt+↑/↓ with keyboard" aria-description="Hold and drag to reorder, or press Alt plus Arrow Up or Arrow Down."' : ""}><span class="queue-row-title">${i.state !== "open" ? `<span class="queue-row-mark" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? "×" : "✓"}</span>` : ""}${esc(i.title)}</span>
     <span class="queue-row-meta">${i.channel ? `<span>${esc(queueChannelLabel(i.channel))}</span><span>·</span>` : ""}<span>${esc(nameOf(i.agent))}</span><span>·</span><time title="${esc(fmtDate(i.created_at) + " " + fmtTime(i.created_at))}">${esc(ago(i.created_at))}</time></span></button>${queueActions(i, true)}</article>`).join("") || `<div class="empty">The queue is clear.</div>`;
   if (focusId) { const b = [...box.querySelectorAll("[data-queue-open]")].find((b) => b.dataset.queueOpen === focusId); if (b) b.focus({ preventScroll: true }); }
 }
@@ -3142,7 +3146,7 @@ $("queue-sort").onclick = (e) => {
   const b = e.target.closest("[data-queue-sort]"); if (!b) return;
   const q = queueState, next = b.dataset.queueSort;
   q.direction = next === q.sort && next !== "manual" ? (q.direction === "asc" ? "desc" : "asc") : next === "latest" ? "desc" : "asc";
-  q.sort = next; queueRenderSort(); queueRefresh();
+  queueCancelTouch(); q.sort = next; queueRenderSort(); queueRefresh();
 };
 $("queue-show-archived").onchange = (e) => { queueState.archived = e.target.checked; queueRefresh(); };
 $("queue-list").onclick = (e) => {
@@ -3150,33 +3154,108 @@ $("queue-list").onclick = (e) => {
   if (action) return queueFinish(action.dataset.qid, action.dataset.queueAction);
   const b = e.target.closest("[data-queue-open]"); if (b) queueOpenItem(b.dataset.queueOpen, b);
 };
-let queueDragged = null;
+let queueDragged = null, queueTouch = null, queueIgnoreClickUntil = 0;
+const queueClearDrop = () => $("queue-list").querySelectorAll(".drag-before,.drag-after").forEach((r) => r.classList.remove("drag-before", "drag-after"));
+function queueCancelTouch() {
+  if (!queueTouch) return;
+  clearTimeout(queueTouch.timer);
+  if (queueTouch.active) queueIgnoreClickUntil = Date.now() + 800;
+  queueTouch.row.classList.remove("touch-dragging");
+  queueTouch = null; queueClearDrop();
+}
+async function queueMove(id, neighbor, before) {
+  const q = queueState;
+  if (!neighbor || q.movePending || state.view !== "queue" || q.sort !== "manual") return;
+  const item = q.items.find((i) => String(i.id) === String(id));
+  if (!item || item.state !== "open" || item.id === neighbor.id) return;
+  q.movePending = true;
+  try {
+    await api("POST", `/queue/items/${encodeURIComponent(id)}/move`, { body: { order_version: q.orderVersion, [before ? "before_id" : "after_id"]: neighbor.id } });
+    $("queue-error").classList.add("hidden"); await queueRefresh();
+  } catch (err) { queueError(err.status === 409 ? "The queue order changed. It has been refreshed; try the move again." : err); await queueRefresh(); }
+  finally { q.movePending = false; }
+}
+function queueMarkDrop(row, y) {
+  queueClearDrop();
+  const bounds = row.getBoundingClientRect();
+  const before = y < bounds.top + bounds.height / 2;
+  row.classList.add(before ? "drag-before" : "drag-after");
+  return before;
+}
 $("queue-list").addEventListener("dragstart", (e) => {
-  const row = e.target.closest(".queue-row[draggable=true]"); if (!row || queueState.sort !== "manual" || hasFiles(e)) return;
+  const row = e.target.closest(".queue-row[draggable=true]");
+  if (e.target.closest(".queue-actions") || queueTouch || queueState.movePending) { e.preventDefault(); return; }
+  if (!row || queueState.sort !== "manual" || hasFiles(e)) return;
   queueDragged = row.dataset.qid;
   e.dataTransfer.setData("application/x-msgboard-queue", queueDragged); e.dataTransfer.effectAllowed = "move";
 });
-const queueClearDrop = () => $("queue-list").querySelectorAll(".drag-before,.drag-after").forEach((r) => r.classList.remove("drag-before", "drag-after"));
 $("queue-list").addEventListener("dragover", (e) => {
   const row = e.target.closest(".queue-row");
   if (!row || !queueDragged || row.dataset.qid === queueDragged || queueState.sort !== "manual") return;
-  e.preventDefault(); queueClearDrop();
-  const bounds = row.getBoundingClientRect(); row.classList.add(e.clientY < bounds.top + bounds.height / 2 ? "drag-before" : "drag-after");
+  e.preventDefault(); queueMarkDrop(row, e.clientY);
 });
 $("queue-list").addEventListener("dragleave", (e) => { if (!$("queue-list").contains(e.relatedTarget)) queueClearDrop(); });
 $("queue-list").addEventListener("dragend", () => { queueDragged = null; queueClearDrop(); });
-$("queue-list").addEventListener("drop", async (e) => {
+$("queue-list").addEventListener("drop", (e) => {
   const row = e.target.closest(".queue-row"), id = queueDragged;
   if (!row || !id || row.dataset.qid === id || queueState.sort !== "manual") return;
   e.preventDefault();
   const before = row.classList.contains("drag-before"), neighbor = queueState.items.find((i) => String(i.id) === row.dataset.qid);
   queueDragged = null; queueClearDrop();
-  if (!neighbor) return;
-  try {
-    await api("POST", `/queue/items/${encodeURIComponent(id)}/move`, { body: { order_version: queueState.orderVersion, [before ? "before_id" : "after_id"]: neighbor.id } });
-    $("queue-error").classList.add("hidden"); await queueRefresh();
-  } catch (err) { queueError(err.status === 409 ? "The queue order changed. It has been refreshed; try the move again." : err); await queueRefresh(); }
+  queueMove(id, neighbor, before);
 });
+$("queue-list").addEventListener("keydown", (e) => {
+  const button = e.target.closest("[data-queue-open]");
+  if (!button || !e.altKey || e.ctrlKey || e.metaKey || !["ArrowUp", "ArrowDown"].includes(e.key) || queueState.sort !== "manual") return;
+  const q = queueState, index = q.items.findIndex((i) => String(i.id) === button.dataset.queueOpen);
+  if (index < 0 || q.items[index].state !== "open") return;
+  e.preventDefault();
+  queueMove(button.dataset.queueOpen, q.items[index + (e.key === "ArrowUp" ? -1 : 1)], e.key === "ArrowUp");
+});
+$("queue-list").addEventListener("touchstart", (e) => {
+  queueCancelTouch();
+  const row = e.target.closest(".queue-row[draggable=true]");
+  if (!row || e.target.closest(".queue-actions") || e.touches.length !== 1 || queueState.sort !== "manual" || queueState.movePending) return;
+  const touch = e.touches[0];
+  const gesture = queueTouch = { id: row.dataset.qid, row, identifier: touch.identifier, x: touch.clientX, y: touch.clientY, active: false, target: null, before: false, timer: null };
+  gesture.timer = setTimeout(() => {
+    if (queueTouch !== gesture) return;
+    if (!row.isConnected || state.view !== "queue" || queueState.sort !== "manual") return queueCancelTouch();
+    gesture.active = true; row.classList.add("touch-dragging");
+  }, 350);
+}, { passive: true });
+// Keep native scrolling until the hold is complete. The first active drag move then owns the gesture.
+$("queue-list").addEventListener("touchmove", (e) => {
+  const gesture = queueTouch; if (!gesture) return;
+  const touch = [...e.touches].find((t) => t.identifier === gesture.identifier);
+  if (!touch || e.touches.length !== 1) { queueCancelTouch(); return; }
+  if (!gesture.active) {
+    if (Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y) > 10) queueCancelTouch();
+    return;
+  }
+  if (!e.cancelable) { queueCancelTouch(); return; }
+  e.preventDefault();
+  const hit = document.elementFromPoint(touch.clientX, touch.clientY), row = hit && hit.closest(".queue-row");
+  if (!row || !$("queue-list").contains(row) || row.dataset.qid === gesture.id) {
+    gesture.target = null; queueClearDrop(); return;
+  }
+  gesture.target = row.dataset.qid; gesture.before = queueMarkDrop(row, touch.clientY);
+}, { passive: false });
+$("queue-list").addEventListener("touchend", (e) => {
+  const gesture = queueTouch; if (!gesture) return;
+  if (![...e.changedTouches].some((t) => t.identifier === gesture.identifier)) return;
+  const active = gesture.active, neighbor = queueState.items.find((i) => String(i.id) === gesture.target);
+  if (active && e.cancelable) e.preventDefault();
+  queueCancelTouch();
+  if (active && neighbor) queueMove(gesture.id, neighbor, gesture.before);
+}, { passive: false });
+$("queue-list").addEventListener("touchcancel", queueCancelTouch, { passive: true });
+$("queue-list").addEventListener("contextmenu", (e) => { if (queueTouch) e.preventDefault(); });
+$("queue-list").addEventListener("click", (e) => {
+  if (Date.now() < queueIgnoreClickUntil) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+window.addEventListener("blur", queueCancelTouch);
+document.addEventListener("visibilitychange", () => { if (document.hidden) queueCancelTouch(); });
 function queueMessageHTML(m) {
   return `<div class="msg first" data-mid="${esc(m.id)}">${avatar(m.sender)}<div class="content"><div class="head"><span class="name" data-profile="${esc(m.sender.id)}">${esc(nameOf(m.sender))}</span><span class="label">${esc(kindLabel(m.sender))}</span><span class="time">${esc(fmtTime(m.created_at))}</span></div>
     <div class="${bodyClass()}">${renderBody(m.body, m.mentions || [])}</div>${(m.attachments || []).length ? `<div class="files">${m.attachments.map((a) => `<button class="fchip" data-att="${esc(a)}"><span class="fprev">file</span><span class="fcopy"><span class="fname">loading…</span><span class="fmeta"></span></span></button>`).join("")}</div>` : ""}</div></div>`;

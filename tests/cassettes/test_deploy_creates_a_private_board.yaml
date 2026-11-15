@@ -11,460 +11,7 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - ae8a85fe-1f44-455e-8813-8357d60670f1
-    method: GET
-    uri: https://huggingface.co/api/spaces/lewtun/msgboard-25-rec-1
-  response:
-    body:
-      string: '{"error":"Repository not found"}'
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      content-length:
-      - '32'
-      content-type:
-      - application/json; charset=utf-8
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:21 GMT
-      etag:
-      - W/"20-bITJowpdmeRi6flSV9yCp5Fkq5k"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-error-code:
-      - RepoNotFound
-      x-error-message:
-      - Repository not found
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186b9-7f1dbfd2623ee39e25d8b3bc;ae8a85fe-1f44-455e-8813-8357d60670f1
-    status:
-      code: 404
-      message: Not Found
-- request:
-    body: ''
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - a1abe406-7e28-4663-8750-f47a8f0bb44e
-    method: GET
-    uri: https://huggingface.co/api/buckets/lewtun/msgboard-25-rec-1-bucket
-  response:
-    body:
-      string: '{"error":"Repository not found"}'
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      content-length:
-      - '32'
-      content-type:
-      - application/json; charset=utf-8
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:21 GMT
-      etag:
-      - W/"20-bITJowpdmeRi6flSV9yCp5Fkq5k"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-error-code:
-      - RepoNotFound
-      x-error-message:
-      - Repository not found
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186b9-1b8d42551cfcaca97f0c6750;a1abe406-7e28-4663-8750-f47a8f0bb44e
-    status:
-      code: 404
-      message: Not Found
-- request:
-    body: ''
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - f9ad5e24-2ada-44e6-9352-a4bbe2d9627c
-    method: GET
-    uri: https://huggingface.co/api/buckets/lewtun/msgboard-25-rec-1-bucket
-  response:
-    body:
-      string: '{"error":"Repository not found"}'
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      content-length:
-      - '32'
-      content-type:
-      - application/json; charset=utf-8
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:21 GMT
-      etag:
-      - W/"20-bITJowpdmeRi6flSV9yCp5Fkq5k"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-error-code:
-      - RepoNotFound
-      x-error-message:
-      - Repository not found
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186b9-34c456c903a132814f799cd3;f9ad5e24-2ada-44e6-9352-a4bbe2d9627c
-    status:
-      code: 404
-      message: Not Found
-- request:
-    body: '{"visibility":"private"}'
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '24'
-      content-type:
-      - application/json
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - 7004d861-c14d-49b5-8367-ca60c9e4efef
-    method: POST
-    uri: https://huggingface.co/api/buckets/lewtun/msgboard-25-rec-1-bucket
-  response:
-    body:
-      string: '{"url":"https://huggingface.co/buckets/lewtun/msgboard-25-rec-1-bucket","name":"lewtun/msgboard-25-rec-1-bucket","id":"6af186ba0c67034b1aeedb8b"}'
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      content-length:
-      - '145'
-      content-type:
-      - application/json; charset=utf-8
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:22 GMT
-      etag:
-      - W/"91-18u5Pyz20SFGmyhXp1tZlqqjZRk"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186b9-6e0d17b562bfa8651bbb04dc;7004d861-c14d-49b5-8367-ca60c9e4efef
-    status:
-      code: 200
-      message: OK
-- request:
-    body: ''
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - 68955c85-8b23-4e10-b419-92d638dc582d
-    method: GET
-    uri: https://huggingface.co/api/spaces/lewtun/msgboard-25-rec-1/tree/main?recursive=true&expand=false
-  response:
-    body:
-      string: '[{"type":"file","oid":"a6344aac8c09253b3b630fb776ae94478aa0275b","size":1519,"path":".gitattributes"},{"type":"file","oid":"bdb732d250eddccf3f5dea6517d1947465e615eb","size":200,"path":"README.md"}]'
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      content-length:
-      - '197'
-      content-type:
-      - application/json; charset=utf-8
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:22 GMT
-      etag:
-      - W/"c5-KgEhxNIV0UM51MRvCFZd6iJ5GQc"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186ba-6237b4066c1190fa35b6d923;68955c85-8b23-4e10-b419-92d638dc582d
-    status:
-      code: 200
-      message: OK
-- request:
-    body: <the package's files>
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '19515'
-      content-type:
-      - application/json
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - f640e733-f672-43ad-8aab-0d1ee60d3f86
-    method: POST
-    uri: https://huggingface.co/api/spaces/lewtun/msgboard-25-rec-1/preupload/main
-  response:
-    body:
-      string: '{"files":[{"path":"README.md","uploadMode":"regular","shouldIgnore":false,"oid":"bdb732d250eddccf3f5dea6517d1947465e615eb"},{"path":"Dockerfile","uploadMode":"regular","shouldIgnore":false},{"path":"requirements.txt","uploadMode":"regular","shouldIgnore":false},{"path":"LICENSE","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/__init__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/__main__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/analytics.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/auth.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/blobs.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/cli.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/client.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/config.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/dashboard.html","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/db.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/demo.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/demo_agent.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/errors.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/guide.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/local.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/presence.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/replicate.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/reservations.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/server.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/__init__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/accounts.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/app.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/hub.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/store.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/transfer.py","uploadMode":"regular","shouldIgnore":false}],"commitOid":"f304af0f24429c27148ab3057ef47d110db5eee3"}'
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      content-length:
-      - '2267'
-      content-type:
-      - application/json; charset=utf-8
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:22 GMT
-      etag:
-      - W/"8db-pOIvXJZJVJRXLr9O8oIH/nuWtBY"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186ba-44d4b1313def2a7a70462ec1;f640e733-f672-43ad-8aab-0d1ee60d3f86
-    status:
-      code: 200
-      message: OK
-- request:
-    body: <the package's files>
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      content-length:
-      - '1006524'
-      content-type:
-      - application/x-ndjson
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - a9fb4dc0-f48c-4015-9dd2-1ddcd8f89c15
-    method: POST
-    uri: https://huggingface.co/api/spaces/lewtun/msgboard-25-rec-1/commit/main
-  response:
-    body:
-      string: '{"success":true,"commitOid":"f5daf90d6f5a77af92d4eb6ae6210b809805642f","commitUrl":"https://huggingface.co/spaces/lewtun/msgboard-25-rec-1/commit/f5daf90d6f5a77af92d4eb6ae6210b809805642f","hookOutput":""}'
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      content-length:
-      - '204'
-      content-type:
-      - application/json; charset=utf-8
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:23 GMT
-      etag:
-      - W/"cc-j0YzBXKQROU9UgkG0KlXYIbuR5Y"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186ba-2a68f4ec7d8a6cf47f196cfe;a9fb4dc0-f48c-4015-9dd2-1ddcd8f89c15
-    status:
-      code: 200
-      message: OK
-- request:
-    body: ''
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - 39530cb5-37e7-4879-aebc-d333078a4f33
-    method: GET
-    uri: https://huggingface.co/api/spaces/lewtun/msgboard-25-rec-1
-  response:
-    body:
-      string: "{\"_id\":\"6af186b9468ddf34f37de407\",\"id\":\"lewtun/msgboard-25-rec-1\",\"sdk\":\"docker\",\"likes\":0,\"tags\":[\"docker\",\"msgboard\",\"region:us\"],\"private\":true,\"author\":\"lewtun\",\"sha\":\"f5daf90d6f5a77af92d4eb6ae6210b809805642f\",\"lastModified\":\"2026-11-09T08:39:22.000Z\",\"cardData\":{\"title\":\"Team
-        \U0001F600: run #1\N\L\",\"emoji\":\"\U0001F4AC\",\"colorFrom\":\"gray\",\"colorTo\":\"gray\",\"sdk\":\"docker\",\"app_port\":7860,\"pinned\":false,\"hf_oauth\":true,\"tags\":[\"msgboard\"]},\"subdomain\":\"lewtun-msgboard-25-rec-1\",\"gated\":false,\"disabled\":false,\"host\":\"https://lewtun-msgboard-25-rec-1.hf.space\",\"region\":\"us\",\"visibility\":\"private\",\"siblings\":[{\"rfilename\":\".gitattributes\"},{\"rfilename\":\"Dockerfile\"},{\"rfilename\":\"LICENSE\"},{\"rfilename\":\"README.md\"},{\"rfilename\":\"msgboard/__init__.py\"},{\"rfilename\":\"msgboard/__main__.py\"},{\"rfilename\":\"msgboard/analytics.py\"},{\"rfilename\":\"msgboard/auth.py\"},{\"rfilename\":\"msgboard/blobs.py\"},{\"rfilename\":\"msgboard/cli.py\"},{\"rfilename\":\"msgboard/client.py\"},{\"rfilename\":\"msgboard/config.py\"},{\"rfilename\":\"msgboard/dashboard.html\"},{\"rfilename\":\"msgboard/db.py\"},{\"rfilename\":\"msgboard/demo.py\"},{\"rfilename\":\"msgboard/demo_agent.py\"},{\"rfilename\":\"msgboard/errors.py\"},{\"rfilename\":\"msgboard/guide.py\"},{\"rfilename\":\"msgboard/local.py\"},{\"rfilename\":\"msgboard/presence.py\"},{\"rfilename\":\"msgboard/replicate.py\"},{\"rfilename\":\"msgboard/reservations.py\"},{\"rfilename\":\"msgboard/server.py\"},{\"rfilename\":\"msgboard/space/__init__.py\"},{\"rfilename\":\"msgboard/space/accounts.py\"},{\"rfilename\":\"msgboard/space/app.py\"},{\"rfilename\":\"msgboard/space/hub.py\"},{\"rfilename\":\"msgboard/store.py\"},{\"rfilename\":\"msgboard/transfer.py\"},{\"rfilename\":\"requirements.txt\"}],\"createdAt\":\"2026-11-09T08:39:21.000Z\",\"usedStorage\":0,\"runtime\":{\"stage\":\"BUILDING\",\"hardware\":{\"current\":null,\"requested\":\"cpu-basic\"},\"gcTimeout\":172800,\"replicas\":{\"requested\":1},\"devMode\":false,\"domains\":[{\"domain\":\"lewtun-msgboard-25-rec-1.hf.space\",\"stage\":\"READY\"}]}}"
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      content-length:
-      - '1933'
-      content-type:
-      - application/json; charset=utf-8
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:23 GMT
-      etag:
-      - W/"78d-kBixapx5cgSJe8be/eiiv/K8Zn8"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186bb-5d9d220f60754e39577c8cfb;39530cb5-37e7-4879-aebc-d333078a4f33
-    status:
-      code: 200
-      message: OK
-- request:
-    body: ''
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - 978d4299-e4e9-4408-94ed-d0e66f6a6842
-    method: DELETE
-    uri: https://huggingface.co/api/buckets/lewtun/msgboard-25-rec-1-bucket
-  response:
-    body:
-      string: ''
-    headers:
-      access-control-allow-origin:
-      - https://huggingface.co
-      access-control-expose-headers:
-      - X-Repo-Commit,X-HF-Warning,X-Request-Id,X-Error-Code,X-Error-Message,X-Total-Count,ETag,Link,Accept-Ranges,Content-Range,X-Linked-Size,X-Linked-ETag,X-Xet-Hash,RateLimit,RateLimit-Policy
-      access-control-max-age:
-      - '86400'
-      connection:
-      - keep-alive
-      cross-origin-opener-policy:
-      - same-origin
-      date:
-      - Mon, 09 Nov 2026 08:39:23 GMT
-      etag:
-      - W/"a-bAsFyilMr4Ra1hIU5PyoyFRunpI"
-      referrer-policy:
-      - strict-origin-when-cross-origin
-      vary:
-      - Origin
-      x-powered-by:
-      - huggingface-moon
-      x-request-id:
-      - Root=1-6af186bb-2a7aa45f382e8302465fec81;978d4299-e4e9-4408-94ed-d0e66f6a6842
-    status:
-      code: 204
-      message: No Content
-- request:
-    body: ''
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate
-      connection:
-      - keep-alive
-      host:
-      - huggingface.co
-      x-amzn-trace-id:
-      - 25bc410a-85b0-4884-9c5a-3126263a4685
+      - 56858161-7720-4702-9862-c6f202b64f3c
     method: GET
     uri: https://huggingface.co/api/spaces/lvwerra/msgboard-queue-rec-1
   response:
@@ -486,7 +33,7 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:22 GMT
+      - Sun, 15 Nov 2026 23:38:45 GMT
       etag:
       - W/"20-bITJowpdmeRi6flSV9yCp5Fkq5k"
       referrer-policy:
@@ -500,7 +47,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4142-74dc0ebd2acadc1171dcbf31;25bc410a-85b0-4884-9c5a-3126263a4685
+      - Root=1-6afa4285-2d905ccb161666c22b6ae049;56858161-7720-4702-9862-c6f202b64f3c
     status:
       code: 404
       message: Not Found
@@ -516,7 +63,7 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - c9ee6d31-b574-47dc-bbf6-20ab05e8a89b
+      - 50c43de9-fcd5-4283-a2ec-fd0be3070e68
     method: GET
     uri: https://huggingface.co/api/buckets/lvwerra/msgboard-queue-rec-1-bucket
   response:
@@ -538,7 +85,7 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:22 GMT
+      - Sun, 15 Nov 2026 23:38:45 GMT
       etag:
       - W/"20-bITJowpdmeRi6flSV9yCp5Fkq5k"
       referrer-policy:
@@ -552,7 +99,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4142-44f011396a1ea115746ce33e;c9ee6d31-b574-47dc-bbf6-20ab05e8a89b
+      - Root=1-6afa4285-3e6b465758c6b3831f9f00f7;50c43de9-fcd5-4283-a2ec-fd0be3070e68
     status:
       code: 404
       message: Not Found
@@ -568,7 +115,7 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 315ad39d-eebc-4507-b1e2-c19109767de4
+      - ddabd414-73a0-48c5-a2cd-6891ba3e36a1
     method: GET
     uri: https://huggingface.co/api/buckets/lvwerra/msgboard-queue-rec-1-bucket
   response:
@@ -590,7 +137,7 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:22 GMT
+      - Sun, 15 Nov 2026 23:38:45 GMT
       etag:
       - W/"20-bITJowpdmeRi6flSV9yCp5Fkq5k"
       referrer-policy:
@@ -604,7 +151,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4142-770fc7fc2d021c2b23b0dfa8;315ad39d-eebc-4507-b1e2-c19109767de4
+      - Root=1-6afa4285-416e3fed6a40d0543a4637d3;ddabd414-73a0-48c5-a2cd-6891ba3e36a1
     status:
       code: 404
       message: Not Found
@@ -624,12 +171,12 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 48410742-09d6-4e18-9232-b7b5478f73b3
+      - 7582250e-6a81-46da-aff5-ff60116c0853
     method: POST
     uri: https://huggingface.co/api/repos/create
   response:
     body:
-      string: '{"url":"https://huggingface.co/spaces/lvwerra/msgboard-queue-rec-1","name":"lvwerra/msgboard-queue-rec-1","id":"6afa41421b79e66d4ccb923b","filesCopyPending":false}'
+      string: '{"url":"https://huggingface.co/spaces/lvwerra/msgboard-queue-rec-1","name":"lvwerra/msgboard-queue-rec-1","id":"6afa4285d1ee888937d9f2b9","filesCopyPending":false}'
     headers:
       access-control-allow-origin:
       - https://huggingface.co
@@ -646,9 +193,9 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:23 GMT
+      - Sun, 15 Nov 2026 23:38:45 GMT
       etag:
-      - W/"a3-LunH6KEPH4R/Pj3HYZgcS4CGU2U"
+      - W/"a3-sKimElZ4H14v51AJZUEliqAu5XU"
       referrer-policy:
       - strict-origin-when-cross-origin
       vary:
@@ -656,7 +203,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4142-1d891cc7454fcb93795ce504;48410742-09d6-4e18-9232-b7b5478f73b3
+      - Root=1-6afa4285-452c45243484bb1d271092a1;7582250e-6a81-46da-aff5-ff60116c0853
     status:
       code: 200
       message: OK
@@ -676,12 +223,12 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 2f198c3c-a9fb-46dc-9b58-8448a66c07d3
+      - 03c2f9a3-a978-4436-bba1-55ededae408f
     method: POST
     uri: https://huggingface.co/api/buckets/lvwerra/msgboard-queue-rec-1-bucket
   response:
     body:
-      string: '{"url":"https://huggingface.co/buckets/lvwerra/msgboard-queue-rec-1-bucket","name":"lvwerra/msgboard-queue-rec-1-bucket","id":"6afa4143f3648e8d92ebe011"}'
+      string: '{"url":"https://huggingface.co/buckets/lvwerra/msgboard-queue-rec-1-bucket","name":"lvwerra/msgboard-queue-rec-1-bucket","id":"6afa4286a7a31348025ae411"}'
     headers:
       access-control-allow-origin:
       - https://huggingface.co
@@ -698,9 +245,9 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:23 GMT
+      - Sun, 15 Nov 2026 23:38:46 GMT
       etag:
-      - W/"99-aEz0nwNWVpO5YtYw1zvLcywy6fg"
+      - W/"99-YbSYQD7xtnOU5n5LmgEQuD8Ykuc"
       referrer-policy:
       - strict-origin-when-cross-origin
       vary:
@@ -708,7 +255,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4143-25c18c891fda628d0904a63b;2f198c3c-a9fb-46dc-9b58-8448a66c07d3
+      - Root=1-6afa4285-6f4b051f4de624bd2038479f;03c2f9a3-a978-4436-bba1-55ededae408f
     status:
       code: 200
       message: OK
@@ -724,12 +271,12 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 0000569c-d16a-454a-bdf4-a61c6069a85c
+      - c9ebbef0-6449-400b-ad97-ddadf0fb7444
     method: GET
     uri: https://huggingface.co/api/spaces/lvwerra/msgboard-queue-rec-1/tree/main?recursive=true&expand=false
   response:
     body:
-      string: '[{"type":"file","oid":"a6344aac8c09253b3b630fb776ae94478aa0275b","size":1519,"path":".gitattributes"},{"type":"file","oid":"18ba30c9263181d13673fc6e15561b2359b988bf","size":201,"path":"README.md"}]'
+      string: '[{"type":"file","oid":"a6344aac8c09253b3b630fb776ae94478aa0275b","size":1519,"path":".gitattributes"},{"type":"file","oid":"3eeef58d94818770aa09a3cfdb3025add9becc92","size":202,"path":"README.md"}]'
     headers:
       access-control-allow-origin:
       - https://huggingface.co
@@ -746,9 +293,9 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:23 GMT
+      - Sun, 15 Nov 2026 23:38:46 GMT
       etag:
-      - W/"c5-NKPBf/pt2cyrG3R5sJfGmKX2dwY"
+      - W/"c5-oHtydGEOKKmH6vWoeBv0gUquZhk"
       referrer-policy:
       - strict-origin-when-cross-origin
       vary:
@@ -756,7 +303,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4143-09c99c1a5c3a55ed60011529;0000569c-d16a-454a-bdf4-a61c6069a85c
+      - Root=1-6afa4286-2e4c67101c5c78897b5034a7;c9ebbef0-6449-400b-ad97-ddadf0fb7444
     status:
       code: 200
       message: OK
@@ -790,7 +337,7 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 7f287baf-9213-4b10-8272-5899601b542f
+      - d44e56e0-5d6b-4954-9d80-9b0375d15e09
     method: POST
     uri: https://huggingface.co/api/validate-yaml
   response:
@@ -812,7 +359,7 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:23 GMT
+      - Sun, 15 Nov 2026 23:38:46 GMT
       etag:
       - W/"1b-cMjusAgmzfbmgmCE/uezyFkHDTo"
       referrer-policy:
@@ -822,7 +369,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4143-511f58414963c89a6f2fae5b;7f287baf-9213-4b10-8272-5899601b542f
+      - Root=1-6afa4286-10e608ce4559ce061bf62069;d44e56e0-5d6b-4954-9d80-9b0375d15e09
     status:
       code: 200
       message: OK
@@ -842,12 +389,12 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 71221c32-6a98-4c53-a662-ccbb752b6226
+      - c43ba6ff-2b8d-4258-b75e-08e9588c0eb0
     method: POST
     uri: https://huggingface.co/api/spaces/lvwerra/msgboard-queue-rec-1/preupload/main
   response:
     body:
-      string: '{"files":[{"path":"README.md","uploadMode":"regular","shouldIgnore":false,"oid":"18ba30c9263181d13673fc6e15561b2359b988bf"},{"path":"Dockerfile","uploadMode":"regular","shouldIgnore":false},{"path":"requirements.txt","uploadMode":"regular","shouldIgnore":false},{"path":"LICENSE","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/__init__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/__main__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/analytics.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/auth.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/blobs.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/cli.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/client.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/config.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/dashboard.html","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/db.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/demo.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/demo_agent.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/errors.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/guide.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/local.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/presence.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/queue.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/replicate.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/reservations.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/server.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/__init__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/accounts.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/app.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/hub.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/store.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/transfer.py","uploadMode":"regular","shouldIgnore":false}],"commitOid":"3c6005cdb3a8f58fd4b7a0068bd6dd4c79b4c14e"}'
+      string: '{"files":[{"path":"README.md","uploadMode":"regular","shouldIgnore":false,"oid":"3eeef58d94818770aa09a3cfdb3025add9becc92"},{"path":"Dockerfile","uploadMode":"regular","shouldIgnore":false},{"path":"requirements.txt","uploadMode":"regular","shouldIgnore":false},{"path":"LICENSE","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/__init__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/__main__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/analytics.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/auth.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/blobs.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/cli.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/client.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/config.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/dashboard.html","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/db.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/demo.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/demo_agent.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/errors.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/guide.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/local.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/presence.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/queue.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/replicate.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/reservations.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/server.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/__init__.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/accounts.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/app.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/space/hub.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/store.py","uploadMode":"regular","shouldIgnore":false},{"path":"msgboard/transfer.py","uploadMode":"regular","shouldIgnore":false}],"commitOid":"6fbe94ef9ad19efcbb3d63e2f7f3d235973b7224"}'
     headers:
       access-control-allow-origin:
       - https://huggingface.co
@@ -864,9 +411,9 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:23 GMT
+      - Sun, 15 Nov 2026 23:38:46 GMT
       etag:
-      - W/"924-MCCMuX4IVIalpT7Gh20PgblPX4U"
+      - W/"924-ZpW42nxoT5uJTB2HhTDPUsgmMhY"
       referrer-policy:
       - strict-origin-when-cross-origin
       vary:
@@ -874,7 +421,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4143-230e2d3615d25355190cafc9;71221c32-6a98-4c53-a662-ccbb752b6226
+      - Root=1-6afa4286-7f09199a68ef89176429233e;c43ba6ff-2b8d-4258-b75e-08e9588c0eb0
     status:
       code: 200
       message: OK
@@ -888,18 +435,18 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '1108089'
+      - '1114581'
       content-type:
       - application/x-ndjson
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - dd866592-d4d1-4a6a-867c-54dc716c656f
+      - 6301a6c6-6152-4935-9f9c-dac74116ec63
     method: POST
     uri: https://huggingface.co/api/spaces/lvwerra/msgboard-queue-rec-1/commit/main
   response:
     body:
-      string: '{"success":true,"commitOid":"9b33f9883d82db5d40e94a541c0892562564ca6b","commitUrl":"https://huggingface.co/spaces/lvwerra/msgboard-queue-rec-1/commit/9b33f9883d82db5d40e94a541c0892562564ca6b","hookOutput":""}'
+      string: '{"success":true,"commitOid":"1a2d92104a637f87ac2163fd0c65d3ded5f5c359","commitUrl":"https://huggingface.co/spaces/lvwerra/msgboard-queue-rec-1/commit/1a2d92104a637f87ac2163fd0c65d3ded5f5c359","hookOutput":""}'
     headers:
       access-control-allow-origin:
       - https://huggingface.co
@@ -916,9 +463,9 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:24 GMT
+      - Sun, 15 Nov 2026 23:38:47 GMT
       etag:
-      - W/"d0-6xiD9RTa45oQbRzGjPuk/k7vfSI"
+      - W/"d0-mC9d/9wpwEBLzz3kE8WDprlOdrQ"
       referrer-policy:
       - strict-origin-when-cross-origin
       vary:
@@ -926,7 +473,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4143-7f531a3024b5227808a28d48;dd866592-d4d1-4a6a-867c-54dc716c656f
+      - Root=1-6afa4286-5d678678316d103077491dfe;6301a6c6-6152-4935-9f9c-dac74116ec63
     status:
       code: 200
       message: OK
@@ -942,13 +489,13 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 9a017b2a-bb4a-4c61-bed7-a519643a5857
+      - 70e62c70-462a-445a-87fb-21c778c0aab0
     method: GET
     uri: https://huggingface.co/api/spaces/lvwerra/msgboard-queue-rec-1
   response:
     body:
-      string: "{\"_id\":\"6afa41421b79e66d4ccb923b\",\"id\":\"lvwerra/msgboard-queue-rec-1\",\"sdk\":\"docker\",\"likes\":0,\"tags\":[\"docker\",\"msgboard\",\"region:us\"],\"private\":true,\"author\":\"lvwerra\",\"sha\":\"9b33f9883d82db5d40e94a541c0892562564ca6b\",\"lastModified\":\"2026-11-15T23:33:23.000Z\",\"cardData\":{\"title\":\"Team
-        \U0001F600: run #1\N\L\",\"emoji\":\"\U0001F4AC\",\"colorFrom\":\"gray\",\"colorTo\":\"gray\",\"sdk\":\"docker\",\"app_port\":7860,\"pinned\":false,\"hf_oauth\":true,\"tags\":[\"msgboard\"]},\"subdomain\":\"lvwerra-msgboard-queue-rec-1\",\"gated\":false,\"disabled\":false,\"host\":\"https://lvwerra-msgboard-queue-rec-1.hf.space\",\"region\":\"us\",\"visibility\":\"private\",\"siblings\":[{\"rfilename\":\".gitattributes\"},{\"rfilename\":\"Dockerfile\"},{\"rfilename\":\"LICENSE\"},{\"rfilename\":\"README.md\"},{\"rfilename\":\"msgboard/__init__.py\"},{\"rfilename\":\"msgboard/__main__.py\"},{\"rfilename\":\"msgboard/analytics.py\"},{\"rfilename\":\"msgboard/auth.py\"},{\"rfilename\":\"msgboard/blobs.py\"},{\"rfilename\":\"msgboard/cli.py\"},{\"rfilename\":\"msgboard/client.py\"},{\"rfilename\":\"msgboard/config.py\"},{\"rfilename\":\"msgboard/dashboard.html\"},{\"rfilename\":\"msgboard/db.py\"},{\"rfilename\":\"msgboard/demo.py\"},{\"rfilename\":\"msgboard/demo_agent.py\"},{\"rfilename\":\"msgboard/errors.py\"},{\"rfilename\":\"msgboard/guide.py\"},{\"rfilename\":\"msgboard/local.py\"},{\"rfilename\":\"msgboard/presence.py\"},{\"rfilename\":\"msgboard/queue.py\"},{\"rfilename\":\"msgboard/replicate.py\"},{\"rfilename\":\"msgboard/reservations.py\"},{\"rfilename\":\"msgboard/server.py\"},{\"rfilename\":\"msgboard/space/__init__.py\"},{\"rfilename\":\"msgboard/space/accounts.py\"},{\"rfilename\":\"msgboard/space/app.py\"},{\"rfilename\":\"msgboard/space/hub.py\"},{\"rfilename\":\"msgboard/store.py\"},{\"rfilename\":\"msgboard/transfer.py\"},{\"rfilename\":\"requirements.txt\"}],\"createdAt\":\"2026-11-15T23:33:22.000Z\",\"usedStorage\":0,\"runtime\":{\"stage\":\"BUILDING\",\"hardware\":{\"current\":null,\"requested\":\"cpu-basic\"},\"gcTimeout\":172800,\"replicas\":{\"requested\":1},\"devMode\":false,\"domains\":[{\"domain\":\"lvwerra-msgboard-queue-rec-1.hf.space\",\"stage\":\"READY\"}]}}"
+      string: "{\"_id\":\"6afa4285d1ee888937d9f2b9\",\"id\":\"lvwerra/msgboard-queue-rec-1\",\"sdk\":\"docker\",\"likes\":0,\"tags\":[\"docker\",\"msgboard\",\"region:us\"],\"private\":true,\"author\":\"lvwerra\",\"sha\":\"1a2d92104a637f87ac2163fd0c65d3ded5f5c359\",\"lastModified\":\"2026-11-15T23:38:46.000Z\",\"cardData\":{\"title\":\"Team
+        \U0001F600: run #1\N\L\",\"emoji\":\"\U0001F4AC\",\"colorFrom\":\"gray\",\"colorTo\":\"gray\",\"sdk\":\"docker\",\"app_port\":7860,\"pinned\":false,\"hf_oauth\":true,\"tags\":[\"msgboard\"]},\"subdomain\":\"lvwerra-msgboard-queue-rec-1\",\"gated\":false,\"disabled\":false,\"host\":\"https://lvwerra-msgboard-queue-rec-1.hf.space\",\"region\":\"us\",\"visibility\":\"private\",\"siblings\":[{\"rfilename\":\".gitattributes\"},{\"rfilename\":\"Dockerfile\"},{\"rfilename\":\"LICENSE\"},{\"rfilename\":\"README.md\"},{\"rfilename\":\"msgboard/__init__.py\"},{\"rfilename\":\"msgboard/__main__.py\"},{\"rfilename\":\"msgboard/analytics.py\"},{\"rfilename\":\"msgboard/auth.py\"},{\"rfilename\":\"msgboard/blobs.py\"},{\"rfilename\":\"msgboard/cli.py\"},{\"rfilename\":\"msgboard/client.py\"},{\"rfilename\":\"msgboard/config.py\"},{\"rfilename\":\"msgboard/dashboard.html\"},{\"rfilename\":\"msgboard/db.py\"},{\"rfilename\":\"msgboard/demo.py\"},{\"rfilename\":\"msgboard/demo_agent.py\"},{\"rfilename\":\"msgboard/errors.py\"},{\"rfilename\":\"msgboard/guide.py\"},{\"rfilename\":\"msgboard/local.py\"},{\"rfilename\":\"msgboard/presence.py\"},{\"rfilename\":\"msgboard/queue.py\"},{\"rfilename\":\"msgboard/replicate.py\"},{\"rfilename\":\"msgboard/reservations.py\"},{\"rfilename\":\"msgboard/server.py\"},{\"rfilename\":\"msgboard/space/__init__.py\"},{\"rfilename\":\"msgboard/space/accounts.py\"},{\"rfilename\":\"msgboard/space/app.py\"},{\"rfilename\":\"msgboard/space/hub.py\"},{\"rfilename\":\"msgboard/store.py\"},{\"rfilename\":\"msgboard/transfer.py\"},{\"rfilename\":\"requirements.txt\"}],\"createdAt\":\"2026-11-15T23:38:45.000Z\",\"usedStorage\":0,\"runtime\":{\"stage\":\"BUILDING\",\"hardware\":{\"current\":null,\"requested\":\"cpu-basic\"},\"gcTimeout\":172800,\"replicas\":{\"requested\":1},\"devMode\":false,\"domains\":[{\"domain\":\"lvwerra-msgboard-queue-rec-1.hf.space\",\"stage\":\"READY\"}]}}"
     headers:
       access-control-allow-origin:
       - https://huggingface.co
@@ -965,9 +512,9 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:24 GMT
+      - Sun, 15 Nov 2026 23:38:47 GMT
       etag:
-      - W/"7c0-HyMorjx63rfypAu3zv9DhsyMU2k"
+      - W/"7c0-eLxDH7sdI2R+BWIhxDWIf5+7JQc"
       referrer-policy:
       - strict-origin-when-cross-origin
       vary:
@@ -975,7 +522,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4144-7f07882678222cf27bdacd10;9a017b2a-bb4a-4c61-bed7-a519643a5857
+      - Root=1-6afa4287-0570f57607b583f62c2a56f0;70e62c70-462a-445a-87fb-21c778c0aab0
     status:
       code: 200
       message: OK
@@ -995,7 +542,7 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 93d780a6-78db-4234-a3db-f303103b6369
+      - 9b18b8e6-9a6a-46c1-b939-c1bd759cb073
     method: DELETE
     uri: https://huggingface.co/api/repos/delete
   response:
@@ -1017,7 +564,7 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:24 GMT
+      - Sun, 15 Nov 2026 23:38:47 GMT
       etag:
       - W/"2-nOO9QiTIwXgNtWtBJezz8kv3SLc"
       referrer-policy:
@@ -1027,7 +574,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4144-4a1dbd4468caeaa833293080;93d780a6-78db-4234-a3db-f303103b6369
+      - Root=1-6afa4287-728da2a850621dee70c2fb50;9b18b8e6-9a6a-46c1-b939-c1bd759cb073
     status:
       code: 200
       message: OK
@@ -1043,7 +590,7 @@ interactions:
       host:
       - huggingface.co
       x-amzn-trace-id:
-      - 5358bffb-e704-4e86-95b6-bbe4f11a3a00
+      - 06635399-ba5d-465f-b2d5-2b1183dd2177
     method: DELETE
     uri: https://huggingface.co/api/buckets/lvwerra/msgboard-queue-rec-1-bucket
   response:
@@ -1061,7 +608,7 @@ interactions:
       cross-origin-opener-policy:
       - same-origin
       date:
-      - Sun, 15 Nov 2026 23:33:24 GMT
+      - Sun, 15 Nov 2026 23:38:47 GMT
       etag:
       - W/"a-bAsFyilMr4Ra1hIU5PyoyFRunpI"
       referrer-policy:
@@ -1071,7 +618,7 @@ interactions:
       x-powered-by:
       - huggingface-moon
       x-request-id:
-      - Root=1-6afa4144-6f2873052ec4268f497c24cd;5358bffb-e704-4e86-95b6-bbe4f11a3a00
+      - Root=1-6afa4287-196e1ff873635d7b0d5aa0c9;06635399-ba5d-465f-b2d5-2b1183dd2177
     status:
       code: 204
       message: No Content
