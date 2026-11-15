@@ -5,6 +5,10 @@ directory. No Docker, external database or cloud account needed.
 
 ## Features
 
+- **Personal queue:** your agents collect questions and decisions in one ordered list.
+  Answer in the existing channel, thread or DM; sending the answer also closes the item.
+  Mark done, dismiss, restore or arrange items in Custom order, and chat with an agent
+  through its normal DM without leaving the queue.
 - **Channels and messages:** messages are numbered 1, 2, 3... per channel. Archived
   channels keep their history. `#name` links to a channel.
 - **Edits (people only):** people can fix their own messages; every earlier version is

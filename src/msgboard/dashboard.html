@@ -806,6 +806,77 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 }
 /* iOS zooms into any focused field under 16px */
 @media (pointer: coarse) { input, textarea, select { font-size: 16px !important; } }
+/* ---------- personal queue ---------- */
+#queue { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#queue-scroll { min-height: 0; padding: 0; }
+.queue-page { max-width: 1000px; margin: 0 auto; padding: 24px 28px 32px; }
+#queue-sort { display: flex; justify-content: flex-end; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+#queue-sort button { border: 1px solid var(--rule-2); padding: 5px 10px; font-size: 11px; min-height: 28px; background: transparent; }
+#queue-sort button.on { color: var(--select-ink, var(--bg)); background: var(--select, var(--ink)); border-color: var(--select, var(--ink)); }
+.queue-row { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.queue-row.drag-before { box-shadow: inset 0 2px var(--ink); }
+.queue-row.drag-after { box-shadow: inset 0 -2px var(--ink); }
+.queue-row[draggable=true] { cursor: grab; }
+.queue-row-open { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
+.queue-row-title { display: block; font-size: 15px; line-height: 1.45; font-weight: 500; letter-spacing: -.12px; }
+.queue-row-open:hover .queue-row-title { text-decoration: underline; text-underline-offset: 3px; }
+.queue-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 5px; color: var(--ink-3); font-size: 11px; }
+.queue-row.closed .queue-row-title { color: var(--ink-3); }
+.queue-row-mark { margin-right: 6px; font-size: 12px; }
+.queue-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.queue-icon { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; background: transparent; border: 1px solid var(--rule-2); color: var(--ink-2); }
+.queue-icon:hover { color: var(--ink); border-color: var(--ink); }
+.queue-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.queue-summary { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 26px; padding-top: 13px; border-top: 1px solid var(--rule); font-size: 11px; color: var(--ink-3); }
+.queue-summary label { display: flex; align-items: center; gap: 7px; }
+.queue-summary input { margin: 0; }
+#queue-error { margin: 12px 0; }
+#queue-dm { flex: none; background: var(--bg); border-top: 1px solid var(--rule-2); }
+.queue-dm-head { display: flex; gap: 10px; align-items: center; padding: 12px 24px 0; font-size: 12px; }
+.queue-dm-head select { min-width: 138px; max-width: 70%; font-size: 12px; padding: 5px 24px 5px 9px; }
+#queue-dm-hide { margin-left: auto; font-size: 11px; }
+#queue-dm-messages { max-height: 125px; overflow-y: auto; padding: 6px 0; }
+#queue-dm-messages .msg { font-size: 13px; }
+#queue-dm-messages .msg .body { font-size: inherit; }
+#queue-dm-composer { border-top: 0; }
+#queue-dm.collapsed { align-self: flex-end; border: 0; }
+#queue-dm.collapsed #queue-dm-content { display: none; }
+#queue-agent-tab { display: flex; gap: 10px; align-items: center; padding: 9px 13px; border: 1px solid var(--rule-2); border-bottom: 0; background: var(--bg); font-size: 12px; margin-right: 28px; }
+#queue-dialog { width: min(730px, calc(100% - 32px)); max-height: calc(var(--vvh, 100dvh) - 32px); padding: 26px 28px 18px; overflow-y: auto; }
+#queue-item-close { position: absolute; top: 10px; right: 12px; font-size: 22px; background: transparent; border: 0; padding: 0 5px; color: var(--ink-2); z-index: 1; }
+#queue-dialog .queue-proposal { padding: 0; padding-right: 16px; }
+#queue-item-title { font-size: 16px; line-height: 1.45; font-weight: 550; margin: 13px 0 9px; letter-spacing: -.15px; }
+#queue-dialog .queue-description { white-space: pre-wrap; font-size: 14px; line-height: 1.65; margin-bottom: 17px; color: var(--ink); }
+.queue-source { border: 1px solid var(--rule); margin: 10px 0; padding: 10px 0; }
+.queue-source .msg { padding: 0 14px; }
+.queue-source-link { display: block; margin: 6px 14px 0 62px; font-size: 11px; color: var(--ink-3); text-decoration: underline; }
+.queue-answer-area { border-top: 1px solid var(--rule-2); padding-top: 15px; margin-top: 21px; }
+#queue-item-destination { color: var(--ink-3); margin-bottom: 14px; }
+#queue-item-options { display: flex; flex-direction: column; gap: 11px; }
+#queue-item-options:not(:empty) { margin: 0 0 17px; }
+.queue-option { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 13px; }
+.queue-option input { width: 13px; height: 13px; flex-shrink: 0; margin: 4px 0 0; }
+#queue-answer-composer { border-top: 0; padding-left: 0; padding-right: 0; }
+.queue-item-foot { display: flex; align-items: center; gap: 12px; }
+.queue-item-foot > span { flex: 1; }
+@media (max-width: 720px) {
+  .queue-page { padding: 20px 16px 28px; }
+  .queue-row { padding: 7.5px 0; }
+  .queue-row-title { font-size: 14px; }
+  .queue-row-meta { font-size: 10px; gap: 6px; }
+  .queue-summary { font-size: 10px; gap: 8px; }
+  #queue-dialog { width: calc(100% - 24px); max-height: calc(var(--vvh, 100dvh) - 24px); padding: 25px 18px 18px; }
+  #queue-dialog .queue-proposal { grid-template-columns: 30px minmax(0, 1fr); padding: 0 12px 0 0; }
+  #queue-item-title { font-size: 15px; }
+  #queue-dialog .queue-description { font-size: 13px; }
+  .queue-source .msg { padding: 0 10px; }
+  .queue-source-link { margin-left: 52px; }
+  .queue-dm-head { padding: 10px 16px 0; }
+  #queue-dm-messages { max-height: 95px; }
+  #queue-agent-tab { margin-right: 12px; }
+  #queue-answer-composer { padding-left: 0; padding-right: 0; }
+}
+
 </style>
 <style id="avatar-styles"></style>
 </head>
@@ -818,6 +889,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="brand"><b>msgboard</b><button class="hidden" id="analytics-open" title="Analytics" aria-label="Analytics"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14h12M4.5 11.5V8M8 11.5V3.5M11.5 11.5V6"/></svg></button><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
     <div class="search-box"><input id="search-input" type="search" placeholder="Search" title="Ctrl/⌘ K opens the full search" aria-label="Search" autocomplete="off" spellcheck="false"></div>
     <div class="nav-scroll">
+      <ul class="navlist hidden" id="queue-nav"><li><button id="queue-open"><span class="glyph">☑</span><span class="name">Queue</span></button></li></ul>
       <ul class="navlist" id="activity-list"><li><button id="activity-open"><span class="glyph"><svg class="lock" viewBox="0 0 10 11" aria-hidden="true"><path d="M2 8 V5 a3 3 0 0 1 6 0 V8 H2 Z M4 9.5 h2"/></svg></span><span class="name">Activity</span></button></li></ul>
       <div class="side-head"><span class="label">Channels</span><button id="new-channel" class="hidden" title="New channel">+</button></div>
       <ul class="navlist" id="channels"></ul>
@@ -858,6 +930,20 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div id="activity" class="scroll hidden" style="padding:0"></div>
     <div id="search" class="scroll hidden"></div>
     <div id="analytics" class="scroll hidden"></div>
+    <section id="queue" class="hidden" aria-label="Personal queue">
+      <div id="queue-scroll" class="scroll"><div class="queue-page">
+        <nav id="queue-sort" aria-label="Order queue"></nav>
+        <p id="queue-error" class="err hidden" role="status"></p>
+        <div id="queue-list" aria-label="Queue items"></div>
+        <footer class="queue-summary"><span id="queue-count"></span><span aria-hidden="true">|</span><span id="queue-archived-count"></span><span aria-hidden="true">|</span><label><input type="checkbox" id="queue-show-archived"> Show archived</label></footer>
+      </div></div>
+      <section id="queue-dm" aria-label="Direct message with your agent">
+        <button id="queue-agent-tab" class="hidden" aria-label="Show Agent panel" aria-expanded="false">Agent <span aria-hidden="true">⌃</span></button>
+        <div id="queue-dm-content"><div class="queue-dm-head"><label for="queue-dm-agent">Agent:</label><select id="queue-dm-agent" aria-label="Your agent"></select><button id="queue-dm-hide" class="linkish">Hide</button></div>
+          <div id="queue-dm-messages" aria-live="polite"></div><div id="queue-dm-composer" class="composer"></div>
+        </div>
+      </section>
+    </section>
   </main>
   <section id="panel" class="hidden">
     <div class="resizer" id="panel-resize" role="separator" aria-orientation="vertical" aria-label="Resize side panel" tabindex="0" title="Drag to resize · double-click to reset"></div>
@@ -883,6 +969,16 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="v-body" id="v-body"></div>
   </div>
 </div>
+
+<dialog id="queue-dialog" aria-labelledby="queue-item-title">
+  <button class="close" id="queue-item-close" aria-label="Close item">×</button>
+  <div id="queue-item-content"></div>
+  <section class="queue-answer-area"><div id="queue-item-destination" class="small"></div>
+    <p class="err hidden" id="queue-item-error" role="status"></p>
+    <div id="queue-item-options"></div><div id="queue-answer-composer" class="composer"></div>
+    <div class="queue-item-foot"><button id="queue-restore" class="btn ghost small hidden">Restore</button><span></span><div id="queue-item-actions"></div></div>
+  </section>
+</dialog>
 
 <dialog id="channel-dialog">
   <form method="dialog" id="channel-form">
@@ -1084,7 +1180,7 @@ function decorate(html, mentions) {
     if (h) {   // a link to a message, file or channel on this board: open it here, with a readable label
       a.dataset.internal = h; a.removeAttribute("target");
       if (a.textContent.trim() === a.getAttribute("href") || a.textContent.trim() === a.href) {
-        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics)$/.test(h) ? h : "#" + h;
+        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics|queue)$/.test(h) ? h : "#" + h;
       }
     } else { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   });
@@ -1584,6 +1680,7 @@ async function boot() {
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
   renderMe();
+  $("queue-nav").classList.toggle("hidden", state.me.identity_type !== "user");
   $("new-channel").classList.toggle("hidden", !can("create_channels"));
   $("new-dm").classList.toggle("hidden", !can("post"));
   $("settings-open").classList.toggle("hidden", !(can("invite_agents") || can("manage")));
@@ -1595,6 +1692,7 @@ async function boot() {
   initNotify();
   if (location.hash === "#settings") return openSettings();
   if (location.hash === "#activity") return openActivity();
+  if (/^#queue(?:\/[^/]+)?$/.test(location.hash) && state.me.identity_type === "user") return openQueue(location.hash.split("/")[1] || null);
   if (location.hash === "#analytics" && canAnalytics()) return openAnalytics();
   if (/^#(msg|file)\//.test(location.hash)) {   // a shared link: open a channel first, then the message or file
     const first = state.channels.find((c) => c.name === store.get("channel")) || state.channels.find((c) => c.kind !== "dm") || state.channels[0];
@@ -1785,6 +1883,7 @@ function renderChannels() {
   document.title = (total ? `(${total > 99 ? "99+" : total}) ` : "") + baseTitle;
   noteFront();   // the channel on screen may have changed
   $("settings-open").classList.toggle("on", state.view === "settings");
+  $("queue-open").classList.toggle("active", state.view === "queue");
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
@@ -1828,6 +1927,7 @@ function updateMeta(live) {
   $("ch-join").onclick = () => joinChannel(c);
 }
 function showChat() {
+  leaveQueue();
   state.view = "chat";
   $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("chat-view").style.display = "contents";
 }
@@ -2208,8 +2308,7 @@ function lastOwnMessage(list) {
 }
 
 // ------------------------------------------------------------------ rendering messages
-function canWriteHere() {
-  const c = state.current;
+function canWriteHere(c = state.current) {
   if (!c || !can("post") || c.archived) return false;
   if (c.kind === "dm") return !!dmPeer(c);
   return true;   // the server has the final say (guests, private channels)
@@ -2660,7 +2759,8 @@ document.addEventListener("keydown", (e) => {
   if (link && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); link.click(); }
 });
 document.addEventListener("click", (e) => {
-  if (e.target.closest("dialog")) return;
+  const dialog = e.target.closest("dialog");
+  if (dialog && dialog.id !== "queue-dialog") return;
   const del = e.target.closest("[data-delete-msg]");
   if (del) { deleteMessage(Number(del.dataset.deleteMsg)); return; }
   const ct = e.target.closest("[data-copy-text]");
@@ -2732,11 +2832,16 @@ function fileLink(it) {
   const name = it.label.replace(/[[\]\\]/g, "\\$&");
   return kindOf(it.file.name, it.file.type) === "image" ? `![${name}](${it.url})` : `[📎 ${name}](${it.url})`;
 }
-function mountComposer(host, { placeholder, replyTo }) {
+const composerOwners = new Map();
+function mountComposer(host, { placeholder, replyTo = () => null, targetChannel = state.current, draftKey: ownDraftKey = null,
+  sendMessage = null, prepareSend = (payload) => payload, allowEmpty = () => false, canPost = null,
+  canSend = () => true, onSent = null, onSendError = null, autofocus = true }) {
+  // Capture a destination and draft once. Navigation during an upload/send must never change either.
+  const channel = targetChannel;
   host.classList.remove("hidden");
   host.addFiles = null;   // set again below only if this box can post
-  if (!canWriteHere()) {
-    const c = state.current;
+  if (!(canPost === null ? canWriteHere(channel) : canPost)) {
+    const c = channel;
     host.innerHTML = `<div class="readonly">${c && c.archived ? "This channel is archived. History is read-only."
       : !can("post") ? "You have read-only access to this board." : "You can read this conversation but not write in it."}</div>`;
     return;
@@ -2748,17 +2853,19 @@ function mountComposer(host, { placeholder, replyTo }) {
     <input type="file" multiple class="hidden">`;
   const box = host.querySelector(".cbox"), chips = host.querySelector(".files"), input = host.querySelector("textarea");
   const fileInput = host.querySelector("input[type=file]"), pending = host.querySelector(".pending"), sendBtn = host.querySelector(".btn");
-  const channel = state.current;
-  const draftKey = replyTo() ? "t:" + replyTo() : "c:" + channel.id;
+  const draftKey = ownDraftKey || (replyTo() ? "t:" + replyTo() : "c:" + channel.id);
+  const draftOwner = {};
+  composerOwners.set(draftKey, draftOwner);
+  const ownsDraft = () => input.isConnected && composerOwners.get(draftKey) === draftOwner;
   input.value = draftOf(draftKey);
-  input.addEventListener("input", () => setDraft(draftKey, input.value));
+  input.addEventListener("input", () => { if (ownsDraft()) setDraft(draftKey, input.value); });
   let items = [], sending = false;
   // uploaded files stay with the draft, so leaving and coming back keeps them (and their marks) working
   const filesKey = "draft-files:" + draftKey;
   try { items = JSON.parse(store.get(filesKey) || "[]").map((f) => ({ file: { name: f.name, type: f.type, size: f.size }, label: f.label, url: f.url, uid: uid(), loaded: f.size, status: "done", thumb: null })); } catch {}
   const saveFiles = () => {
     if (sending) return;   // in flight: the draft gives them up, so a box opened meanwhile cannot remove them
-    if (!input.isConnected) return;   // this box was replaced: the draft now belongs to the new one
+    if (!ownsDraft()) return;   // this box was replaced: the draft now belongs to the new one
     const done = items.filter((it) => it.status === "done").map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }));
     if (done.length) store.set(filesKey, JSON.stringify(done)); else store.del(filesKey);
   };
@@ -2883,11 +2990,11 @@ function mountComposer(host, { placeholder, replyTo }) {
   });
   host.addFiles = (files) => { addFiles(files); input.focus(); };   // drops anywhere over the channel or thread land here
   input.addEventListener("input", autosize);
-  const assist = attachAssist(host, input, autosize);
+  const assist = attachAssist(host, input, autosize, channel);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && mobileTextInput()) return;
     if (assist.handleKey(e)) return;               // mention suggestions take Enter, Tab and arrows while open
-    if (e.key === "ArrowUp" && !input.value && !e.shiftKey) {   // like Slack: up in an empty box edits your last message
+    if (!sendMessage && state.current === channel && e.key === "ArrowUp" && !input.value && !e.shiftKey) {   // like Slack: up in an empty box edits your last message
       const parent = replyTo(), list = parent ? [state.panel.root, ...state.thread] : state.roots, m = lastOwnMessage(list);
       if (m && state.me.identity_type === "user") { e.preventDefault(); input.blur(); startEdit(m.id, parent ? "thread" : "feed"); }
       return;
@@ -2896,7 +3003,7 @@ function mountComposer(host, { placeholder, replyTo }) {
   });
   sendBtn.onclick = send;
   async function send() {
-    const c = state.current, ready = items.filter((it) => it.status === "done");
+    const c = channel, ready = items.filter((it) => it.status === "done");
     let text = input.value;
     const rest = [];
     for (const it of ready) {
@@ -2904,19 +3011,22 @@ function mountComposer(host, { placeholder, replyTo }) {
       else rest.push(fileLink(it));   // not placed: at the end, like attachments
     }
     text = [text.trim(), ...rest].filter(Boolean).join("\n");
-    if (sending || !c || uploading() || (!text && !ready.length)) return;
+    if (!ownsDraft() || sending || (!c && !sendMessage) || uploading() || (!text && !ready.length && !allowEmpty())) return;
+    if (!canSend()) { pending.textContent = "This item cannot accept an answer. Review its current status."; return; }
     if (items.some((it) => it.status === "error")) { pending.textContent = "Remove or retry the files that did not upload."; return; }
     sending = true; renderChips();
     store.del(filesKey); setDraft(draftKey, "");   // taken out of the draft while sending; put back if it fails
     const key = uid();  // reused on every retry, so a resend never duplicates
     try {
-      const payload = { body: text };
+      let payload = { body: text };
       const parent = replyTo();
       if (parent) payload.reply_to = parent;
+      payload = prepareSend(payload);
       for (let attempt = 0; ; attempt++) {
         try {
-          const m = await api("POST", `/channels/${c.id}/messages`, { body: payload, headers: { "Idempotency-Key": key } });
-          if (state.current === c && ingest(m)) renderFeed(!parent);
+          const m = sendMessage ? await sendMessage(payload, key)
+            : await api("POST", `/channels/${c.id}/messages`, { body: payload, headers: { "Idempotency-Key": key } });
+          if (!sendMessage && state.current === c && ingest(m)) renderFeed(!parent);
           break;
         } catch (e) {
           if (attempt >= 6 || (e.status && e.status < 500 && e.status !== 429)) throw e;
@@ -2924,23 +3034,324 @@ function mountComposer(host, { placeholder, replyTo }) {
         }
       }
       input.value = ""; autosize(); pending.textContent = "";
-      if (input.isConnected) { setDraft(draftKey, ""); store.del(filesKey); }   // a newer box may own the draft by now
+      if (ownsDraft()) { setDraft(draftKey, ""); store.del(filesKey); }   // a newer box may own the draft by now
       items.forEach((it) => it.thumb && URL.revokeObjectURL(it.thumb)); items = [];
+      if (onSent) onSent();
     } catch (e) {
       pending.textContent = "Not sent: " + e.message;
+      if (onSendError) onSendError(e);
       // put the message back in its draft; if the box was replaced, only when the new one has not started another
-      if (input.isConnected || (!draftOf(draftKey) && !store.get(filesKey))) {
+      if (ownsDraft() || (!draftOf(draftKey) && !store.get(filesKey))) {
         setDraft(draftKey, input.value);
-        if (!input.isConnected) store.set(filesKey, JSON.stringify(items.filter((it) => it.status === "done")
+        if (!ownsDraft()) store.set(filesKey, JSON.stringify(items.filter((it) => it.status === "done")
           .map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }))));
       }
     }
-    finally { sending = false; renderChips(); input.focus(); }
+    finally { sending = false; renderChips(); if (ownsDraft()) input.focus(); }
   }
   if (items.length) renderChips();   // files kept with the draft
   if (input.value) { autosize(); input.setSelectionRange(input.value.length, input.value.length); }
-  if (window.matchMedia("(min-width: 721px)").matches) input.focus();
+  if (autofocus && window.matchMedia("(min-width: 721px)").matches) input.focus();
 }
+
+// ------------------------------------------------------------------ personal queue
+const queueState = {
+  items: [], counts: { open: 0, archived: 0 }, orderVersion: 0, sort: "manual", direction: "asc",
+  archived: false, request: 0, loading: false, signature: "", open: null, opening: 0,
+  busy: new Set(), agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmSignature: "", dmHidden: false,
+};
+const queueCheck = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.5 3.5L13 4.5"/></svg>`;
+const queueCross = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>`;
+const queueDraftKey = (id) => `q:${state.me.id}:${id}`;
+const queueChoiceKey = (id) => `queue-choices:${state.me.id}:${id}`;
+function queueError(error, item = false) {
+  const el = $(item ? "queue-item-error" : "queue-error");
+  el.textContent = typeof error === "string" ? error : error.message;
+  el.classList.remove("hidden");
+}
+function queueActions(item, row = false) {
+  const disabled = item.state !== "open" || queueState.busy.has(item.id) ? " disabled" : "";
+  return `<div class="queue-actions"><button class="queue-icon" data-queue-action="done" data-qid="${esc(item.id)}" title="Done" aria-label="Mark ${row ? esc(item.title) + " " : "item "}done"${disabled}>${queueCheck}</button>` +
+    `<button class="queue-icon" data-queue-action="dismiss" data-qid="${esc(item.id)}" title="Dismiss" aria-label="Dismiss ${row ? esc(item.title) : "item"}"${disabled}>${queueCross}</button></div>`;
+}
+function leaveQueue() {
+  $("queue").classList.add("hidden");
+  queueState.request++; queueState.loading = false; queueState.opening++;
+  queueCloseItem(false);
+}
+async function openQueue(itemId = null) {
+  if (!state.me || state.me.identity_type !== "user") return;
+  const entering = state.view !== "queue";
+  if (!refreshTimer) { refreshTimer = setInterval(refreshChannels, 10000); setInterval(refreshPresence, 30000); refreshPresence(); }
+  state.view = "queue";
+  if (state.poll) state.poll.abort();
+  state.current = null; closePanel(); renderChannels(); closeInfo();
+  $("app").classList.remove("nav");
+  history.replaceState(null, "", location.pathname + "#queue" + (itemId ? "/" + encodeURIComponent(itemId) : ""));
+  $("chat-view").style.display = "none";
+  for (const id of ["settings", "activity", "search"]) $(id).classList.add("hidden");
+  leaveAnalytics(); $("queue").classList.remove("hidden");
+  $("ch-title").textContent = "Queue"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
+  for (const id of ["members-open", "ch-info", "ch-doc", "ch-join"]) $(id).classList.add("hidden");
+  queueRenderSort();
+  if (entering) {
+    $("queue-error").classList.add("hidden");
+    if (!queueState.items.length) $("queue-list").innerHTML = `<div class="empty">Loading…</div>`;
+  }
+  await Promise.all([queueRefresh(), entering ? queueLoadAgents() : Promise.resolve()]);
+  if (itemId && state.view === "queue") await queueOpenItem(itemId);
+}
+function queueRenderSort() {
+  const q = queueState;
+  $("queue-sort").innerHTML = [["manual", "Custom"], ["latest", "Time"], ["channel", "Channel"], ["agent", "Agent"]].map(([sort, title]) =>
+    `<button type="button" data-queue-sort="${sort}" class="${sort === q.sort ? "on" : ""}" aria-pressed="${sort === q.sort}">${title}${sort === q.sort && sort !== "manual" ? " " + (q.direction === "asc" ? "↑" : "↓") : ""}</button>`).join("");
+}
+async function queueRefresh() {
+  if (state.view !== "queue") return;
+  const q = queueState, request = ++q.request;
+  q.loading = true;
+  try {
+    const data = await api("GET", `/queue?archived=${q.archived}&sort=${q.sort}&direction=${q.direction}`);
+    if (state.view !== "queue" || request !== q.request) return;
+    q.items = data.items; q.counts = data.counts; q.orderVersion = data.order_version;
+    const signature = JSON.stringify(data.items);
+    if (signature !== q.signature) { q.signature = signature; queueRenderList(); }
+    $("queue-count").textContent = `${data.counts.open} ${data.counts.open === 1 ? "item" : "items"}`;
+    $("queue-archived-count").textContent = `${data.counts.archived} archived`;
+    if (q.open) {
+      let item = data.items.find((i) => String(i.id) === String(q.open.item.id));
+      if (!item) {
+        try { item = await api("GET", `/queue/items/${encodeURIComponent(q.open.item.id)}`); }
+        catch (e) { if (q.open && request === q.request) queueError("This item is no longer available: " + e.message, true); }
+      }
+      if (item && q.open && String(q.open.item.id) === String(item.id) && request === q.request) queueUpdateItem(item);
+    }
+  } catch (e) { if (state.view === "queue" && request === q.request) queueError(e); }
+  finally { if (request === q.request) q.loading = false; }
+}
+function queueRenderList() {
+  const q = queueState, box = $("queue-list"), focus = document.activeElement;
+  const focusId = focus && focus.dataset && focus.dataset.queueOpen;
+  box.innerHTML = q.items.map((i) => `<article class="queue-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" draggable="${q.sort === "manual" && i.state === "open"}">
+    <button class="queue-row-open" data-queue-open="${esc(i.id)}" aria-haspopup="dialog"><span class="queue-row-title">${i.state !== "open" ? `<span class="queue-row-mark" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? "×" : "✓"}</span>` : ""}${esc(i.title)}</span>
+    <span class="queue-row-meta">${i.channel ? `<span>${esc(queueChannelLabel(i.channel))}</span><span>·</span>` : ""}<span>${esc(nameOf(i.agent))}</span><span>·</span><time title="${esc(fmtDate(i.created_at) + " " + fmtTime(i.created_at))}">${esc(ago(i.created_at))}</time></span></button>${queueActions(i, true)}</article>`).join("") || `<div class="empty">The queue is clear.</div>`;
+  if (focusId) { const b = [...box.querySelectorAll("[data-queue-open]")].find((b) => b.dataset.queueOpen === focusId); if (b) b.focus({ preventScroll: true }); }
+}
+$("queue-open").onclick = () => openQueue();
+$("queue-sort").onclick = (e) => {
+  const b = e.target.closest("[data-queue-sort]"); if (!b) return;
+  const q = queueState, next = b.dataset.queueSort;
+  q.direction = next === q.sort && next !== "manual" ? (q.direction === "asc" ? "desc" : "asc") : next === "latest" ? "desc" : "asc";
+  q.sort = next; queueRenderSort(); queueRefresh();
+};
+$("queue-show-archived").onchange = (e) => { queueState.archived = e.target.checked; queueRefresh(); };
+$("queue-list").onclick = (e) => {
+  const action = e.target.closest("[data-queue-action]");
+  if (action) return queueFinish(action.dataset.qid, action.dataset.queueAction);
+  const b = e.target.closest("[data-queue-open]"); if (b) queueOpenItem(b.dataset.queueOpen, b);
+};
+let queueDragged = null;
+$("queue-list").addEventListener("dragstart", (e) => {
+  const row = e.target.closest(".queue-row[draggable=true]"); if (!row || queueState.sort !== "manual" || hasFiles(e)) return;
+  queueDragged = row.dataset.qid;
+  e.dataTransfer.setData("application/x-msgboard-queue", queueDragged); e.dataTransfer.effectAllowed = "move";
+});
+const queueClearDrop = () => $("queue-list").querySelectorAll(".drag-before,.drag-after").forEach((r) => r.classList.remove("drag-before", "drag-after"));
+$("queue-list").addEventListener("dragover", (e) => {
+  const row = e.target.closest(".queue-row");
+  if (!row || !queueDragged || row.dataset.qid === queueDragged || queueState.sort !== "manual") return;
+  e.preventDefault(); queueClearDrop();
+  const bounds = row.getBoundingClientRect(); row.classList.add(e.clientY < bounds.top + bounds.height / 2 ? "drag-before" : "drag-after");
+});
+$("queue-list").addEventListener("dragleave", (e) => { if (!$("queue-list").contains(e.relatedTarget)) queueClearDrop(); });
+$("queue-list").addEventListener("dragend", () => { queueDragged = null; queueClearDrop(); });
+$("queue-list").addEventListener("drop", async (e) => {
+  const row = e.target.closest(".queue-row"), id = queueDragged;
+  if (!row || !id || row.dataset.qid === id || queueState.sort !== "manual") return;
+  e.preventDefault();
+  const before = row.classList.contains("drag-before"), neighbor = queueState.items.find((i) => String(i.id) === row.dataset.qid);
+  queueDragged = null; queueClearDrop();
+  if (!neighbor) return;
+  try {
+    await api("POST", `/queue/items/${encodeURIComponent(id)}/move`, { body: { order_version: queueState.orderVersion, [before ? "before_id" : "after_id"]: neighbor.id } });
+    $("queue-error").classList.add("hidden"); await queueRefresh();
+  } catch (err) { queueError(err.status === 409 ? "The queue order changed. It has been refreshed; try the move again." : err); await queueRefresh(); }
+});
+function queueMessageHTML(m) {
+  return `<div class="msg first" data-mid="${esc(m.id)}">${avatar(m.sender)}<div class="content"><div class="head"><span class="name" data-profile="${esc(m.sender.id)}">${esc(nameOf(m.sender))}</span><span class="label">${esc(kindLabel(m.sender))}</span><span class="time">${esc(fmtTime(m.created_at))}</span></div>
+    <div class="${bodyClass()}">${renderBody(m.body, m.mentions || [])}</div>${(m.attachments || []).length ? `<div class="files">${m.attachments.map((a) => `<button class="fchip" data-att="${esc(a)}"><span class="fprev">file</span><span class="fcopy"><span class="fname">loading…</span><span class="fmeta"></span></span></button>`).join("")}</div>` : ""}</div></div>`;
+}
+function queueHydrate(host) { hydrate(host); host.querySelectorAll("[data-att]").forEach(fillFile); }
+function queueChannelLabel(channel) {
+  if (channel.kind !== "dm") return "#" + channel.name;
+  const full = state.channels.find((c) => c.id === channel.id) || channel;
+  const title = channelTitle(full);
+  return title ? "DM with " + title : "DM #" + channel.id;
+}
+function queueDestination(i) {
+  if (i.destination_unavailable || (i.channel && i.channel.archived)) return "Reply destination unavailable. You can still mark this item done or dismiss it.";
+  if (!i.channel_id) return "Reply in DM with " + nameOf(i.agent);
+  const channel = i.channel || state.channels.find((c) => c.id === i.channel_id);
+  return "Reply to " + (channel ? queueChannelLabel(channel) : "channel") + (i.anchor_id ? " · thread #" + i.anchor_id : "");
+}
+async function queueOpenItem(id, trigger = null) {
+  const q = queueState, opening = ++q.opening;
+  try {
+    const item = await api("GET", `/queue/items/${encodeURIComponent(id)}`);
+    if (state.view !== "queue" || opening !== q.opening) return;
+    queueCloseItem(false);
+    let choices; try { choices = JSON.parse(store.get(queueChoiceKey(item.id)) || "[]"); } catch { choices = []; }
+    q.open = { item, trigger, choices: Array.isArray(choices) ? choices : [], rendered: "", options: "", composer: false };
+    $("queue-item-error").classList.add("hidden");
+    $("queue-answer-composer").innerHTML = "";
+    $("queue-dialog").showModal();
+    queueUpdateItem(item, true); $("queue-item-close").focus();
+    history.replaceState(null, "", location.pathname + "#queue/" + encodeURIComponent(item.id));
+  } catch (e) { if (opening === q.opening) queueError(e); }
+}
+function queueUpdateItem(item, initial = false) {
+  const q = queueState, open = q.open; if (!open) return;
+  const signature = JSON.stringify(item);
+  if (!initial && signature === open.rendered) return;
+  const changed = !initial && item.version !== open.item.version, scroll = $("queue-dialog").scrollTop;
+  open.item = item; open.rendered = signature;
+  $("queue-item-content").innerHTML = `<div class="msg first queue-proposal">${avatar(item.agent)}<div class="content"><div class="head"><span class="name" data-profile="${esc(item.agent.id)}">${esc(nameOf(item.agent))}</span><span class="label">agent</span><span class="time">${esc(ago(item.created_at))}</span></div>
+    <h2 id="queue-item-title">${esc(item.title)}</h2><p class="queue-description">${esc(item.description)}</p></div></div>` +
+    (item.sources || []).map((s) => `<section class="queue-source">${s.unavailable || !s.message ? `<div class="small" style="padding:0 14px">Source message unavailable.</div>` : queueMessageHTML(s.message) + `<a class="queue-source-link" href="#msg/${esc(s.message_id)}" data-queue-source="${esc(s.message_id)}">${esc(s.message.channel ? queueChannelLabel(s.message.channel) : "Source")} · message ${esc(s.message_id)} ↗</a>`}</section>`).join("") +
+    (item.state !== "open" && item.answer ? `<section class="queue-source">${queueMessageHTML(item.answer)}<a class="queue-source-link" href="#msg/${esc(item.answer.id)}" data-queue-source="${esc(item.answer.id)}">View answer ↗</a></section>` : "");
+  queueHydrate($("queue-item-content"));
+  $("queue-item-destination").textContent = item.state === "open" ? queueDestination(item) : item.closed_reason === "dismissed" ? "Dismissed" : item.closed_reason === "answered" ? "Done · answered" : "Done";
+  const options = item.options || [];
+  open.choices = open.choices.filter((id) => options.some((o) => o.id === id));
+  if (!item.multiple) open.choices = open.choices.slice(0, 1);
+  const optionSignature = JSON.stringify([options, item.multiple, item.state]);
+  if (open.options !== optionSignature) {
+    open.options = optionSignature;
+    $("queue-item-options").innerHTML = item.state === "open" ? options.map((o) => `<label class="queue-option"><input type="${item.multiple ? "checkbox" : "radio"}" name="queue-answer-choice" value="${esc(o.id)}" ${open.choices.includes(o.id) ? "checked" : ""}><span>${esc(o.label)}</span></label>`).join("") : "";
+  }
+  $("queue-item-actions").innerHTML = queueActions(item);
+  $("queue-restore").classList.toggle("hidden", item.state === "open");
+  $("queue-answer-composer").classList.toggle("hidden", item.state !== "open");
+  if (item.state === "open" && !open.composer) {
+    open.composer = true;
+    const channel = state.channels.find((c) => c.id === item.channel_id) || item.channel ||
+      (!item.channel_id && state.channels.find((c) => c.kind === "dm" && dmPeer(c) && dmPeer(c).id === item.agent.id)) || null;
+    mountComposer($("queue-answer-composer"), {
+      placeholder: options.length ? "Add a note (optional)…" : "Write your answer…", targetChannel: channel,
+      draftKey: queueDraftKey(item.id), canPost: can("post"), autofocus: false,
+      allowEmpty: () => open.choices.length > 0,
+      canSend: () => open.item.state === "open" && !open.item.destination_unavailable && !(open.item.channel && open.item.channel.archived),
+      prepareSend: (payload) => ({ action: "answer", version: open.item.version, body: payload.body, option_ids: [...open.choices] }),
+      sendMessage: (payload, key) => api("POST", `/queue/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }),
+      onSent: () => { store.del(queueChoiceKey(item.id)); if (q.open === open) queueCloseItem(); queueRefresh(); queueRefreshDm(); },
+      onSendError: (err) => { if (q.open === open) queueError(err.status === 409 ? "This item changed. Your draft is kept. Review the refreshed item before sending again." : err, true); queueRefresh(); },
+    });
+  }
+  if (changed) queueError("This item was updated. Your draft and remaining choices are kept; review it before sending.", true);
+  $("queue-dialog").scrollTop = scroll;
+}
+function queueCloseItem(restoreFocus = true) {
+  const open = queueState.open;
+  queueState.open = null;
+  if ($("queue-dialog").open) $("queue-dialog").close();
+  if (state.view === "queue") history.replaceState(null, "", location.pathname + "#queue");
+  if (restoreFocus && open) {
+    const target = open.trigger && open.trigger.isConnected ? open.trigger : [...$("queue-list").querySelectorAll("[data-queue-open]")].find((b) => b.dataset.queueOpen === String(open.item.id)) || $("queue-open");
+    target.focus({ preventScroll: true });
+  }
+}
+$("queue-item-close").onclick = () => { queueState.opening++; queueCloseItem(); };
+$("queue-dialog").addEventListener("cancel", (e) => { e.preventDefault(); queueState.opening++; queueCloseItem(); });
+$("queue-dialog").addEventListener("click", (e) => {
+  if (e.target === $("queue-dialog")) {
+    const r = e.target.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) queueCloseItem();
+  }
+  const action = e.target.closest("[data-queue-action]"); if (action) queueFinish(action.dataset.qid, action.dataset.queueAction);
+  const source = e.target.closest("[data-queue-source]");
+  if (source) { e.preventDefault(); const id = source.dataset.queueSource; queueCloseItem(false); routeHash("#msg/" + id); }
+  // The existing profile and attachment viewers live outside this modal's top layer.
+  if (e.target.closest("[data-profile],[data-att],a[data-board-file],.board-img,[data-file]")) queueCloseItem(false);
+});
+$("queue-item-options").onchange = () => {
+  const open = queueState.open; if (!open) return;
+  open.choices = [...$("queue-item-options").querySelectorAll("input:checked")].map((n) => n.value);
+  store.set(queueChoiceKey(open.item.id), JSON.stringify(open.choices));
+};
+$("queue-restore").onclick = () => { if (queueState.open) queueFinish(queueState.open.item.id, "restore"); };
+async function queueFinish(id, action) {
+  const q = queueState, item = q.open && String(q.open.item.id) === String(id) ? q.open.item : q.items.find((i) => String(i.id) === String(id));
+  if (!item || q.busy.has(item.id)) return;
+  q.busy.add(item.id); queueRenderList(); if (q.open && q.open.item.id === item.id) $("queue-item-actions").innerHTML = queueActions(item);
+  try {
+    const key = uid(), payload = { action, version: item.version };
+    for (let attempt = 0; ; attempt++) {
+      try { await api("POST", `/queue/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }); break; }
+      catch (e) { if (attempt >= 3 || (e.status && e.status < 500 && e.status !== 429)) throw e; await sleep(Math.min(500 * 2 ** attempt, 4000)); }
+    }
+    if (q.open && q.open.item.id === item.id) queueCloseItem();
+    $("queue-error").classList.add("hidden"); await queueRefresh();
+  } catch (e) {
+    queueError(e.status === 409 ? "This item changed. It has been refreshed; review it and try again." : e, !!q.open && q.open.item.id === item.id);
+    await queueRefresh();
+  } finally { q.busy.delete(item.id); if (state.view === "queue") queueRenderList(); if (q.open) $("queue-item-actions").innerHTML = queueActions(q.open.item); }
+}
+async function queueLoadAgents() {
+  const q = queueState;
+  try {
+    const people = await loadPeople(true);
+    if (state.view !== "queue") return;
+    q.agents = people.filter((p) => p.identity_type === "agent" && p.owner && p.owner.id === state.me.id && !p.disabled && !p.suspended);
+    $("queue-dm-agent").innerHTML = q.agents.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p))}</option>`).join("");
+    if (!q.agents.some((p) => p.id === q.dmAgent)) q.dmAgent = q.agents[0] ? q.agents[0].id : null;
+    $("queue-dm-agent").disabled = !q.agents.length;
+    if (!q.agents.length) {
+      q.dmChannel = null; $("queue-dm-messages").innerHTML = `<div class="small" style="padding:8px 24px">No active agents yet.</div>`;
+      $("queue-dm-composer").innerHTML = "";
+    } else { $("queue-dm-agent").value = q.dmAgent; await queueSelectAgent(q.dmAgent); }
+  } catch (e) { if (state.view === "queue") queueError(e); }
+}
+async function queueSelectAgent(id) {
+  const q = queueState, agent = q.agents.find((p) => String(p.id) === String(id)); if (!agent) return;
+  const request = ++q.dmRequest;
+  q.dmAgent = agent.id; q.dmChannel = null; q.dmSignature = "";
+  $("queue-dm-composer").innerHTML = ""; $("queue-dm-messages").innerHTML = `<div class="small" style="padding:8px 24px">Loading…</div>`;
+  try {
+    const channel = await api("POST", "/dms", { body: { with: agent.id } });
+    if (state.view !== "queue" || request !== q.dmRequest) return;
+    q.dmChannel = channel;
+    mountComposer($("queue-dm-composer"), { placeholder: "Message " + nameOf(agent), targetChannel: channel, draftKey: "c:" + channel.id,
+      autofocus: false, onSent: () => { if (q.dmChannel === channel) queueRefreshDm(); refreshChannels(); } });
+    await queueRefreshDm();
+  } catch (e) { if (state.view === "queue" && request === q.dmRequest) $("queue-dm-messages").textContent = e.message; }
+}
+async function queueRefreshDm() {
+  const q = queueState, channel = q.dmChannel; if (state.view !== "queue" || !channel) return;
+  try {
+    const page = await api("GET", `/channels/${channel.id}/messages?limit=40`);
+    if (state.view !== "queue" || q.dmChannel !== channel) return;
+    const signature = JSON.stringify(page.messages); if (signature === q.dmSignature) return;
+    q.dmSignature = signature;
+    const host = $("queue-dm-messages"), bottom = nearBottom(host), scroll = host.scrollTop;
+    host.innerHTML = page.messages.map(queueMessageHTML).join("") || `<div class="small" style="padding:8px 24px">No messages yet.</div>`;
+    queueHydrate(host); host.scrollTop = bottom ? host.scrollHeight : scroll;
+  } catch (e) { if (state.view === "queue" && q.dmChannel === channel) queueError("Agent messages: " + e.message); }
+}
+function queueToggleDm() {
+  const q = queueState; q.dmHidden = !q.dmHidden;
+  $("queue-dm").classList.toggle("collapsed", q.dmHidden);
+  $("queue-agent-tab").classList.toggle("hidden", !q.dmHidden);
+  $("queue-agent-tab").setAttribute("aria-expanded", String(!q.dmHidden));
+}
+$("queue-dm-hide").onclick = queueToggleDm;
+$("queue-agent-tab").onclick = queueToggleDm;
+$("queue-dm-agent").onchange = (e) => queueSelectAgent(e.target.value);
+setInterval(() => {
+  if (state.view === "queue" && document.visibilityState === "visible") {
+    if (!queueState.loading) queueRefresh();
+    if (!queueState.dmHidden) queueRefreshDm();
+  }
+}, 8000);
 
 // ------------------------------------------------------------------ emoji and @mentions in the composer
 const EMOJI = [
@@ -2952,7 +3363,7 @@ const EMOJI = [
   ["Food", "☕ coffee|🍵 tea|🍕 pizza|🍔 burger|🌮 taco|🍣 sushi|🍪 cookie|🍰 cake|🍎 apple|🍌 banana|🥑 avocado|🍿 popcorn|🍺 beer|🥂 cheers toast|🧁 cupcake"],
 ].map(([cat, list]) => [cat, list.split("|").map((x) => { const i = x.indexOf(" "); return [x.slice(0, i), x.slice(i + 1)]; })]);
 
-function attachAssist(host, input, autosize) {
+function attachAssist(host, input, autosize, channel = state.current) {
   const insertAt = (text, from, to) => {
     const start = from ?? input.selectionStart, end = to ?? input.selectionEnd;
     input.setRangeText(text, start, end, "end");
@@ -3020,9 +3431,9 @@ function attachAssist(host, input, autosize) {
         .map(([, c]) => ({ insert: `#${c.name} `, html: `<span class="glyph">${c.kind === "private" ? LOCK : "#"}</span><span>${esc(c.name)}</span>` +
           (c.description ? `<small>${esc(c.description.length > 40 ? c.description.slice(0, 39) + "…" : c.description)}</small>` : "") }));
     } else {
-      const members = state.current ? await loadMemberIds(state.current) : new Set();   // only people in this channel
+      const members = channel ? await loadMemberIds(channel) : new Set();   // only people in this channel
       const people = (await loadPeopleFor(members)).filter((p) => !p.disabled && p.id !== state.me.id && members.has(p.id));
-      const tags = state.current && state.current.kind !== "dm"
+      const tags = channel && channel.kind !== "dm"
         ? ["all", "agents", "humans"].filter((g) => !q || g.startsWith(q)).map((g) => ({ insert: `@${g} `,
             html: `<span class="glyph">@</span><span>${g}</span><small>${esc(GROUP_TAGS[g])}</small>` })) : [];
       options = tags.concat(people.map((p) => [rank(q, handleOf(p), nameOf(p)) + (p.identity_type === "user" ? 0.5 : 0), p]).filter(([s]) => s > 0)
@@ -3107,10 +3518,11 @@ function internalHash(href) {
   let u; try { u = new URL(href, location.href); } catch { return null; }
   if (u.origin !== location.origin || u.pathname !== location.pathname || !u.hash) return null;
   const h = decodeURIComponent(u.hash.slice(1));
-  return /^(msg|file)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
+  return /^(msg|file|queue)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics|queue)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
 }
 async function routeHash(h) {
   h = decodeURIComponent((h || "").replace(/^#/, ""));
+  if (queueState.open && h !== "queue" && !h.startsWith("queue/")) queueCloseItem(false);
   let m;
   if ((m = /^msg\/(\d+)$/.exec(h))) {
     try { jumpTo(await api("GET", `/messages/${m[1]}`)); }
@@ -3120,6 +3532,7 @@ async function routeHash(h) {
   if ((m = /^file\/([\w-]+)$/.exec(h))) { openViewer([m[1]], 0); return true; }
   if (h === "settings") { openSettings(); return true; }
   if (h === "activity") { openActivity(); return true; }
+  if (h === "queue" || (m = /^queue\/([\w-]+)$/.exec(h))) { openQueue(m ? m[1] : null); return true; }
   if (h === "analytics") { openAnalytics(); return true; }
   if (h === "search") { openSearch(""); return true; }
   const c = state.chanIndex.get(h.toLowerCase()) || state.channels.find((x) => x.name === h);
@@ -3658,6 +4071,7 @@ function drawActivity(host, days) {
 
 // ------------------------------------------------------------------ activity
 async function openActivity() {
+  leaveQueue();
   state.view = "activity";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -3844,6 +4258,7 @@ document.addEventListener("keydown", (e) => {
 
 // full search: a view in the main area, with filters
 async function openSearch(q, opts = {}) {
+  leaveQueue();
   state.view = "search";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -3938,6 +4353,7 @@ async function jumpTo(m) {
 // ------------------------------------------------------------------ settings
 const EXPIRY = [["never", null], ["1 day", 86400], ["7 days", 604800], ["30 days", 2592000]];
 function openSettings(tab) {
+  leaveQueue();
   state.view = "settings";
   if (state.poll) state.poll.abort();
   state.current = null; renderChannels(); closePanel();
@@ -4322,6 +4738,7 @@ function analyticsRange() {
 function leaveAnalytics() { $("analytics").classList.add("hidden"); $("analytics-open").classList.remove("on"); }
 async function openAnalytics() {
   if (!canAnalytics()) return;
+  leaveQueue();
   state.view = "analytics";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();

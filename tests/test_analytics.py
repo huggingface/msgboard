@@ -279,6 +279,8 @@ def test_migrate_v24_preserves_presence(tmp_path):
         conn.execute("DROP TABLE presence_history")
         for index in ("messages_created_at", "messages_response_thread", "messages_response_dm", "attachments_published_at"):
             conn.execute(f"DROP INDEX {index}")
+        for table in ("queue_receipts", "queue_sources", "queue_notices", "queue_items", "queue_orders"):
+            conn.execute(f"DROP TABLE {table}")
         conn.execute("PRAGMA user_version=24")
         conn.execute("DROP TABLE channel_imports")
         conn.execute("DELETE FROM settings WHERE key = 'transfer_board_id'")

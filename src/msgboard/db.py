@@ -549,10 +549,78 @@ INSERT OR IGNORE INTO channel_members (channel_id, principal_id, added_by, added
       AND p.identity_type = 'user' AND p.disabled = 0 AND p.role != 'guest';
 """
 
+# v30: a person's agent-maintained queue, ordinary-message answers and notices.
+# Original IDs distinguish a deleted destination from an intentionally absent one.
+SCHEMA_V30 = """
+CREATE TABLE queue_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL REFERENCES principals(id),
+    agent_id INTEGER NOT NULL REFERENCES principals(id),
+    item_key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    channel_id INTEGER REFERENCES channels(id) ON DELETE SET NULL,
+    original_channel_id INTEGER,
+    anchor_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    original_anchor_id INTEGER,
+    options TEXT NOT NULL DEFAULT '[]',
+    multiple INTEGER NOT NULL DEFAULT 0 CHECK (multiple IN (0, 1)),
+    content_hash TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    state TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'closed')),
+    closed_reason TEXT CHECK (closed_reason IN ('answered', 'done', 'dismissed')),
+    closed_at REAL,
+    answer_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    original_answer_id INTEGER,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    rank INTEGER NOT NULL,
+    UNIQUE (owner_id, agent_id, item_key),
+    CHECK ((state = 'open' AND closed_reason IS NULL AND closed_at IS NULL)
+        OR (state = 'closed' AND closed_reason IS NOT NULL AND closed_at IS NOT NULL))
+);
+CREATE INDEX queue_items_owner_rank ON queue_items(owner_id, rank, id);
+CREATE TABLE queue_sources (
+    item_id INTEGER NOT NULL REFERENCES queue_items(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    original_message_id INTEGER NOT NULL,
+    channel_id INTEGER REFERENCES channels(id) ON DELETE SET NULL,
+    original_channel_id INTEGER NOT NULL,
+    PRIMARY KEY (item_id, position)
+);
+CREATE TABLE queue_orders (
+    owner_id INTEGER PRIMARY KEY REFERENCES principals(id),
+    version INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE queue_receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_id INTEGER NOT NULL REFERENCES principals(id),
+    request_key TEXT NOT NULL,
+    item_id INTEGER NOT NULL REFERENCES queue_items(id),
+    payload_hash TEXT NOT NULL,
+    result TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    UNIQUE (actor_id, request_key)
+);
+CREATE TABLE queue_notices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL REFERENCES principals(id),
+    agent_id INTEGER NOT NULL REFERENCES principals(id),
+    due_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    changes INTEGER NOT NULL DEFAULT 1,
+    state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'sent', 'suppressed')),
+    message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX queue_notices_pending ON queue_notices(owner_id, agent_id) WHERE state = 'pending';
+CREATE INDEX queue_notices_due ON queue_notices(state, due_at, id);
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29]
+              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

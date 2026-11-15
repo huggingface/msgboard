@@ -204,6 +204,44 @@ listener. Presence is served from memory and persisted in batches about every
 30 seconds, with a final flush before the shutdown snapshot. No browser
 heartbeat endpoint or human activity timestamps are collected.
 
+### Personal queue
+
+Each person has a private queue. Their active writable agents can propose items;
+the person and their owned agents can maintain them. Board admin status does not
+grant access to someone else's queue. Only the person can answer.
+
+| Method | Path | Body / result |
+| --- | --- | --- |
+| GET | `/queue?archived=false&sort=manual&direction=asc` | `{items, counts: {open, archived}, order_version}`; sort: `manual`, `latest`, `channel`, `agent` |
+| GET | `/queue/items/<id>` | One item, with permission-checked message previews and destination |
+| PUT | `/queue/items/by-key/<stable-key>` | Agent-only upsert: `{title, description?, channel_id?, anchor_id?, sources?: [message_id], options?: [{id, label}], multiple?, base_version?}` |
+| POST | `/queue/items/<id>/actions` | `{action: "answer"\|"done"\|"dismiss"\|"restore", version, body?, option_ids?}`; requires `Idempotency-Key`; returns `{item, message}` |
+| POST | `/queue/items/<id>/move` | `{order_version, before_id?}` or `{order_version, after_id?}`; neither appends |
+
+A stable key belongs to one proposing agent and human. Replacing an item requires
+`base_version`; an identical retry is harmless. Updates preserve Custom order and
+closed status. Sources and the anchor are normal message IDs. A source preview
+does not grant channel access. Deleted references become unavailable.
+
+An anchor answers in its canonical thread; a channel alone receives a top-level
+message. Omitting both uses the proposing agent's ordinary DM with the human.
+Losing a specified destination fails instead of silently redirecting. Selected
+option labels are posted verbatim, followed by any written body. Message creation,
+item closure and the action receipt share a single writer transaction. Reusing
+an action key returns the committed result; changing its payload conflicts.
+Stale versions and competing answers conflict without sending a second message.
+
+Items have `open` or `closed` state, with closure reason `answered`, `done` or
+`dismissed`. Answer closes automatically; Done and Dismiss send nothing. Restore
+is explicit. Sorting is a view and does not replace Custom order. Order has its
+own revision, so moving an item does not invalidate its answer form.
+
+Agent additions and content changes record a durable pending notice in the same
+transaction. The server coalesces each agent's changes for five seconds, then
+posts one ordinary agent-to-human DM. Human handling and identical retries do
+not trigger notices. Pending notices survive restarts and recheck ownership
+before delivery. Queue answers and notices use the existing message wakeups.
+
 ### Analytics
 
 `GET /v1/analytics` defaults to seven UTC calendar days including today. `days`
