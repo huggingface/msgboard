@@ -410,6 +410,7 @@ button.fchip:hover { border-color: var(--ink); }
 .v-body.center { align-items: center; justify-content: center; background: var(--panel);
   background-image: linear-gradient(45deg, var(--rule) 25%, transparent 25%, transparent 75%, var(--rule) 75%), linear-gradient(45deg, var(--rule) 25%, transparent 25%, transparent 75%, var(--rule) 75%);
   background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.v-body video { max-width: 100%; max-height: 100%; display: block; background: #000; }
 .v-body img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; cursor: zoom-in; }
 .v-body.zoomed { align-items: flex-start; justify-content: flex-start; }
 .v-body.zoomed img { max-width: none; max-height: none; margin: auto; cursor: grab; }
@@ -1076,7 +1077,9 @@ function decorate(html, mentions) {
   t.innerHTML = html;
   t.content.querySelectorAll("a[href]").forEach((a) => {
     const fid = !internalHash(a.getAttribute("href")) && boardFileId(a.getAttribute("href"));
-    if (fid) { a.dataset.boardFile = fid; a.removeAttribute("target"); if (a.textContent.trim() === a.getAttribute("href")) a.textContent = "📎 " + fid.split("/").pop(); return; }
+    if (fid) { a.dataset.boardFile = fid; a.removeAttribute("target"); if (a.textContent.trim() === a.getAttribute("href")) a.textContent = "📎 " + fid.split("/").pop();
+      if (kindOf(fid, "") === "video") a.textContent = a.textContent.replace(/^📎\s*/, "▶ ");   // a film: say so
+      return; }
     const h = internalHash(a.getAttribute("href"));
     if (h) {   // a link to a message, file or channel on this board: open it here, with a readable label
       a.dataset.internal = h; a.removeAttribute("target");
@@ -2330,6 +2333,7 @@ function newBelow(n) {
 }
 // ---------- attachments: kinds, chips, thumbnails, download
 const IMAGE_EXT = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp", avif: "image/avif", ico: "image/x-icon" };
+const VIDEO_EXT = new Set(["mp4", "m4v", "webm", "mov", "ogv"]);
 const TEXT_EXT = new Set(["txt", "md", "markdown", "log", "csv", "tsv", "json", "jsonl", "ndjson", "yaml", "yml", "toml", "ini", "cfg", "conf", "env",
   "py", "js", "mjs", "cjs", "ts", "tsx", "jsx", "sh", "bash", "zsh", "rb", "go", "rs", "java", "kt", "c", "h", "cc", "cpp", "hpp", "cs", "swift",
   "php", "pl", "r", "jl", "lua", "sql", "css", "scss", "xml", "tex", "bib", "diff", "patch", "ipynb", "dockerfile", "makefile", "gitignore"]);
@@ -2337,6 +2341,7 @@ const extOf = (name) => { const n = (name || "").toLowerCase(); const i = n.last
 function kindOf(name, type) {
   const ext = extOf(name), t = (type || "").toLowerCase();
   if (IMAGE_EXT[ext] || t.startsWith("image/")) return "image";
+  if (VIDEO_EXT.has(ext) || t.startsWith("video/")) return "video";
   if (ext === "pdf" || t === "application/pdf") return "pdf";
   if (ext === "html" || ext === "htm" || t === "text/html") return "html";
   if (TEXT_EXT.has(ext) || t.startsWith("text/") || t === "application/json") return "text";
@@ -2441,6 +2446,7 @@ async function showInViewer(view = "render") {
   const noPreview = (why) => { body.innerHTML = `<div class="v-empty"><div class="fprev">${esc(typeLabel(info.filename, kind))}</div>${why}<br><br>` +
     `<button class="btn" data-download onclick="document.getElementById('v-download').click()">Download</button></div>`; updateDownloadUI(); };
   if (kind === "other") return noPreview("No preview for this kind of file.");
+  if (kind === "video") return showVideo(body, id, info, noPreview);
   const limit = kind === "text" || kind === "html" ? 2 * 1024 * 1024 : 60 * 1024 * 1024;
   if (info.size > limit) return noPreview(`Too large to preview (${fmtSize(info.size)}).`);
   let blob;
@@ -2474,6 +2480,49 @@ async function showInViewer(view = "render") {
   const cut = lines.length > 20000;
   body.innerHTML = `<pre class="v-code">${lines.slice(0, 20000).map((l) => `<span class="l">${esc(l) || " "}</span>`).join("")}</pre>` +
     (cut ? `<div class="v-empty">Showing the first 20,000 of ${lines.length.toLocaleString()} lines.</div>` : "");
+}
+// Videos stream from a short-lived download link (the board token never goes in a URL). The browser fetches
+// ranges as you play or seek, so a big film starts at once instead of after a full download. A link lasts two
+// minutes; when a later range request fails, fetch a new link and carry on from the same spot.
+async function showVideo(body, id, info, noPreview) {
+  const link = async () => (await api("POST", "/downloads", { body: { file_id: id } })).url;
+  // every callback checks that the viewer still shows *this opening* of the video: a late answer must not touch
+  // the next file, nor the same file opened again
+  const opening = {}; body.videoOpening = opening;
+  const current = () => !$("viewer").classList.contains("hidden") && body.videoOpening === opening && viewer.list[viewer.index] === id && (!video || body.contains(video));
+  const fail = (why) => { if (current()) noPreview(why); };
+  let video = null, src;
+  try { src = await link(); } catch (e) { return fail(esc(e.message)); }
+  if (!current()) return;
+  body.classList.add("center");
+  body.innerHTML = `<video controls playsinline preload="metadata" title="${esc(info.filename || "")}"></video>`;
+  video = body.querySelector("video");
+  // "Was it playing?" Chromium pauses the player itself just before a network error, so a pause right after the
+  // viewer's own click or key is theirs; any other pause only counts once no error has followed it for a moment
+  let wantPlay = false, pauseAt = 0, inputAt = -1e9, renewed = 0;
+  const touched = () => { inputAt = performance.now(); };
+  video.addEventListener("pointerdown", touched); video.addEventListener("keydown", touched);
+  video.addEventListener("play", () => { wantPlay = true; pauseAt = 0; });   // a new play also cancels an old pause's timer
+  video.addEventListener("pause", () => {
+    if (performance.now() - inputAt < 500) { wantPlay = false; pauseAt = 0; return; }
+    const t = pauseAt = performance.now();
+    setTimeout(() => { if (pauseAt === t && !video.error) wantPlay = false; }, 1500);
+  });
+  video.onerror = async () => {
+    if (!current()) return;
+    const at = video.currentTime, playing = wantPlay;
+    for (;;) {   // a new link, a few times with a pause between, then give up with a clear message
+      if (renewed >= 3) return fail("This video could not be played here. Download it instead.");
+      renewed++;
+      try { src = await link(); break; }
+      catch { await sleep(1000 * renewed); if (!current()) return; }
+    }
+    if (!current()) return;
+    video.addEventListener("loadedmetadata", () => { video.currentTime = at; if (playing) video.play().catch(() => {}); }, { once: true });
+    video.src = src;
+  };
+  video.onloadeddata = () => { renewed = 0; };
+  video.src = src;
 }
 // PDFs are drawn with PDF.js, because browsers refuse their own PDF viewer inside sandboxed
 // frames (the huggingface.co Space page embeds the board in one). Loaded on first use.
