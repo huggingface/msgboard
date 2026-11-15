@@ -32,6 +32,7 @@ from .errors import ApiError, bad_request, forbidden
 from .presence import PRESENCE_FLUSH_SECONDS, Presence
 from . import transfer
 from .reservations import Reservations
+from .auth import DOWNLOAD_TTL_SECONDS, DownloadLinks
 
 
 class NotInitialized(RuntimeError):
@@ -340,6 +341,8 @@ async def _json_body(request: Request, max_bytes: int = 256 * 1024):
 
 
 def create_app(board: Board, dashboard: bool = True) -> FastAPI:
+    download_links = DownloadLinks()  # process-local and bounded; restarts invalidate outstanding links
+
     @asynccontextmanager
     async def lifespan(app):
         board.notifier.loop = asyncio.get_running_loop()
@@ -1039,6 +1042,9 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/attachments/{att_id}")
     async def download(att_id: str, request: Request):
         p = await authn(request)
+        return await attachment_file(p, att_id)
+
+    async def attachment_file(p, att_id: str):
         info = await db.read(store.get_attachment, p, att_id)
         return FileResponse(
             board.blobs.path_for(info["storage_key"]),
@@ -1147,6 +1153,9 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/storage/{handle}/{path:path}")
     async def storage_get(handle: str, path: str, request: Request, info: bool = False):
         p = await authn(request)
+        return await storage_file(p, handle, path, info)
+
+    async def storage_file(p, handle: str, path: str, info: bool = False):
         if path.endswith("/"):                            # a folder: list it
             return await db.read(store.storage_list, p, handle, path)
         meta, key = await db.read(store.storage_lookup, p, handle, path)
@@ -1184,6 +1193,44 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                             headers={"X-Checksum-Sha256": meta["sha256"], "X-Content-Type-Options": "nosniff",
                                      "X-Upload-Content-Type": meta["content_type"] or "application/octet-stream",
                                      "Content-Security-Policy": "sandbox", "Cache-Control": "private, no-cache"})
+
+    async def download_file(p, file_id: str):
+        if file_id.startswith("storage:"):
+            parts = file_id[8:].split("/", 1)
+            if len(parts) != 2 or not parts[1] or parts[1].endswith("/"):
+                raise bad_request("choose a file, not a storage folder")
+            return await storage_file(p, parts[0], parts[1])
+        return await attachment_file(p, file_id)
+
+    @app.post("/v1/downloads")
+    async def prepare_download(request: Request):
+        p = await authn(request)
+        body = body_dict(await _json_body(request, max_bytes=4096))
+        file_id = body.get("file_id")
+        if not isinstance(file_id, str) or not file_id or len(file_id) > 1024:
+            raise bad_request("file_id must name an attachment or storage file")
+        # Resolve permissions and fill/verify the storage cache before handing off. No file bytes in this JSON.
+        response = await download_file(p, file_id)
+        if not await anyio.to_thread.run_sync(Path(response.path).is_file):
+            raise ApiError(404, "not_found", "this file is no longer available")
+        key = download_links.issue(p.id, _bearer(request), file_id, response.headers["X-Checksum-Sha256"])
+        return JSONResponse({"url": f"v1/downloads/{key}", "filename": response.filename,
+                             "expires_in": DOWNLOAD_TTL_SECONDS}, headers={"Cache-Control": "no-store"})
+
+    @app.api_route("/v1/downloads/{key}", methods=["GET", "HEAD"])
+    async def browser_download(key: str):
+        link = download_links.get(key)
+        # A capability authorizes only its file/version. Recheck revocation, suspension, ownership and file ACLs.
+        p = await db.read(store.authenticate, link.token, time.time())
+        if p.id != link.principal_id:
+            raise ApiError(404, "download_expired", "download link expired; click Download again")
+        board.presence.seen(p, time.time())
+        response = await download_file(p, link.file_id)
+        if response.headers["X-Checksum-Sha256"] != link.sha256:
+            raise ApiError(409, "download_changed", "this file changed; click Download again")
+        response.headers.update({"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
+                                 "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"})
+        return response
 
     @app.delete("/v1/storage/{handle}/{path:path}")
     async def storage_delete(handle: str, path: str, request: Request):
