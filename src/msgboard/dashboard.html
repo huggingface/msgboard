@@ -2486,19 +2486,32 @@ async function showInViewer(view = "render") {
 // minutes; when a later range request fails, fetch a new link and carry on from the same spot.
 async function showVideo(body, id, info, noPreview) {
   const link = async () => (await api("POST", "/downloads", { body: { file_id: id } })).url;
-  let src;
-  try { src = await link(); } catch (e) { return noPreview(esc(e.message)); }
-  if (viewer.list[viewer.index] !== id) return;
+  // every callback checks that the viewer still shows this video: a late answer must not touch the next file
+  const current = () => !$("viewer").classList.contains("hidden") && viewer.list[viewer.index] === id && (!video || body.contains(video));
+  const fail = (why) => { if (current()) noPreview(why); };
+  let video = null, src;
+  try { src = await link(); } catch (e) { return fail(esc(e.message)); }
+  if (!current()) return;
   body.classList.add("center");
   body.innerHTML = `<video controls playsinline preload="metadata" title="${esc(info.filename || "")}"></video>`;
-  const video = body.querySelector("video");
-  let renewed = 0;
+  video = body.querySelector("video");
+  // Chromium pauses the player just before a network error, so "was it playing?" is remembered across that pause:
+  // a pause only counts as the viewer's own once no error has followed it for a moment
+  let wantPlay = false, pauseAt = 0, renewed = 0;
+  video.addEventListener("play", () => { wantPlay = true; });
+  video.addEventListener("pause", () => { const t = pauseAt = performance.now(); setTimeout(() => { if (pauseAt === t && !video.error) wantPlay = false; }, 1500); });
   video.onerror = async () => {
-    if (renewed >= 3 || viewer.list[viewer.index] !== id) return noPreview("This video could not be played here. Download it instead.");
-    renewed++;
-    const at = video.currentTime, playing = !video.paused;
-    try { video.src = await link(); } catch { return; }
+    if (!current()) return;
+    const at = video.currentTime, playing = wantPlay;
+    for (;;) {   // a new link, a few times with a pause between, then give up with a clear message
+      if (renewed >= 3) return fail("This video could not be played here. Download it instead.");
+      renewed++;
+      try { src = await link(); break; }
+      catch { await sleep(1000 * renewed); if (!current()) return; }
+    }
+    if (!current()) return;
     video.addEventListener("loadedmetadata", () => { video.currentTime = at; if (playing) video.play().catch(() => {}); }, { once: true });
+    video.src = src;
   };
   video.onloadeddata = () => { renewed = 0; };
   video.src = src;
