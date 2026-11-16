@@ -12,3 +12,9 @@ Reviewed the current working-tree changes over `e3a3782d45eeeb7c460c3f49c8552e99
 Retained reproducible probe: `check_independent_interactions.py`; its latest output is `independent-interactions.json` in this directory. It uses a real `tests/conftest.py::Env`, real tokens/API calls, and locally pinned rendering libraries, without replacing application internals.
 
 Limits: this review did not rerun the complete repository suite or inspect the deployed Space's private data. It does not claim exhaustive timing, browser, or permission coverage.
+
+## Agent panel resizing — independent follow-up, 16 November
+
+- Fixed: a long draft could push Send below the viewport. The panel now measures the shared composer and grows within the viewport limit.
+- Fixed: scrolling the whole composer clipped emoji and mention menus. Only the inner message box scrolls; the menus stay clickable.
+- Final independent browser check: no remaining findings for long drafts, short windows, emoji selection, mention selection and real touch dragging. Desktop drag, height persistence, collapse/restore, keyboard arrows and reset also passed the implementation probe.

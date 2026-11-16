@@ -1,0 +1,69 @@
+{
+  "sidebar": {
+    "search": {
+      "left": 16,
+      "right": 231,
+      "top": 64,
+      "bottom": 96
+    },
+    "tasks": {
+      "left": 16,
+      "right": 231,
+      "top": 100,
+      "bottom": 130
+    },
+    "activity": {
+      "left": 16,
+      "right": 231,
+      "top": 130,
+      "bottom": 160
+    }
+  },
+  "list_chat_alignment": {
+    "list": {
+      "left": 372,
+      "right": 1316,
+      "top": 117,
+      "bottom": 239.71875
+    },
+    "chat": {
+      "left": 372,
+      "right": 1316,
+      "top": 1000,
+      "bottom": 1032
+    }
+  },
+  "agent_resize_long_draft": {
+    "height": 340,
+    "send_bottom": 1032.375
+  },
+  "agent_resize": {
+    "initial": 146.75,
+    "dragged": 297,
+    "persisted": 273,
+    "keyboard_reset": 146.75,
+    "touch": {
+      "before": 144.75,
+      "after": 265
+    }
+  },
+  "block_order": [
+    "Introduction to the question.",
+    "First context:",
+    "agent-a\nAGENT\n11:11 AM\n\nFIRST QUOTED MESSAGE",
+    "More text between the quotes.",
+    "agent-a\nAGENT\n11:11 AM\n\nSECOND QUOTED MESSAGE",
+    "Final question after both quotes."
+  ],
+  "quote_bounds": [
+    {
+      "left": 426,
+      "right": 1056
+    },
+    {
+      "left": 426,
+      "right": 1056
+    }
+  ],
+  "page_errors": []
+}

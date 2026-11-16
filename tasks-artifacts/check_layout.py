@@ -31,6 +31,20 @@ with tempfile.TemporaryDirectory() as d:
    assert abs(listing['left']-chat['left'])<=1 and abs(listing['right']-chat['right'])<=1,(listing,chat)
    assert p.locator('.tasks-summary').evaluate('e=>getComputedStyle(e).borderTopWidth')=='0px'
    results['sidebar']=nav;results['list_chat_alignment']={'list':listing,'chat':chat}
+   handle=p.locator('#tasks-dm-resize');height=lambda:p.locator('#tasks-dm-content').bounding_box()['height']
+   initial=height();r=handle.bounding_box();p.mouse.move(r['x']+100,r['y']+6);p.mouse.down();p.mouse.move(r['x']+100,r['y']-144,steps=12);p.mouse.up();grown=height();assert grown>initial+100,(initial,grown)
+   handle.focus();p.keyboard.press('ArrowDown');assert abs(height()-(grown-24))<2
+   saved=height();p.reload();expect(p.locator('#tasks-dm-composer textarea')).to_be_visible();assert abs(height()-saved)<2
+   draft=p.locator('#tasks-dm-composer textarea');draft.fill('Long draft line\n'*18)
+   p.wait_for_timeout(150);send=p.locator('#tasks-dm-composer button.btn');assert send.bounding_box()['y']+send.bounding_box()['height']<=p.viewport_size['height']
+   results['agent_resize_long_draft']={'height':height(),'send_bottom':send.bounding_box()['y']+send.bounding_box()['height']}
+   draft.fill('');p.wait_for_timeout(100);assert abs(height()-saved)<2
+
+   p.locator('#tasks-dm-hide').click();expect(handle).not_to_be_visible();p.locator('#tasks-agent-tab').click();assert abs(height()-saved)<2
+   p.set_viewport_size({'width':1440,'height':520});assert height()<=p.locator('#tasks').bounding_box()['height']-100
+   assert p.locator('#tasks-scroll').bounding_box()['height']>=100
+   p.set_viewport_size({'width':1440,'height':1050});handle.focus();p.keyboard.press('Home');assert abs(height()-initial)<2
+   results['agent_resize']={'initial':initial,'dragged':grown,'persisted':saved,'keyboard_reset':height()}
    p.screenshot(path=str(out/'tasks-list.png'))
    p.locator('#tasks-show-archived').check();expect(p.locator('#tasks-list .closed')).to_have_count(2)
    assert p.locator('.tasks-row-mark[aria-label=Completed] svg path').get_attribute('d')==p.locator('#tasks-list [data-tasks-action=done] svg path').first.get_attribute('d')
@@ -59,5 +73,13 @@ with tempfile.TemporaryDirectory() as d:
     assert '#tasks' in cold.url;cold.close()
    p.set_viewport_size({'width':390,'height':844});p.screenshot(path=str(out/'tasks-phone.png'));p.locator(f'[data-tasks-open="{item["id"]}"]').click();expect(p.locator('#tasks-dialog')).to_be_visible()
    p.screenshot(path=str(out/'tasks-phone-item.png'));assert p.evaluate('document.documentElement.scrollWidth<=innerWidth')
+   p.keyboard.press('Escape');r=handle.bounding_box();initial_phone=height();cdp=ctx.new_cdp_session(p)
+   x=r['x']+r['width']/2;y=r['y']+6
+   cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y}]})
+   for step in range(1,11):cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x,'y':y-step*12}]})
+   cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]});assert height()>initial_phone+90,(initial_phone,height())
+   results['agent_resize']['touch']={'before':initial_phone,'after':height()}
+   handle.dblclick();assert abs(height()-initial_phone)<2
+
    assert not errors,errors;results['page_errors']=errors;(out/'layout-checks.json').write_text(json.dumps(results,indent=2));print(json.dumps(results));b.close()
  finally:env.close()
