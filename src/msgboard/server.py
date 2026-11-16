@@ -839,6 +839,11 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         p = await authn(request)
         return {"members": await with_presence(p, await db.read(store.list_members, p, channel_id))}
 
+    @app.get("/v1/channels/{channel_id}/mention-candidates")
+    async def mention_candidates(channel_id: int, request: Request):
+        p = await authn(request)
+        return {"candidates": await db.read(store.mention_candidates, p, channel_id)}
+
     @app.post("/v1/channels/{channel_id}/members")
     async def add_member(channel_id: int, request: Request):
         p = await authn(request)
