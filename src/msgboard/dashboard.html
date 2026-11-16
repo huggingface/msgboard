@@ -838,7 +838,12 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 .tasks-summary input { margin: 0; }
 #tasks-error { margin: 12px 0; }
 #tasks-dm { flex: none; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 28px; background: var(--bg); }
-#tasks-dm-content { border-top: 1px solid var(--rule-2); }
+#tasks-dm-content { position: relative; border-top: 1px solid var(--rule-2); display: flex; flex-direction: column; }
+#tasks-dm-resize { position: absolute; top: -6px; left: 0; right: 0; height: 12px; cursor: ns-resize; touch-action: none; z-index: 2; }
+#tasks-dm-resize:hover::after, #tasks-dm-resize:focus-visible::after { content: ""; position: absolute; top: 5px; left: 0; right: 0; border-top: 1px solid var(--ink); }
+#tasks-dm-content.resized #tasks-dm-messages { flex: 1; min-height: 0; max-height: none; }
+#tasks-dm-content.resized #tasks-dm-composer .cbox { overflow-y: auto; }
+.tasks-dm-head, #tasks-dm-composer { flex: none; }
 .tasks-dm-head { display: flex; gap: 10px; align-items: center; padding: 12px 0 0; font-size: 12px; }
 .tasks-dm-head select { min-width: 138px; max-width: 70%; font-size: 12px; padding: 5px 24px 5px 9px; }
 #tasks-dm-hide { margin-left: auto; font-size: 11px; }
@@ -952,7 +957,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       </div></div>
       <section id="tasks-dm" aria-label="Direct message with your agent">
         <button id="tasks-agent-tab" class="hidden" aria-label="Show Agent panel" aria-expanded="false">Agent <span aria-hidden="true">⌃</span></button>
-        <div id="tasks-dm-content"><div class="tasks-dm-head"><label for="tasks-dm-agent">Agent:</label><select id="tasks-dm-agent" aria-label="Your agent"></select><button id="tasks-dm-hide" class="linkish">Hide</button></div>
+        <div id="tasks-dm-content"><div id="tasks-dm-resize" role="separator" aria-orientation="horizontal" aria-label="Resize Agent panel" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="tasks-dm-head"><label for="tasks-dm-agent">Agent:</label><select id="tasks-dm-agent" aria-label="Your agent"></select><button id="tasks-dm-hide" class="linkish">Hide</button></div>
           <div id="tasks-dm-messages" aria-live="polite"></div><div id="tasks-dm-composer" class="composer"></div>
         </div>
       </section>
@@ -3105,6 +3110,7 @@ async function openTasks(itemId = null) {
   $("chat-view").style.display = "none";
   for (const id of ["settings", "activity", "search"]) $(id).classList.add("hidden");
   leaveAnalytics(); $("tasks").classList.remove("hidden");
+  tasksSizeDm();
   $("ch-title").textContent = "Tasks"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
   for (const id of ["members-open", "ch-info", "ch-doc", "ch-join"]) $(id).classList.add("hidden");
   tasksRenderSort();
@@ -3460,6 +3466,59 @@ function tasksToggleDm() {
   $("tasks-dm").classList.toggle("collapsed", q.dmHidden);
   $("tasks-agent-tab").classList.toggle("hidden", !q.dmHidden);
   $("tasks-agent-tab").setAttribute("aria-expanded", String(!q.dmHidden));
+  if (!q.dmHidden) tasksSizeDm();
+}
+// Resize the ordinary Agent conversation, leaving room to scroll the task list.
+let tasksDmHeight = Number(store.get("tasks-dm-height")) || null;
+function tasksSizeDm(height = tasksDmHeight, save = false) {
+  const content = $("tasks-dm-content"), handle = $("tasks-dm-resize");
+  if (state.view !== "tasks" || tasksState.dmHidden) return;
+  const available = $("tasks").clientHeight;
+  const max = Math.max(100, available - Math.min(120, available / 3));
+  const composer = $("tasks-dm-composer"), box = composer.querySelector(".cbox"), head = content.querySelector(".tasks-dm-head").offsetHeight;
+  const padding = parseFloat(getComputedStyle(composer).paddingTop) + parseFloat(getComputedStyle(composer).paddingBottom);
+  const min = Math.min(Math.max(140, head + (box ? box.scrollHeight + padding : composer.scrollHeight) + 24), max);
+  tasksDmHeight = height;
+  content.classList.toggle("resized", height !== null);
+  content.style.height = height === null ? "" : Math.round(Math.max(min, Math.min(max, height))) + "px";
+  if (box) box.style.maxHeight = height === null ? "" : Math.max(40, content.clientHeight - head - padding - 24) + "px";
+  handle.setAttribute("aria-valuemin", Math.round(min));
+  handle.setAttribute("aria-valuemax", Math.round(max));
+  handle.setAttribute("aria-valuenow", Math.round(content.getBoundingClientRect().height));
+  if (save) {
+    tasksDmHeight = height === null ? null : content.getBoundingClientRect().height;
+    if (tasksDmHeight === null) store.del("tasks-dm-height");
+    else store.set("tasks-dm-height", String(tasksDmHeight));
+  }
+}
+{
+  const handle = $("tasks-dm-resize"); let drag = null;
+  handle.onpointerdown = (e) => {
+    if (!e.isPrimary || e.button !== 0) return;
+    e.preventDefault(); handle.focus();
+    drag = { id: e.pointerId, y: e.clientY, height: $("tasks-dm-content").getBoundingClientRect().height };
+    handle.setPointerCapture(e.pointerId);
+  };
+  handle.onpointermove = (e) => {
+    if (drag && drag.id === e.pointerId) tasksSizeDm(drag.height + drag.y - e.clientY);
+  };
+  const finish = (e) => {
+    if (!drag || drag.id !== e.pointerId) return;
+    tasksSizeDm($("tasks-dm-content").getBoundingClientRect().height, true); drag = null;
+    if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
+  };
+  handle.onpointerup = finish; handle.onpointercancel = finish; handle.onlostpointercapture = finish;
+  handle.ondblclick = () => tasksSizeDm(null, true);
+  handle.onkeydown = (e) => {
+    if (!["ArrowUp", "ArrowDown", "Home"].includes(e.key)) return;
+    e.preventDefault(); e.stopPropagation();
+    tasksSizeDm(e.key === "Home" ? null : $("tasks-dm-content").getBoundingClientRect().height + (e.key === "ArrowUp" ? 24 : -24), true);
+  };
+  window.addEventListener("resize", () => tasksSizeDm());
+  if (window.visualViewport) visualViewport.addEventListener("resize", () => tasksSizeDm());
+  new ResizeObserver(() => tasksSizeDm()).observe($("tasks-dm-composer"));
+  $("tasks-dm-composer").addEventListener("input", () => tasksSizeDm());
+  new MutationObserver(() => tasksSizeDm()).observe($("tasks-dm-composer"), { childList: true, subtree: true });
 }
 $("tasks-dm-hide").onclick = tasksToggleDm;
 $("tasks-agent-tab").onclick = tasksToggleDm;
