@@ -806,6 +806,95 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 }
 /* iOS zooms into any focused field under 16px */
 @media (pointer: coarse) { input, textarea, select { font-size: 16px !important; } }
+/* ---------- personal tasks ---------- */
+.search-box, [data-look="a2"] .search-box { padding-bottom: 4px; }
+#tasks-nav, #activity-list { padding-left: 16px; padding-right: 16px; margin-top: 0; }
+#tasks-nav .glyph svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.2; }
+#tasks { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#tasks-scroll { min-height: 0; padding: 0; }
+.tasks-page { max-width: 1000px; margin: 0 auto; padding: 24px 28px 32px; }
+#tasks-sort { display: flex; justify-content: flex-end; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+#tasks-sort button { border: 1px solid var(--rule-2); padding: 5px 10px; font-size: 11px; min-height: 28px; background: transparent; }
+#tasks-sort button.on { color: var(--select-ink, var(--bg)); background: var(--select, var(--ink)); border-color: var(--select, var(--ink)); }
+.tasks-row { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.tasks-row.drag-before { box-shadow: inset 0 2px var(--ink); }
+.tasks-row.drag-after { box-shadow: inset 0 -2px var(--ink); }
+.tasks-row[draggable=true] { cursor: grab; }
+.tasks-row.touch-dragging { background: var(--hover); outline: 1px solid var(--rule-2); cursor: grabbing; }
+.tasks-row[draggable=true] .tasks-row-open { -webkit-touch-callout: none; }
+.tasks-row-open { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
+.tasks-row-title { display: block; font-size: 15px; line-height: 1.45; font-weight: 500; letter-spacing: -.12px; }
+.tasks-row-open:hover .tasks-row-title { text-decoration: underline; text-underline-offset: 3px; }
+.tasks-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 5px; color: var(--ink-3); font-size: 11px; }
+.tasks-row.closed .tasks-row-title { color: var(--ink-3); }
+.tasks-row-mark { display: inline-flex; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+.tasks-row-mark svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.tasks-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.tasks-icon { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; background: transparent; border: 1px solid var(--rule-2); color: var(--ink-2); }
+.tasks-icon:hover { color: var(--ink); border-color: var(--ink); }
+.tasks-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.tasks-summary { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 14px; font-size: 11px; color: var(--ink-3); }
+.tasks-summary label { display: flex; align-items: center; gap: 7px; }
+.tasks-summary input { margin: 0; }
+#tasks-error { margin: 12px 0; }
+#tasks-dm { flex: none; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 28px; background: var(--bg); }
+#tasks-dm-content { position: relative; border-top: 1px solid var(--rule-2); display: flex; flex-direction: column; }
+#tasks-dm-resize { position: absolute; top: -6px; left: 0; right: 0; height: 12px; cursor: ns-resize; touch-action: none; outline: none; z-index: 2; }
+#tasks-dm-resize:focus-visible::after { content: ""; position: absolute; top: 5px; left: 0; right: 0; border-top: 1px solid var(--ink); }
+#tasks-dm-content.resized #tasks-dm-messages { flex: 1; min-height: 0; max-height: none; }
+#tasks-dm-content.resized #tasks-dm-composer .cbox { overflow-y: auto; }
+.tasks-dm-head, #tasks-dm-composer { flex: none; }
+.tasks-dm-head { display: flex; gap: 10px; align-items: center; padding: 12px 0 0; font-size: 12px; }
+.tasks-dm-head select { min-width: 138px; max-width: 70%; font-size: 12px; padding: 5px 24px 5px 9px; }
+#tasks-dm-hide { margin-left: auto; font-size: 11px; }
+#tasks-dm-messages { max-height: 125px; overflow-y: auto; padding: 6px 0; }
+#tasks-dm-messages .msg { font-size: 13px; padding-left: 0; padding-right: 0; }
+#tasks-dm-messages .msg .body { font-size: inherit; }
+#tasks-dm-composer { border-top: 0; padding: 10px 0 16px; }
+#tasks-dm.collapsed { border: 0; }
+#tasks-dm.collapsed #tasks-dm-content { display: none; }
+#tasks-agent-tab { display: flex; gap: 10px; align-items: center; padding: 9px 13px; border: 1px solid var(--rule-2); border-bottom: 0; background: var(--bg); font-size: 12px; margin-left: auto; }
+#tasks-dialog { width: min(730px, calc(100% - 32px)); max-height: calc(var(--vvh, 100dvh) - 32px); padding: 26px 28px 18px; overflow-y: auto; }
+#tasks-item-close { position: absolute; top: 10px; right: 12px; font-size: 22px; background: transparent; border: 0; padding: 0 5px; color: var(--ink-2); z-index: 1; }
+#tasks-dialog .tasks-proposal { padding: 0; }
+#tasks-dialog .tasks-proposal:hover { background: transparent; }
+#tasks-item-title { font-size: 16px; line-height: 1.45; font-weight: 550; margin: 13px 0 9px; letter-spacing: -.15px; }
+#tasks-dialog .tasks-description { font-size: 14px; line-height: 1.65; margin: 0 0 17px; color: var(--ink); }
+.tasks-description > :first-child { margin-top: 0; }
+.tasks-description > :last-child { margin-bottom: 0; }
+.tasks-source { border: 1px solid var(--rule); margin: 12px 0; }
+.tasks-source[role=link] { cursor: pointer; }
+.tasks-source[role=link]:hover { background: var(--hover); }
+.tasks-source:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+.tasks-source .msg, .tasks-source .msg.first { padding: 10px 12px; }
+.tasks-source .msg:hover { background: transparent; }
+.tasks-source-unavailable { padding: 12px; }
+.tasks-answer-area { border-top: 1px solid var(--rule-2); padding-top: 15px; margin-top: 21px; }
+#tasks-item-destination { color: var(--ink-3); margin-bottom: 14px; }
+#tasks-item-options { display: flex; flex-direction: column; gap: 11px; }
+#tasks-item-options:not(:empty) { margin: 0 0 17px; }
+.tasks-option { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 13px; }
+.tasks-option input { width: 13px; height: 13px; flex-shrink: 0; margin: 4px 0 0; }
+#tasks-answer-composer { border-top: 0; padding-left: 0; padding-right: 0; }
+.tasks-item-foot { display: flex; align-items: center; gap: 12px; }
+.tasks-item-foot > span { flex: 1; }
+@media (max-width: 720px) {
+  .tasks-page { padding: 20px 16px 28px; }
+  .tasks-row { padding: 7.5px 0; }
+  .tasks-row-title { font-size: 14px; }
+  .tasks-row-meta { font-size: 10px; gap: 6px; }
+  .tasks-summary { font-size: 10px; gap: 8px; }
+  #tasks-dialog { width: calc(100% - 24px); max-height: calc(var(--vvh, 100dvh) - 24px); padding: 25px 18px 18px; }
+  #tasks-dialog .tasks-proposal { grid-template-columns: 30px minmax(0, 1fr); padding: 0; }
+  #tasks-item-title { font-size: 15px; }
+  #tasks-dialog .tasks-description { font-size: 13px; }
+  .tasks-source .msg, .tasks-source .msg.first { padding: 8px 10px; }
+  #tasks-dm { padding: 0 16px; }
+  .tasks-dm-head { padding: 10px 0 0; }
+  #tasks-dm-messages { max-height: 95px; }
+  #tasks-answer-composer { padding-left: 0; padding-right: 0; }
+}
+
 </style>
 <style id="avatar-styles"></style>
 </head>
@@ -818,6 +907,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="brand"><b>msgboard</b><button class="hidden" id="analytics-open" title="Analytics" aria-label="Analytics"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14h12M4.5 11.5V8M8 11.5V3.5M11.5 11.5V6"/></svg></button><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
     <div class="search-box"><input id="search-input" type="search" placeholder="Search" title="Ctrl/⌘ K opens the full search" aria-label="Search" autocomplete="off" spellcheck="false"></div>
     <div class="nav-scroll">
+      <ul class="navlist hidden" id="tasks-nav"><li><button id="tasks-open"><span class="glyph"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3h8M6.5 8h8M6.5 13h8"/><rect x="1.5" y="1.7" width="2.6" height="2.6"/><rect x="1.5" y="6.7" width="2.6" height="2.6"/><rect x="1.5" y="11.7" width="2.6" height="2.6"/></svg></span><span class="name">Tasks</span></button></li></ul>
       <ul class="navlist" id="activity-list"><li><button id="activity-open"><span class="glyph"><svg class="lock" viewBox="0 0 10 11" aria-hidden="true"><path d="M2 8 V5 a3 3 0 0 1 6 0 V8 H2 Z M4 9.5 h2"/></svg></span><span class="name">Activity</span></button></li></ul>
       <div class="side-head"><span class="label">Channels</span><button id="new-channel" class="hidden" title="New channel">+</button></div>
       <ul class="navlist" id="channels"></ul>
@@ -858,6 +948,20 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div id="activity" class="scroll hidden" style="padding:0"></div>
     <div id="search" class="scroll hidden"></div>
     <div id="analytics" class="scroll hidden"></div>
+    <section id="tasks" class="hidden" aria-label="Personal tasks">
+      <div id="tasks-scroll" class="scroll"><div class="tasks-page">
+        <nav id="tasks-sort" aria-label="Order tasks"></nav>
+        <p id="tasks-error" class="err hidden" role="status"></p>
+        <div id="tasks-list" aria-label="Tasks items"></div>
+        <footer class="tasks-summary"><span id="tasks-count"></span><span aria-hidden="true">|</span><span id="tasks-archived-count"></span><span aria-hidden="true">|</span><label><input type="checkbox" id="tasks-show-archived"> Show archived</label></footer>
+      </div></div>
+      <section id="tasks-dm" aria-label="Direct message with your agent">
+        <button id="tasks-agent-tab" class="hidden" aria-label="Show Agent panel" aria-expanded="false">Agent <span aria-hidden="true">⌃</span></button>
+        <div id="tasks-dm-content"><div id="tasks-dm-resize" role="separator" aria-orientation="horizontal" aria-label="Resize Agent panel" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="tasks-dm-head"><label for="tasks-dm-agent">Agent:</label><select id="tasks-dm-agent" aria-label="Your agent"></select><button id="tasks-dm-hide" class="linkish">Hide</button></div>
+          <div id="tasks-dm-messages" aria-live="polite"></div><div id="tasks-dm-composer" class="composer"></div>
+        </div>
+      </section>
+    </section>
   </main>
   <section id="panel" class="hidden">
     <div class="resizer" id="panel-resize" role="separator" aria-orientation="vertical" aria-label="Resize side panel" tabindex="0" title="Drag to resize · double-click to reset"></div>
@@ -883,6 +987,16 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="v-body" id="v-body"></div>
   </div>
 </div>
+
+<dialog id="tasks-dialog" aria-labelledby="tasks-item-title">
+  <button class="close" id="tasks-item-close" aria-label="Close item">×</button>
+  <div id="tasks-item-content"></div>
+  <section class="tasks-answer-area"><div id="tasks-item-destination" class="small"></div>
+    <p class="err hidden" id="tasks-item-error" role="status"></p>
+    <div id="tasks-item-options"></div><div id="tasks-answer-composer" class="composer"></div>
+    <div class="tasks-item-foot"><button id="tasks-restore" class="btn ghost small hidden">Restore</button><span></span><div id="tasks-item-actions"></div></div>
+  </section>
+</dialog>
 
 <dialog id="channel-dialog">
   <form method="dialog" id="channel-form">
@@ -1084,7 +1198,7 @@ function decorate(html, mentions) {
     if (h) {   // a link to a message, file or channel on this board: open it here, with a readable label
       a.dataset.internal = h; a.removeAttribute("target");
       if (a.textContent.trim() === a.getAttribute("href") || a.textContent.trim() === a.href) {
-        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics)$/.test(h) ? h : "#" + h;
+        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics|tasks)$/.test(h) ? h : "#" + h;
       }
     } else { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   });
@@ -1584,6 +1698,7 @@ async function boot() {
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
   renderMe();
+  $("tasks-nav").classList.toggle("hidden", state.me.identity_type !== "user");
   $("new-channel").classList.toggle("hidden", !can("create_channels"));
   $("new-dm").classList.toggle("hidden", !can("post"));
   $("settings-open").classList.toggle("hidden", !(can("invite_agents") || can("manage")));
@@ -1595,6 +1710,7 @@ async function boot() {
   initNotify();
   if (location.hash === "#settings") return openSettings();
   if (location.hash === "#activity") return openActivity();
+  if (/^#(?:tasks|queue)(?:\/[^/]+)?$/.test(location.hash) && state.me.identity_type === "user") return openTasks(location.hash.split("/")[1] || null);
   if (location.hash === "#analytics" && canAnalytics()) return openAnalytics();
   if (/^#(msg|file)\//.test(location.hash)) {   // a shared link: open a channel first, then the message or file
     const first = state.channels.find((c) => c.name === store.get("channel")) || state.channels.find((c) => c.kind !== "dm") || state.channels[0];
@@ -1785,6 +1901,7 @@ function renderChannels() {
   document.title = (total ? `(${total > 99 ? "99+" : total}) ` : "") + baseTitle;
   noteFront();   // the channel on screen may have changed
   $("settings-open").classList.toggle("on", state.view === "settings");
+  $("tasks-open").classList.toggle("active", state.view === "tasks");
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
@@ -1828,6 +1945,7 @@ function updateMeta(live) {
   $("ch-join").onclick = () => joinChannel(c);
 }
 function showChat() {
+  leaveTasks();
   state.view = "chat";
   $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("chat-view").style.display = "contents";
 }
@@ -2208,8 +2326,7 @@ function lastOwnMessage(list) {
 }
 
 // ------------------------------------------------------------------ rendering messages
-function canWriteHere() {
-  const c = state.current;
+function canWriteHere(c = state.current) {
   if (!c || !can("post") || c.archived) return false;
   if (c.kind === "dm") return !!dmPeer(c);
   return true;   // the server has the final say (guests, private channels)
@@ -2660,7 +2777,8 @@ document.addEventListener("keydown", (e) => {
   if (link && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); link.click(); }
 });
 document.addEventListener("click", (e) => {
-  if (e.target.closest("dialog")) return;
+  const dialog = e.target.closest("dialog");
+  if (dialog && dialog.id !== "tasks-dialog") return;
   const del = e.target.closest("[data-delete-msg]");
   if (del) { deleteMessage(Number(del.dataset.deleteMsg)); return; }
   const ct = e.target.closest("[data-copy-text]");
@@ -2732,11 +2850,16 @@ function fileLink(it) {
   const name = it.label.replace(/[[\]\\]/g, "\\$&");
   return kindOf(it.file.name, it.file.type) === "image" ? `![${name}](${it.url})` : `[📎 ${name}](${it.url})`;
 }
-function mountComposer(host, { placeholder, replyTo }) {
+const composerOwners = new Map();
+function mountComposer(host, { placeholder, replyTo = () => null, targetChannel = state.current, draftKey: ownDraftKey = null,
+  sendMessage = null, prepareSend = (payload) => payload, allowEmpty = () => false, canPost = null,
+  canSend = () => true, onSent = null, onSendError = null, autofocus = true }) {
+  // Capture a destination and draft once. Navigation during an upload/send must never change either.
+  const channel = targetChannel;
   host.classList.remove("hidden");
   host.addFiles = null;   // set again below only if this box can post
-  if (!canWriteHere()) {
-    const c = state.current;
+  if (!(canPost === null ? canWriteHere(channel) : canPost)) {
+    const c = channel;
     host.innerHTML = `<div class="readonly">${c && c.archived ? "This channel is archived. History is read-only."
       : !can("post") ? "You have read-only access to this board." : "You can read this conversation but not write in it."}</div>`;
     return;
@@ -2748,17 +2871,19 @@ function mountComposer(host, { placeholder, replyTo }) {
     <input type="file" multiple class="hidden">`;
   const box = host.querySelector(".cbox"), chips = host.querySelector(".files"), input = host.querySelector("textarea");
   const fileInput = host.querySelector("input[type=file]"), pending = host.querySelector(".pending"), sendBtn = host.querySelector(".btn");
-  const channel = state.current;
-  const draftKey = replyTo() ? "t:" + replyTo() : "c:" + channel.id;
+  const draftKey = ownDraftKey || (replyTo() ? "t:" + replyTo() : "c:" + channel.id);
+  const draftOwner = {};
+  composerOwners.set(draftKey, draftOwner);
+  const ownsDraft = () => input.isConnected && composerOwners.get(draftKey) === draftOwner;
   input.value = draftOf(draftKey);
-  input.addEventListener("input", () => setDraft(draftKey, input.value));
+  input.addEventListener("input", () => { if (ownsDraft()) setDraft(draftKey, input.value); });
   let items = [], sending = false;
   // uploaded files stay with the draft, so leaving and coming back keeps them (and their marks) working
   const filesKey = "draft-files:" + draftKey;
   try { items = JSON.parse(store.get(filesKey) || "[]").map((f) => ({ file: { name: f.name, type: f.type, size: f.size }, label: f.label, url: f.url, uid: uid(), loaded: f.size, status: "done", thumb: null })); } catch {}
   const saveFiles = () => {
     if (sending) return;   // in flight: the draft gives them up, so a box opened meanwhile cannot remove them
-    if (!input.isConnected) return;   // this box was replaced: the draft now belongs to the new one
+    if (!ownsDraft()) return;   // this box was replaced: the draft now belongs to the new one
     const done = items.filter((it) => it.status === "done").map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }));
     if (done.length) store.set(filesKey, JSON.stringify(done)); else store.del(filesKey);
   };
@@ -2883,11 +3008,11 @@ function mountComposer(host, { placeholder, replyTo }) {
   });
   host.addFiles = (files) => { addFiles(files); input.focus(); };   // drops anywhere over the channel or thread land here
   input.addEventListener("input", autosize);
-  const assist = attachAssist(host, input, autosize);
+  const assist = attachAssist(host, input, autosize, channel);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && mobileTextInput()) return;
     if (assist.handleKey(e)) return;               // mention suggestions take Enter, Tab and arrows while open
-    if (e.key === "ArrowUp" && !input.value && !e.shiftKey) {   // like Slack: up in an empty box edits your last message
+    if (!sendMessage && state.current === channel && e.key === "ArrowUp" && !input.value && !e.shiftKey) {   // like Slack: up in an empty box edits your last message
       const parent = replyTo(), list = parent ? [state.panel.root, ...state.thread] : state.roots, m = lastOwnMessage(list);
       if (m && state.me.identity_type === "user") { e.preventDefault(); input.blur(); startEdit(m.id, parent ? "thread" : "feed"); }
       return;
@@ -2896,7 +3021,7 @@ function mountComposer(host, { placeholder, replyTo }) {
   });
   sendBtn.onclick = send;
   async function send() {
-    const c = state.current, ready = items.filter((it) => it.status === "done");
+    const c = channel, ready = items.filter((it) => it.status === "done");
     let text = input.value;
     const rest = [];
     for (const it of ready) {
@@ -2904,19 +3029,22 @@ function mountComposer(host, { placeholder, replyTo }) {
       else rest.push(fileLink(it));   // not placed: at the end, like attachments
     }
     text = [text.trim(), ...rest].filter(Boolean).join("\n");
-    if (sending || !c || uploading() || (!text && !ready.length)) return;
+    if (!ownsDraft() || sending || (!c && !sendMessage) || uploading() || (!text && !ready.length && !allowEmpty())) return;
+    if (!canSend()) { pending.textContent = "This item cannot accept an answer. Review its current status."; return; }
     if (items.some((it) => it.status === "error")) { pending.textContent = "Remove or retry the files that did not upload."; return; }
     sending = true; renderChips();
     store.del(filesKey); setDraft(draftKey, "");   // taken out of the draft while sending; put back if it fails
     const key = uid();  // reused on every retry, so a resend never duplicates
     try {
-      const payload = { body: text };
+      let payload = { body: text };
       const parent = replyTo();
       if (parent) payload.reply_to = parent;
+      payload = prepareSend(payload);
       for (let attempt = 0; ; attempt++) {
         try {
-          const m = await api("POST", `/channels/${c.id}/messages`, { body: payload, headers: { "Idempotency-Key": key } });
-          if (state.current === c && ingest(m)) renderFeed(!parent);
+          const m = sendMessage ? await sendMessage(payload, key)
+            : await api("POST", `/channels/${c.id}/messages`, { body: payload, headers: { "Idempotency-Key": key } });
+          if (!sendMessage && state.current === c && ingest(m)) renderFeed(!parent);
           break;
         } catch (e) {
           if (attempt >= 6 || (e.status && e.status < 500 && e.status !== 429)) throw e;
@@ -2924,23 +3052,483 @@ function mountComposer(host, { placeholder, replyTo }) {
         }
       }
       input.value = ""; autosize(); pending.textContent = "";
-      if (input.isConnected) { setDraft(draftKey, ""); store.del(filesKey); }   // a newer box may own the draft by now
+      if (ownsDraft()) { setDraft(draftKey, ""); store.del(filesKey); }   // a newer box may own the draft by now
       items.forEach((it) => it.thumb && URL.revokeObjectURL(it.thumb)); items = [];
+      if (onSent) onSent();
     } catch (e) {
       pending.textContent = "Not sent: " + e.message;
+      if (onSendError) onSendError(e);
       // put the message back in its draft; if the box was replaced, only when the new one has not started another
-      if (input.isConnected || (!draftOf(draftKey) && !store.get(filesKey))) {
+      if (ownsDraft() || (!draftOf(draftKey) && !store.get(filesKey))) {
         setDraft(draftKey, input.value);
-        if (!input.isConnected) store.set(filesKey, JSON.stringify(items.filter((it) => it.status === "done")
+        if (!ownsDraft()) store.set(filesKey, JSON.stringify(items.filter((it) => it.status === "done")
           .map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }))));
       }
     }
-    finally { sending = false; renderChips(); input.focus(); }
+    finally { sending = false; renderChips(); if (ownsDraft()) input.focus(); }
   }
   if (items.length) renderChips();   // files kept with the draft
   if (input.value) { autosize(); input.setSelectionRange(input.value.length, input.value.length); }
-  if (window.matchMedia("(min-width: 721px)").matches) input.focus();
+  if (autofocus && window.matchMedia("(min-width: 721px)").matches) input.focus();
 }
+
+// ------------------------------------------------------------------ personal tasks
+const tasksState = {
+  items: [], counts: { open: 0, archived: 0 }, orderVersion: 0, sort: "manual", direction: "asc",
+  archived: false, request: 0, loading: false, signature: "", open: null, opening: 0,
+  busy: new Set(), movePending: false, agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmRefreshRequest: 0, dmSignature: "", dmHidden: false,
+};
+const tasksCheck = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.5 3.5L13 4.5"/></svg>`;
+const tasksCross = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>`;
+const tasksDraftKey = (id) => `q:${state.me.id}:${id}`;
+const tasksChoiceKey = (id) => `tasks-choices:${state.me.id}:${id}`;
+function tasksError(error, item = false) {
+  const el = $(item ? "tasks-item-error" : "tasks-error");
+  el.textContent = typeof error === "string" ? error : error.message;
+  el.classList.remove("hidden");
+}
+function tasksActions(item, row = false) {
+  const disabled = item.state !== "open" || tasksState.busy.has(item.id) ? " disabled" : "";
+  return `<div class="tasks-actions"><button class="tasks-icon" data-tasks-action="done" data-qid="${esc(item.id)}" title="Done" aria-label="Mark ${row ? esc(item.title) + " " : "item "}done"${disabled}>${tasksCheck}</button>` +
+    `<button class="tasks-icon" data-tasks-action="dismiss" data-qid="${esc(item.id)}" title="Dismiss" aria-label="Dismiss ${row ? esc(item.title) : "item"}"${disabled}>${tasksCross}</button></div>`;
+}
+function leaveTasks() {
+  tasksCancelTouch(); tasksDragged = null; tasksClearDrop();
+  $("tasks").classList.add("hidden");
+  tasksState.request++; tasksState.loading = false; tasksState.opening++;
+  tasksCloseItem(false);
+}
+async function openTasks(itemId = null) {
+  if (!state.me || state.me.identity_type !== "user") return;
+  const entering = state.view !== "tasks";
+  if (!refreshTimer) { refreshTimer = setInterval(refreshChannels, 10000); setInterval(refreshPresence, 30000); refreshPresence(); }
+  state.view = "tasks";
+  if (state.poll) state.poll.abort();
+  state.current = null; closePanel(); renderChannels(); closeInfo();
+  $("app").classList.remove("nav");
+  history.replaceState(null, "", location.pathname + "#tasks" + (itemId ? "/" + encodeURIComponent(itemId) : ""));
+  $("chat-view").style.display = "none";
+  for (const id of ["settings", "activity", "search"]) $(id).classList.add("hidden");
+  leaveAnalytics(); $("tasks").classList.remove("hidden");
+  tasksSizeDm();
+  $("ch-title").textContent = "Tasks"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
+  for (const id of ["members-open", "ch-info", "ch-doc", "ch-join"]) $(id).classList.add("hidden");
+  tasksRenderSort();
+  if (entering) {
+    $("tasks-error").classList.add("hidden");
+    if (!tasksState.items.length) $("tasks-list").innerHTML = `<div class="empty">Loading…</div>`;
+  }
+  await Promise.all([tasksRefresh(), entering ? tasksLoadAgents() : Promise.resolve()]);
+  if (itemId && state.view === "tasks") await tasksOpenItem(itemId);
+}
+function tasksRenderSort() {
+  const q = tasksState;
+  $("tasks-sort").innerHTML = [["manual", "Custom"], ["latest", "Time"], ["channel", "Channel"], ["agent", "Agent"]].map(([sort, title]) =>
+    `<button type="button" data-tasks-sort="${sort}" class="${sort === q.sort ? "on" : ""}" aria-pressed="${sort === q.sort}">${title}${sort === q.sort && sort !== "manual" ? " " + (q.direction === "asc" ? "↑" : "↓") : ""}</button>`).join("");
+}
+async function tasksRefresh() {
+  if (state.view !== "tasks") return;
+  const q = tasksState, request = ++q.request;
+  q.loading = true;
+  try {
+    const data = await api("GET", `/tasks?archived=${q.archived}&sort=${q.sort}&direction=${q.direction}`);
+    if (state.view !== "tasks" || request !== q.request) return;
+    q.items = data.items; q.counts = data.counts; q.orderVersion = data.order_version;
+    const signature = JSON.stringify([q.sort, q.direction, data.items]);
+    if (signature !== q.signature) { q.signature = signature; tasksRenderList(); }
+    $("tasks-count").textContent = `${data.counts.open} ${data.counts.open === 1 ? "item" : "items"}`;
+    $("tasks-archived-count").textContent = `${data.counts.archived} archived`;
+    if (q.open) {
+      let item = data.items.find((i) => String(i.id) === String(q.open.item.id));
+      if (!item) {
+        try { item = await api("GET", `/tasks/items/${encodeURIComponent(q.open.item.id)}`); }
+        catch (e) { if (q.open && request === q.request) tasksError("This item is no longer available: " + e.message, true); }
+      }
+      if (item && q.open && String(q.open.item.id) === String(item.id) && request === q.request) tasksUpdateItem(item);
+    }
+  } catch (e) { if (state.view === "tasks" && request === q.request) tasksError(e); }
+  finally { if (request === q.request) q.loading = false; }
+}
+function tasksRenderList() {
+  tasksCancelTouch();
+  const q = tasksState, box = $("tasks-list"), focus = document.activeElement;
+  const focusId = focus && focus.dataset && focus.dataset.tasksOpen;
+  box.innerHTML = q.items.map((i) => `<article class="tasks-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" draggable="${q.sort === "manual" && i.state === "open"}">
+    <button class="tasks-row-open" data-tasks-open="${esc(i.id)}" aria-haspopup="dialog"${q.sort === "manual" && i.state === "open" ? ' title="Hold and drag to reorder · Alt+↑/↓ with keyboard" aria-description="Hold and drag to reorder, or press Alt plus Arrow Up or Arrow Down."' : ""}><span class="tasks-row-title">${i.state !== "open" ? `<span class="tasks-row-mark" role="img" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? tasksCross : tasksCheck}</span>` : ""}${esc(i.title)}</span>
+    <span class="tasks-row-meta">${i.channel ? `<span>${esc(tasksChannelLabel(i.channel))}</span><span>·</span>` : ""}<span>${esc(nameOf(i.agent))}</span><span>·</span><time title="${esc(fmtDate(i.created_at) + " " + fmtTime(i.created_at))}">${esc(ago(i.created_at))}</time></span></button>${tasksActions(i, true)}</article>`).join("") || `<div class="empty">No open tasks.</div>`;
+  if (focusId) { const b = [...box.querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === focusId); if (b) b.focus({ preventScroll: true }); }
+}
+$("tasks-open").onclick = () => openTasks();
+$("tasks-sort").onclick = (e) => {
+  const b = e.target.closest("[data-tasks-sort]"); if (!b) return;
+  const q = tasksState, next = b.dataset.tasksSort;
+  q.direction = next === q.sort && next !== "manual" ? (q.direction === "asc" ? "desc" : "asc") : next === "latest" ? "desc" : "asc";
+  tasksCancelTouch(); q.sort = next; tasksRenderSort(); tasksRefresh();
+};
+$("tasks-show-archived").onchange = (e) => { tasksState.archived = e.target.checked; tasksRefresh(); };
+$("tasks-list").onclick = (e) => {
+  const action = e.target.closest("[data-tasks-action]");
+  if (action) return tasksFinish(action.dataset.qid, action.dataset.tasksAction);
+  const b = e.target.closest("[data-tasks-open]"); if (b) tasksOpenItem(b.dataset.tasksOpen, b);
+};
+let tasksDragged = null, tasksTouch = null, tasksIgnoreClickUntil = 0;
+const tasksClearDrop = () => $("tasks-list").querySelectorAll(".drag-before,.drag-after").forEach((r) => r.classList.remove("drag-before", "drag-after"));
+function tasksCancelTouch() {
+  if (!tasksTouch) return;
+  clearTimeout(tasksTouch.timer);
+  if (tasksTouch.active) tasksIgnoreClickUntil = Date.now() + 800;
+  tasksTouch.row.classList.remove("touch-dragging");
+  tasksTouch = null; tasksClearDrop();
+}
+async function tasksMove(id, neighbor, before) {
+  const q = tasksState;
+  if (!neighbor || q.movePending || state.view !== "tasks" || q.sort !== "manual") return;
+  const item = q.items.find((i) => String(i.id) === String(id));
+  if (!item || item.state !== "open" || item.id === neighbor.id) return;
+  q.movePending = true;
+  try {
+    await api("POST", `/tasks/items/${encodeURIComponent(id)}/move`, { body: { order_version: q.orderVersion, [before ? "before_id" : "after_id"]: neighbor.id } });
+    $("tasks-error").classList.add("hidden"); await tasksRefresh();
+  } catch (err) { tasksError(err.status === 409 ? "The tasks order changed. It has been refreshed; try the move again." : err); await tasksRefresh(); }
+  finally { q.movePending = false; }
+}
+function tasksMarkDrop(row, y) {
+  tasksClearDrop();
+  const bounds = row.getBoundingClientRect();
+  const before = y < bounds.top + bounds.height / 2;
+  row.classList.add(before ? "drag-before" : "drag-after");
+  return before;
+}
+$("tasks-list").addEventListener("dragstart", (e) => {
+  const row = e.target.closest(".tasks-row[draggable=true]");
+  if (e.target.closest(".tasks-actions") || tasksTouch || tasksState.movePending) { e.preventDefault(); return; }
+  if (!row || tasksState.sort !== "manual" || hasFiles(e)) return;
+  tasksDragged = row.dataset.qid;
+  e.dataTransfer.setData("application/x-msgboard-tasks", tasksDragged); e.dataTransfer.effectAllowed = "move";
+});
+$("tasks-list").addEventListener("dragover", (e) => {
+  const row = e.target.closest(".tasks-row");
+  if (!row || !tasksDragged || row.dataset.qid === tasksDragged || tasksState.sort !== "manual") return;
+  e.preventDefault(); tasksMarkDrop(row, e.clientY);
+});
+$("tasks-list").addEventListener("dragleave", (e) => { if (!$("tasks-list").contains(e.relatedTarget)) tasksClearDrop(); });
+$("tasks-list").addEventListener("dragend", () => { tasksDragged = null; tasksClearDrop(); });
+$("tasks-list").addEventListener("drop", (e) => {
+  const row = e.target.closest(".tasks-row"), id = tasksDragged;
+  if (!row || !id || row.dataset.qid === id || tasksState.sort !== "manual") return;
+  e.preventDefault();
+  const before = row.classList.contains("drag-before"), neighbor = tasksState.items.find((i) => String(i.id) === row.dataset.qid);
+  tasksDragged = null; tasksClearDrop();
+  tasksMove(id, neighbor, before);
+});
+$("tasks-list").addEventListener("keydown", (e) => {
+  const button = e.target.closest("[data-tasks-open]");
+  if (!button || !e.altKey || e.ctrlKey || e.metaKey || !["ArrowUp", "ArrowDown"].includes(e.key) || tasksState.sort !== "manual") return;
+  const q = tasksState, index = q.items.findIndex((i) => String(i.id) === button.dataset.tasksOpen);
+  if (index < 0 || q.items[index].state !== "open") return;
+  e.preventDefault();
+  tasksMove(button.dataset.tasksOpen, q.items[index + (e.key === "ArrowUp" ? -1 : 1)], e.key === "ArrowUp");
+});
+$("tasks-list").addEventListener("touchstart", (e) => {
+  tasksCancelTouch();
+  const row = e.target.closest(".tasks-row[draggable=true]");
+  if (!row || e.target.closest(".tasks-actions") || e.touches.length !== 1 || tasksState.sort !== "manual" || tasksState.movePending) return;
+  const touch = e.touches[0];
+  const gesture = tasksTouch = { id: row.dataset.qid, row, identifier: touch.identifier, x: touch.clientX, y: touch.clientY, active: false, target: null, before: false, timer: null };
+  gesture.timer = setTimeout(() => {
+    if (tasksTouch !== gesture) return;
+    if (!row.isConnected || state.view !== "tasks" || tasksState.sort !== "manual") return tasksCancelTouch();
+    gesture.active = true; row.classList.add("touch-dragging");
+  }, 350);
+}, { passive: true });
+// Keep native scrolling until the hold is complete. The first active drag move then owns the gesture.
+$("tasks-list").addEventListener("touchmove", (e) => {
+  const gesture = tasksTouch; if (!gesture) return;
+  const touch = [...e.touches].find((t) => t.identifier === gesture.identifier);
+  if (!touch || e.touches.length !== 1) { tasksCancelTouch(); return; }
+  if (!gesture.active) {
+    if (Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y) > 10) tasksCancelTouch();
+    return;
+  }
+  if (!e.cancelable) { tasksCancelTouch(); return; }
+  e.preventDefault();
+  const hit = document.elementFromPoint(touch.clientX, touch.clientY), row = hit && hit.closest(".tasks-row");
+  if (!row || !$("tasks-list").contains(row) || row.dataset.qid === gesture.id) {
+    gesture.target = null; tasksClearDrop(); return;
+  }
+  gesture.target = row.dataset.qid; gesture.before = tasksMarkDrop(row, touch.clientY);
+}, { passive: false });
+$("tasks-list").addEventListener("touchend", (e) => {
+  const gesture = tasksTouch; if (!gesture) return;
+  if (![...e.changedTouches].some((t) => t.identifier === gesture.identifier)) return;
+  const active = gesture.active, neighbor = tasksState.items.find((i) => String(i.id) === gesture.target);
+  if (active && e.cancelable) e.preventDefault();
+  tasksCancelTouch();
+  if (active && neighbor) tasksMove(gesture.id, neighbor, gesture.before);
+}, { passive: false });
+$("tasks-list").addEventListener("touchcancel", tasksCancelTouch, { passive: true });
+$("tasks-list").addEventListener("contextmenu", (e) => { if (tasksTouch) e.preventDefault(); });
+$("tasks-list").addEventListener("click", (e) => {
+  if (Date.now() < tasksIgnoreClickUntil) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+window.addEventListener("blur", tasksCancelTouch);
+document.addEventListener("visibilitychange", () => { if (document.hidden) tasksCancelTouch(); });
+function tasksMessageHTML(m) {
+  return `<div class="msg first" data-mid="${esc(m.id)}">${avatar(m.sender)}<div class="content"><div class="head"><span class="name" data-profile="${esc(m.sender.id)}">${esc(nameOf(m.sender))}</span><span class="label">${esc(kindLabel(m.sender))}</span><span class="time">${esc(fmtTime(m.created_at))}</span></div>
+    <div class="${bodyClass()}">${renderBody(m.body, m.mentions || [])}</div>${(m.attachments || []).length ? `<div class="files">${m.attachments.map((a) => `<button class="fchip" data-att="${esc(a)}"><span class="fprev">file</span><span class="fcopy"><span class="fname">loading…</span><span class="fmeta"></span></span></button>`).join("")}</div>` : ""}</div></div>`;
+}
+function tasksHydrate(host) { hydrate(host); host.querySelectorAll("[data-att]").forEach(fillFile); }
+function tasksSourceHTML(source, answer = false) {
+  if (!source || source.unavailable || !source.message) return `<section class="tasks-source"><div class="small tasks-source-unavailable">Source message unavailable.</div></section>`;
+  const id = source.message_id, label = answer ? "Open answer" : "Open quoted message " + id;
+  return `<section class="tasks-source" role="link" tabindex="0" data-tasks-source="${esc(id)}" aria-label="${esc(label)}">${tasksMessageHTML(source.message)}</section>`;
+}
+function tasksTextHTML(text) {
+  return text ? `<div class="tasks-description ${bodyClass()}">${renderBody(text)}</div>` : "";
+}
+function tasksBodyHTML(item) {
+  const sources = item.sources || [], byId = new Map(sources.map((s) => [String(s.message_id), s])), placed = new Set();
+  let html = tasksTextHTML(item.description);
+  for (const block of item.blocks || []) {
+    if (block.type === "text") html += tasksTextHTML(block.text);
+    else if (block.type === "quote") { placed.add(String(block.message_id)); html += tasksSourceHTML(byId.get(String(block.message_id))); }
+  }
+  html += sources.filter((s) => !placed.has(String(s.message_id))).map((s) => tasksSourceHTML(s)).join("");
+  if (item.state !== "open" && item.answer) html += tasksSourceHTML({ message_id: item.answer.id, message: item.answer }, true);
+  return html;
+}
+function tasksChannelLabel(channel) {
+  if (channel.kind !== "dm") return "#" + channel.name;
+  const full = state.channels.find((c) => c.id === channel.id) || channel;
+  const title = channelTitle(full);
+  return title ? "DM with " + title : "DM #" + channel.id;
+}
+function tasksDestination(i) {
+  if (i.destination_unavailable || (i.channel && i.channel.archived)) return "Reply destination unavailable. You can still mark this item done or dismiss it.";
+  if (!i.channel_id) return "Reply in DM with " + nameOf(i.agent);
+  const channel = i.channel || state.channels.find((c) => c.id === i.channel_id);
+  return "Reply to " + (channel ? tasksChannelLabel(channel) : "channel") + (i.anchor_id ? " · thread #" + i.anchor_id : "");
+}
+async function tasksOpenItem(id, trigger = null) {
+  const q = tasksState, opening = ++q.opening;
+  try {
+    const item = await api("GET", `/tasks/items/${encodeURIComponent(id)}`);
+    if (state.view !== "tasks" || opening !== q.opening) return;
+    tasksCloseItem(false);
+    const choiceKey = tasksChoiceKey(item.id), legacyChoiceKey = `queue-choices:${state.me.id}:${item.id}`;
+    const savedChoices = store.get(choiceKey) ?? store.get(legacyChoiceKey);
+    if (savedChoices !== null) { store.set(choiceKey, savedChoices); store.del(legacyChoiceKey); }
+    let choices; try { choices = JSON.parse(savedChoices || "[]"); } catch { choices = []; }
+    q.open = { item, trigger, choices: Array.isArray(choices) ? choices : [], rendered: "", options: "", composer: false };
+    $("tasks-item-error").classList.add("hidden");
+    $("tasks-answer-composer").innerHTML = "";
+    $("tasks-dialog").showModal();
+    tasksUpdateItem(item, true); $("tasks-item-close").focus();
+    history.replaceState(null, "", location.pathname + "#tasks/" + encodeURIComponent(item.id));
+  } catch (e) { if (opening === q.opening) tasksError(e); }
+}
+function tasksUpdateItem(item, initial = false) {
+  const q = tasksState, open = q.open; if (!open) return;
+  const signature = JSON.stringify(item);
+  if (!initial && signature === open.rendered) return;
+  const changed = !initial && item.version !== open.item.version, scroll = $("tasks-dialog").scrollTop;
+  open.item = item; open.rendered = signature;
+  $("tasks-item-content").innerHTML = `<div class="msg first tasks-proposal">${avatar(item.agent)}<div class="content"><div class="head"><span class="name" data-profile="${esc(item.agent.id)}">${esc(nameOf(item.agent))}</span><span class="label">agent</span><span class="time">${esc(ago(item.created_at))}</span></div>
+    <h2 id="tasks-item-title">${esc(item.title)}</h2><div class="tasks-body">${tasksBodyHTML(item)}</div></div></div>`;
+  tasksHydrate($("tasks-item-content"));
+  $("tasks-item-destination").textContent = item.state === "open" ? tasksDestination(item) : item.closed_reason === "dismissed" ? "Dismissed" : item.closed_reason === "answered" ? "Done · answered" : "Done";
+  const options = item.options || [];
+  open.choices = open.choices.filter((id) => options.some((o) => o.id === id));
+  if (!item.multiple) open.choices = open.choices.slice(0, 1);
+  const optionSignature = JSON.stringify([options, item.multiple, item.state]);
+  if (open.options !== optionSignature) {
+    open.options = optionSignature;
+    $("tasks-item-options").innerHTML = item.state === "open" ? options.map((o) => `<label class="tasks-option"><input type="${item.multiple ? "checkbox" : "radio"}" name="tasks-answer-choice" value="${esc(o.id)}" ${open.choices.includes(o.id) ? "checked" : ""}><span>${esc(o.label)}</span></label>`).join("") : "";
+  }
+  $("tasks-item-actions").innerHTML = tasksActions(item);
+  $("tasks-restore").classList.toggle("hidden", item.state === "open");
+  $("tasks-answer-composer").classList.toggle("hidden", item.state !== "open");
+  if (item.state === "open" && !open.composer) {
+    open.composer = true;
+    const channel = state.channels.find((c) => c.id === item.channel_id) || item.channel ||
+      (!item.channel_id && state.channels.find((c) => c.kind === "dm" && dmPeer(c) && dmPeer(c).id === item.agent.id)) || null;
+    mountComposer($("tasks-answer-composer"), {
+      placeholder: options.length ? "Add a note (optional)…" : "Write your answer…", targetChannel: channel,
+      draftKey: tasksDraftKey(item.id), canPost: can("post"), autofocus: false,
+      allowEmpty: () => open.choices.length > 0,
+      canSend: () => open.item.state === "open" && !open.item.destination_unavailable && !(open.item.channel && open.item.channel.archived),
+      prepareSend: (payload) => ({ action: "answer", version: open.item.version, body: payload.body, option_ids: [...open.choices] }),
+      sendMessage: (payload, key) => api("POST", `/tasks/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }),
+      onSent: () => { store.del(tasksChoiceKey(item.id)); if (q.open === open) tasksCloseItem(); tasksRefresh(); tasksRefreshDm(); },
+      onSendError: (err) => { if (q.open === open) tasksError(err.status === 409 ? "This item changed. Your draft is kept. Review the refreshed item before sending again." : err, true); tasksRefresh(); },
+    });
+  }
+  if (changed) tasksError("This item was updated. Your draft and remaining choices are kept; review it before sending.", true);
+  $("tasks-dialog").scrollTop = scroll;
+}
+function tasksCloseItem(restoreFocus = true) {
+  const open = tasksState.open;
+  tasksState.open = null;
+  if ($("tasks-dialog").open) $("tasks-dialog").close();
+  if (state.view === "tasks") history.replaceState(null, "", location.pathname + "#tasks");
+  if (restoreFocus && open) {
+    const target = open.trigger && open.trigger.isConnected ? open.trigger : [...$("tasks-list").querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === String(open.item.id)) || $("tasks-open");
+    target.focus({ preventScroll: true });
+  }
+}
+$("tasks-item-close").onclick = () => { tasksState.opening++; tasksCloseItem(); };
+$("tasks-dialog").addEventListener("cancel", (e) => { e.preventDefault(); tasksState.opening++; tasksCloseItem(); });
+$("tasks-dialog").addEventListener("click", (e) => {
+  if (e.target === $("tasks-dialog")) {
+    const r = e.target.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) tasksCloseItem();
+  }
+  const action = e.target.closest("[data-tasks-action]"); if (action) tasksFinish(action.dataset.qid, action.dataset.tasksAction);
+  const source = e.target.closest("[data-tasks-source]");
+  if (source && !e.target.closest("a[href],[data-att],a[data-board-file],.board-img,[data-file]")) {
+    e.preventDefault(); e.stopPropagation(); const id = source.dataset.tasksSource; tasksCloseItem(false); routeHash("#msg/" + id); return;
+  }
+  // The existing profile and attachment viewers live outside this modal's top layer.
+  if (e.target.closest("[data-profile],[data-att],a[data-board-file],.board-img,[data-file]")) tasksCloseItem(false);
+});
+$("tasks-dialog").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches(".tasks-source[role=link]")) { e.preventDefault(); e.target.click(); }
+});
+$("tasks-item-options").onchange = () => {
+  const open = tasksState.open; if (!open) return;
+  open.choices = [...$("tasks-item-options").querySelectorAll("input:checked")].map((n) => n.value);
+  store.set(tasksChoiceKey(open.item.id), JSON.stringify(open.choices));
+};
+$("tasks-restore").onclick = () => { if (tasksState.open) tasksFinish(tasksState.open.item.id, "restore"); };
+async function tasksFinish(id, action) {
+  const q = tasksState, item = q.open && String(q.open.item.id) === String(id) ? q.open.item : q.items.find((i) => String(i.id) === String(id));
+  if (!item || q.busy.has(item.id)) return;
+  q.busy.add(item.id); tasksRenderList(); if (q.open && q.open.item.id === item.id) $("tasks-item-actions").innerHTML = tasksActions(item);
+  try {
+    const key = uid(), payload = { action, version: item.version };
+    for (let attempt = 0; ; attempt++) {
+      try { await api("POST", `/tasks/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }); break; }
+      catch (e) { if (attempt >= 3 || (e.status && e.status < 500 && e.status !== 429)) throw e; await sleep(Math.min(500 * 2 ** attempt, 4000)); }
+    }
+    if (q.open && q.open.item.id === item.id) tasksCloseItem();
+    $("tasks-error").classList.add("hidden"); await tasksRefresh();
+  } catch (e) {
+    tasksError(e.status === 409 ? "This item changed. It has been refreshed; review it and try again." : e, !!q.open && q.open.item.id === item.id);
+    await tasksRefresh();
+  } finally { q.busy.delete(item.id); if (state.view === "tasks") tasksRenderList(); if (q.open) $("tasks-item-actions").innerHTML = tasksActions(q.open.item); }
+}
+async function tasksLoadAgents() {
+  const q = tasksState;
+  try {
+    const people = await loadPeople(true);
+    if (state.view !== "tasks") return;
+    q.agents = people.filter((p) => p.identity_type === "agent" && p.owner && p.owner.id === state.me.id && !p.disabled && !p.suspended);
+    $("tasks-dm-agent").innerHTML = q.agents.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p))}</option>`).join("");
+    if (!q.agents.some((p) => p.id === q.dmAgent)) q.dmAgent = q.agents[0] ? q.agents[0].id : null;
+    $("tasks-dm-agent").disabled = !q.agents.length;
+    if (!q.agents.length) {
+      q.dmChannel = null; $("tasks-dm-messages").innerHTML = `<div class="small" style="padding:8px 0">No active agents yet.</div>`;
+      $("tasks-dm-composer").innerHTML = "";
+    } else { $("tasks-dm-agent").value = q.dmAgent; await tasksSelectAgent(q.dmAgent); }
+  } catch (e) { if (state.view === "tasks") tasksError(e); }
+}
+async function tasksSelectAgent(id) {
+  const q = tasksState, agent = q.agents.find((p) => String(p.id) === String(id)); if (!agent) return;
+  const request = ++q.dmRequest;
+  q.dmAgent = agent.id; q.dmChannel = null; q.dmSignature = "";
+  $("tasks-dm-composer").innerHTML = ""; $("tasks-dm-messages").innerHTML = `<div class="small" style="padding:8px 0">Loading…</div>`;
+  try {
+    const channel = await api("POST", "/dms", { body: { with: agent.id } });
+    if (state.view !== "tasks" || request !== q.dmRequest) return;
+    q.dmChannel = channel;
+    mountComposer($("tasks-dm-composer"), { placeholder: "Message " + nameOf(agent), targetChannel: channel, draftKey: "c:" + channel.id,
+      autofocus: false, onSent: () => { if (q.dmChannel === channel) tasksRefreshDm(); refreshChannels(); } });
+    await tasksRefreshDm();
+  } catch (e) { if (state.view === "tasks" && request === q.dmRequest) $("tasks-dm-messages").textContent = e.message; }
+}
+async function tasksRefreshDm() {
+  const q = tasksState, channel = q.dmChannel; if (state.view !== "tasks" || !channel) return;
+  const request = ++q.dmRefreshRequest;
+  try {
+    // A before read returns the newest window in conversation order. An after=0
+    // read would keep showing the first forty messages forever.
+    const page = await api("GET", `/channels/${channel.id}/messages?limit=40&before=${Number.MAX_SAFE_INTEGER}`);
+    if (state.view !== "tasks" || q.dmChannel !== channel || request !== q.dmRefreshRequest) return;
+    const signature = JSON.stringify(page.messages); if (signature === q.dmSignature) return;
+    q.dmSignature = signature;
+    const host = $("tasks-dm-messages"), bottom = nearBottom(host), scroll = host.scrollTop;
+    host.innerHTML = page.messages.map(tasksMessageHTML).join("") || `<div class="small" style="padding:8px 0">No messages yet.</div>`;
+    tasksHydrate(host); host.scrollTop = bottom ? host.scrollHeight : scroll;
+  } catch (e) { if (state.view === "tasks" && q.dmChannel === channel && request === q.dmRefreshRequest) tasksError("Agent messages: " + e.message); }
+}
+function tasksToggleDm() {
+  const q = tasksState; q.dmHidden = !q.dmHidden;
+  $("tasks-dm").classList.toggle("collapsed", q.dmHidden);
+  $("tasks-agent-tab").classList.toggle("hidden", !q.dmHidden);
+  $("tasks-agent-tab").setAttribute("aria-expanded", String(!q.dmHidden));
+  if (!q.dmHidden) tasksSizeDm();
+}
+// Resize the ordinary Agent conversation, leaving room to scroll the task list.
+let tasksDmHeight = Number(store.get("tasks-dm-height")) || null;
+function tasksSizeDm(height = tasksDmHeight, save = false) {
+  const content = $("tasks-dm-content"), handle = $("tasks-dm-resize");
+  if (state.view !== "tasks" || tasksState.dmHidden) return;
+  const available = $("tasks").clientHeight;
+  const max = Math.max(100, available - Math.min(120, available / 3));
+  const composer = $("tasks-dm-composer"), box = composer.querySelector(".cbox"), head = content.querySelector(".tasks-dm-head").offsetHeight;
+  const padding = parseFloat(getComputedStyle(composer).paddingTop) + parseFloat(getComputedStyle(composer).paddingBottom);
+  const min = Math.min(Math.max(140, head + (box ? box.scrollHeight + padding : composer.scrollHeight) + 24), max);
+  tasksDmHeight = height;
+  content.classList.toggle("resized", height !== null);
+  content.style.height = height === null ? "" : Math.round(Math.max(min, Math.min(max, height))) + "px";
+  if (box) box.style.maxHeight = height === null ? "" : Math.max(40, content.clientHeight - head - padding - 24) + "px";
+  handle.setAttribute("aria-valuemin", Math.round(min));
+  handle.setAttribute("aria-valuemax", Math.round(max));
+  handle.setAttribute("aria-valuenow", Math.round(content.getBoundingClientRect().height));
+  if (save) {
+    tasksDmHeight = height === null ? null : content.getBoundingClientRect().height;
+    if (tasksDmHeight === null) store.del("tasks-dm-height");
+    else store.set("tasks-dm-height", String(tasksDmHeight));
+  }
+}
+{
+  const handle = $("tasks-dm-resize"); let drag = null;
+  handle.onpointerdown = (e) => {
+    if (!e.isPrimary || e.button !== 0) return;
+    e.preventDefault(); handle.focus();
+    drag = { id: e.pointerId, y: e.clientY, height: $("tasks-dm-content").getBoundingClientRect().height };
+    handle.setPointerCapture(e.pointerId);
+  };
+  handle.onpointermove = (e) => {
+    if (drag && drag.id === e.pointerId) tasksSizeDm(drag.height + drag.y - e.clientY);
+  };
+  const finish = (e) => {
+    if (!drag || drag.id !== e.pointerId) return;
+    tasksSizeDm($("tasks-dm-content").getBoundingClientRect().height, true); drag = null;
+    if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
+  };
+  handle.onpointerup = finish; handle.onpointercancel = finish; handle.onlostpointercapture = finish;
+  handle.ondblclick = () => tasksSizeDm(null, true);
+  handle.onkeydown = (e) => {
+    if (!["ArrowUp", "ArrowDown", "Home"].includes(e.key)) return;
+    e.preventDefault(); e.stopPropagation();
+    tasksSizeDm(e.key === "Home" ? null : $("tasks-dm-content").getBoundingClientRect().height + (e.key === "ArrowUp" ? 24 : -24), true);
+  };
+  window.addEventListener("resize", () => tasksSizeDm());
+  if (window.visualViewport) visualViewport.addEventListener("resize", () => tasksSizeDm());
+  new ResizeObserver(() => tasksSizeDm()).observe($("tasks-dm-composer"));
+  $("tasks-dm-composer").addEventListener("input", () => tasksSizeDm());
+  new MutationObserver(() => tasksSizeDm()).observe($("tasks-dm-composer"), { childList: true, subtree: true });
+}
+$("tasks-dm-hide").onclick = tasksToggleDm;
+$("tasks-agent-tab").onclick = tasksToggleDm;
+$("tasks-dm-agent").onchange = (e) => tasksSelectAgent(e.target.value);
+setInterval(() => {
+  if (state.view === "tasks" && document.visibilityState === "visible") {
+    if (!tasksState.loading) tasksRefresh();
+    if (!tasksState.dmHidden) tasksRefreshDm();
+  }
+}, 8000);
 
 // ------------------------------------------------------------------ emoji and @mentions in the composer
 const EMOJI = [
@@ -2952,7 +3540,7 @@ const EMOJI = [
   ["Food", "☕ coffee|🍵 tea|🍕 pizza|🍔 burger|🌮 taco|🍣 sushi|🍪 cookie|🍰 cake|🍎 apple|🍌 banana|🥑 avocado|🍿 popcorn|🍺 beer|🥂 cheers toast|🧁 cupcake"],
 ].map(([cat, list]) => [cat, list.split("|").map((x) => { const i = x.indexOf(" "); return [x.slice(0, i), x.slice(i + 1)]; })]);
 
-function attachAssist(host, input, autosize) {
+function attachAssist(host, input, autosize, channel = state.current) {
   const insertAt = (text, from, to) => {
     const start = from ?? input.selectionStart, end = to ?? input.selectionEnd;
     input.setRangeText(text, start, end, "end");
@@ -2991,7 +3579,7 @@ function attachAssist(host, input, autosize) {
     const search = picker.querySelector("input");
     search.oninput = () => renderGrid(search.value);
     search.onkeydown = (e) => {
-      if (e.key === "Escape") { closePicker(); input.focus(); }
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePicker(); input.focus(); }
       if (e.key === "Enter") { e.preventDefault(); const first = picker.querySelector("[data-e]"); if (first) choose(first.dataset.e); }
     };
     picker.querySelector(".emoji-grid").onclick = (e) => { const b = e.target.closest("[data-e]"); if (b) choose(b.dataset.e); };
@@ -3020,9 +3608,9 @@ function attachAssist(host, input, autosize) {
         .map(([, c]) => ({ insert: `#${c.name} `, html: `<span class="glyph">${c.kind === "private" ? LOCK : "#"}</span><span>${esc(c.name)}</span>` +
           (c.description ? `<small>${esc(c.description.length > 40 ? c.description.slice(0, 39) + "…" : c.description)}</small>` : "") }));
     } else {
-      const members = state.current ? await loadMemberIds(state.current) : new Set();   // only people in this channel
+      const members = channel ? await loadMemberIds(channel) : new Set();   // only people in this channel
       const people = (await loadPeopleFor(members)).filter((p) => !p.disabled && p.id !== state.me.id && members.has(p.id));
-      const tags = state.current && state.current.kind !== "dm"
+      const tags = channel && channel.kind !== "dm"
         ? ["all", "agents", "humans"].filter((g) => !q || g.startsWith(q)).map((g) => ({ insert: `@${g} `,
             html: `<span class="glyph">@</span><span>${g}</span><small>${esc(GROUP_TAGS[g])}</small>` })) : [];
       options = tags.concat(people.map((p) => [rank(q, handleOf(p), nameOf(p)) + (p.identity_type === "user" ? 0.5 : 0), p]).filter(([s]) => s > 0)
@@ -3106,11 +3694,13 @@ const boardURL = (hash) => `${location.origin}${location.pathname}#${hash}`;
 function internalHash(href) {
   let u; try { u = new URL(href, location.href); } catch { return null; }
   if (u.origin !== location.origin || u.pathname !== location.pathname || !u.hash) return null;
-  const h = decodeURIComponent(u.hash.slice(1));
-  return /^(msg|file)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
+  const h = decodeURIComponent(u.hash.slice(1)).replace(/^queue(?=\/|$)/, "tasks"); // pre-release links
+  return /^(msg|file|tasks)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics|tasks)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
 }
 async function routeHash(h) {
   h = decodeURIComponent((h || "").replace(/^#/, ""));
+  h = h.replace(/^queue(?=\/|$)/, "tasks"); // keep existing test-board bookmarks working
+  if (tasksState.open && h !== "tasks" && !h.startsWith("tasks/")) tasksCloseItem(false);
   let m;
   if ((m = /^msg\/(\d+)$/.exec(h))) {
     try { jumpTo(await api("GET", `/messages/${m[1]}`)); }
@@ -3120,6 +3710,7 @@ async function routeHash(h) {
   if ((m = /^file\/([\w-]+)$/.exec(h))) { openViewer([m[1]], 0); return true; }
   if (h === "settings") { openSettings(); return true; }
   if (h === "activity") { openActivity(); return true; }
+  if (h === "tasks" || (m = /^tasks\/([\w-]+)$/.exec(h))) { openTasks(m ? m[1] : null); return true; }
   if (h === "analytics") { openAnalytics(); return true; }
   if (h === "search") { openSearch(""); return true; }
   const c = state.chanIndex.get(h.toLowerCase()) || state.channels.find((x) => x.name === h);
@@ -3658,6 +4249,7 @@ function drawActivity(host, days) {
 
 // ------------------------------------------------------------------ activity
 async function openActivity() {
+  leaveTasks();
   state.view = "activity";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -3844,6 +4436,7 @@ document.addEventListener("keydown", (e) => {
 
 // full search: a view in the main area, with filters
 async function openSearch(q, opts = {}) {
+  leaveTasks();
   state.view = "search";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -3938,6 +4531,7 @@ async function jumpTo(m) {
 // ------------------------------------------------------------------ settings
 const EXPIRY = [["never", null], ["1 day", 86400], ["7 days", 604800], ["30 days", 2592000]];
 function openSettings(tab) {
+  leaveTasks();
   state.view = "settings";
   if (state.poll) state.poll.abort();
   state.current = null; renderChannels(); closePanel();
@@ -4322,6 +4916,7 @@ function analyticsRange() {
 function leaveAnalytics() { $("analytics").classList.add("hidden"); $("analytics-open").classList.remove("on"); }
 async function openAnalytics() {
   if (!canAnalytics()) return;
+  leaveTasks();
   state.view = "analytics";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
