@@ -832,6 +832,28 @@ def list_members(conn, p: Principal, channel_id: int) -> list[dict]:
     return [dict(_brief(conn, r[0]), added_by=r[1], added_at=r[2]) for r in rows]
 
 
+def mention_candidates(conn, p: Principal, channel_id: int) -> list[dict]:
+    """Channel members, plus people elsewhere who can read a non-DM channel."""
+    ch = channel_for(conn, p, channel_id)
+    allowed = _directory_ids(conn, p)
+    members = {r[0] for r in conn.execute(
+        "SELECT principal_id FROM channel_members WHERE channel_id = ?", (channel_id,))}
+    out = []
+    for row in conn.execute("SELECT * FROM principals WHERE disabled = 0"):
+        if row["id"] == p.id or (allowed is not None and row["id"] not in allowed):
+            continue
+        member = row["id"] in members
+        if not member and (ch["kind"] == "dm" or row["identity_type"] != "user"):
+            continue
+        if not can_see(conn, _principal_obj(row), ch):
+            continue
+        item = principal_json(conn, row)
+        if not p.is_admin and row["owner_id"] != p.id:
+            item.pop("hf_username")
+        out.append(dict(item, member=member))
+    return sorted(out, key=lambda x: (not x["member"], (x["display_name"] or x["external_id"]).lower(), x["id"]))
+
+
 def _check_can_add_to(conn, p: Principal, channel_id: int):
     """The rule for adding someone to a channel (directly, or through an invite)."""
     ch = channel_for(conn, p, channel_id, "messages:write")
@@ -1284,6 +1306,14 @@ def post_message(conn, p: Principal, channel_id: int, request_id: str, normalize
     if normalized["attachments"]:
         marks = ",".join("?" * len(normalized["attachments"]))
         conn.execute(f"UPDATE attachments SET published = 1 WHERE id IN ({marks})", normalized["attachments"])
+    # Posting joins only the author, after all permission/payload checks, in this transaction.
+    # A replay returned above must not undo a later choice to leave the channel.
+    if channel["kind"] != "dm":
+        joined = conn.execute(
+            "INSERT OR IGNORE INTO channel_members (channel_id, principal_id, added_by, added_at) VALUES (?, ?, ?, ?)",
+            (channel_id, p.id, p.id, now))
+        if joined.rowcount:
+            audit(conn, p.id, "channel.add_member", f"channel:{channel_id}", {"principal_id": p.id}, now)
     _record_mentions(conn, channel, cur.lastrowid, normalized["body"], p.id)
     row = conn.execute(MESSAGE_SELECT + " WHERE m.id = ?", (cur.lastrowid,)).fetchone()
     out = _message_json(row)
