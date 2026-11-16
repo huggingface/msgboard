@@ -1,0 +1,8 @@
+{
+  "checks": [
+    "guest opens shared image in real viewer from a cold cache, including metadata and pixels",
+    "native streamed download has exact original image bytes",
+    "fresh viewer cannot open image after sharing link is removed"
+  ],
+  "page_errors": []
+}
