@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "member first; readable nonmember person offered; outsider agents and unmatched people absent",
+    "bare @ keeps group tags and channel members",
+    "selected outsider receives mention activity; successful send joins only author and hides Join immediately",
+    "thread composer includes readable nonmember people",
+    "private channel does not suggest inaccessible person",
+    "DM offers only peer",
+    "503 closes candidates, next keystroke retries",
+    "late candidate response cannot resurrect cleared suggestions",
+    "phone suggestions fit viewport"
+  ],
+  "page_errors": []
+}
