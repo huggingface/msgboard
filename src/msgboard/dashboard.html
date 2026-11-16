@@ -839,8 +839,8 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 #tasks-error { margin: 12px 0; }
 #tasks-dm { flex: none; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 28px; background: var(--bg); }
 #tasks-dm-content { position: relative; border-top: 1px solid var(--rule-2); display: flex; flex-direction: column; }
-#tasks-dm-resize { position: absolute; top: -6px; left: 0; right: 0; height: 12px; cursor: ns-resize; touch-action: none; z-index: 2; }
-#tasks-dm-resize:hover::after, #tasks-dm-resize:focus-visible::after { content: ""; position: absolute; top: 5px; left: 0; right: 0; border-top: 1px solid var(--ink); }
+#tasks-dm-resize { position: absolute; top: -6px; left: 0; right: 0; height: 12px; cursor: ns-resize; touch-action: none; outline: none; z-index: 2; }
+#tasks-dm-resize:focus-visible::after { content: ""; position: absolute; top: 5px; left: 0; right: 0; border-top: 1px solid var(--ink); }
 #tasks-dm-content.resized #tasks-dm-messages { flex: 1; min-height: 0; max-height: none; }
 #tasks-dm-content.resized #tasks-dm-composer .cbox { overflow-y: auto; }
 .tasks-dm-head, #tasks-dm-composer { flex: none; }
