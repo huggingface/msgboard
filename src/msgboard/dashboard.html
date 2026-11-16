@@ -3060,7 +3060,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
 const queueState = {
   items: [], counts: { open: 0, archived: 0 }, orderVersion: 0, sort: "manual", direction: "asc",
   archived: false, request: 0, loading: false, signature: "", open: null, opening: 0,
-  busy: new Set(), movePending: false, agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmSignature: "", dmHidden: false,
+  busy: new Set(), movePending: false, agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmRefreshRequest: 0, dmSignature: "", dmHidden: false,
 };
 const queueCheck = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.5 3.5L13 4.5"/></svg>`;
 const queueCross = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>`;
@@ -3117,7 +3117,7 @@ async function queueRefresh() {
     const data = await api("GET", `/queue?archived=${q.archived}&sort=${q.sort}&direction=${q.direction}`);
     if (state.view !== "queue" || request !== q.request) return;
     q.items = data.items; q.counts = data.counts; q.orderVersion = data.order_version;
-    const signature = JSON.stringify(data.items);
+    const signature = JSON.stringify([q.sort, q.direction, data.items]);
     if (signature !== q.signature) { q.signature = signature; queueRenderList(); }
     $("queue-count").textContent = `${data.counts.open} ${data.counts.open === 1 ? "item" : "items"}`;
     $("queue-archived-count").textContent = `${data.counts.archived} archived`;
@@ -3406,15 +3406,18 @@ async function queueSelectAgent(id) {
 }
 async function queueRefreshDm() {
   const q = queueState, channel = q.dmChannel; if (state.view !== "queue" || !channel) return;
+  const request = ++q.dmRefreshRequest;
   try {
-    const page = await api("GET", `/channels/${channel.id}/messages?limit=40`);
-    if (state.view !== "queue" || q.dmChannel !== channel) return;
+    // A before read returns the newest window in conversation order. An after=0
+    // read would keep showing the first forty messages forever.
+    const page = await api("GET", `/channels/${channel.id}/messages?limit=40&before=${Number.MAX_SAFE_INTEGER}`);
+    if (state.view !== "queue" || q.dmChannel !== channel || request !== q.dmRefreshRequest) return;
     const signature = JSON.stringify(page.messages); if (signature === q.dmSignature) return;
     q.dmSignature = signature;
     const host = $("queue-dm-messages"), bottom = nearBottom(host), scroll = host.scrollTop;
     host.innerHTML = page.messages.map(queueMessageHTML).join("") || `<div class="small" style="padding:8px 24px">No messages yet.</div>`;
     queueHydrate(host); host.scrollTop = bottom ? host.scrollHeight : scroll;
-  } catch (e) { if (state.view === "queue" && q.dmChannel === channel) queueError("Agent messages: " + e.message); }
+  } catch (e) { if (state.view === "queue" && q.dmChannel === channel && request === q.dmRefreshRequest) queueError("Agent messages: " + e.message); }
 }
 function queueToggleDm() {
   const q = queueState; q.dmHidden = !q.dmHidden;
@@ -3481,7 +3484,7 @@ function attachAssist(host, input, autosize, channel = state.current) {
     const search = picker.querySelector("input");
     search.oninput = () => renderGrid(search.value);
     search.onkeydown = (e) => {
-      if (e.key === "Escape") { closePicker(); input.focus(); }
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePicker(); input.focus(); }
       if (e.key === "Enter") { e.preventDefault(); const first = picker.querySelector("[data-e]"); if (first) choose(first.dataset.e); }
     };
     picker.querySelector(".emoji-grid").onclick = (e) => { const b = e.target.closest("[data-e]"); if (b) choose(b.dataset.e); };
