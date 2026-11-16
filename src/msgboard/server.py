@@ -31,7 +31,7 @@ from .config import DB_NAME, LIMITS
 from .errors import ApiError, bad_request, forbidden
 from .presence import PRESENCE_FLUSH_SECONDS, Presence
 from . import transfer
-from . import queue as personal_queue
+from . import tasks as personal_tasks
 from .reservations import Reservations
 from .auth import DOWNLOAD_TTL_SECONDS, DownloadLinks
 
@@ -289,8 +289,8 @@ class Board:
                 # must not cause regular requests to fail when the writer is busy.
                 logging.getLogger(__name__).exception("could not persist agent presence")
 
-    async def queue_notice_loop(self) -> None:
-        """Deliver coalesced queue changes through ordinary agent-owner DMs.
+    async def task_notice_loop(self) -> None:
+        """Deliver coalesced task changes through ordinary agent-owner DMs.
 
         The pending batch and its message are committed together by the writer;
         cancelling this task or restarting the server cannot duplicate delivery.
@@ -300,15 +300,15 @@ class Board:
             if self.shutting_down:
                 return
             try:
-                if not await self.db.read(personal_queue.notice_due, time.time()):
+                if not await self.db.read(personal_tasks.notice_due, time.time()):
                     continue
-                message = await self.db.write(personal_queue.deliver_notice, time.time())
+                message = await self.db.write(personal_tasks.deliver_notice, time.time())
                 if message:
                     self.counters["posts"] += 1
                     self.notifier.notify(message["channel_id"])
                     self.notifier.notify(ANY_CHANNEL)
             except Exception:
-                logging.getLogger(__name__).exception("could not deliver queue update")
+                logging.getLogger(__name__).exception("could not deliver task update")
 
     def close(self) -> None:
         if getattr(self, "_closed", False):
@@ -371,17 +371,17 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         board.commit_lock = asyncio.Lock()
         board.presence.sample(time.time())
         task = asyncio.create_task(board.presence_loop())
-        queue_task = asyncio.create_task(board.queue_notice_loop())
+        task_notice_task = asyncio.create_task(board.task_notice_loop())
         try:
             yield
         finally:
             board.begin_shutdown()
             task.cancel()
-            queue_task.cancel()
+            task_notice_task.cancel()
             with suppress(asyncio.CancelledError):
                 await task
             with suppress(asyncio.CancelledError):
-                await queue_task
+                await task_notice_task
 
     app = FastAPI(title="msgboard", version="0.1.0", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json")
@@ -861,40 +861,40 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
 
     # --------------------------------------------------------- messages
 
-    @app.get("/v1/queue")
-    async def get_queue(request: Request, archived: bool = False, sort: str = "manual", direction: str = "asc"):
+    @app.get("/v1/tasks")
+    async def get_tasks(request: Request, archived: bool = False, sort: str = "manual", direction: str = "asc"):
         p = await authn(request)
-        return await db.read(personal_queue.list_items, p, archived, sort, direction)
+        return await db.read(personal_tasks.list_items, p, archived, sort, direction)
 
-    @app.get("/v1/queue/items/{item_id}")
-    async def get_queue_item(item_id: int, request: Request):
+    @app.get("/v1/tasks/items/{item_id}")
+    async def get_task(item_id: int, request: Request):
         p = await authn(request)
-        return await db.read(personal_queue.get_item, p, item_id)
+        return await db.read(personal_tasks.get_item, p, item_id)
 
-    @app.put("/v1/queue/items/by-key/{key}")
-    async def put_queue_item(key: str, request: Request):
+    @app.put("/v1/tasks/items/by-key/{key}")
+    async def put_task(key: str, request: Request):
         p = await authn(request)
         payload = body_dict(await _json_body(request))
-        return await db.write(personal_queue.put_item, p, key, payload, time.time())
+        return await db.write(personal_tasks.put_item, p, key, payload, time.time())
 
-    @app.post("/v1/queue/items/{item_id}/actions")
-    async def queue_action(item_id: int, request: Request):
+    @app.post("/v1/tasks/items/{item_id}/actions")
+    async def task_action(item_id: int, request: Request):
         p = await authn(request)
         key = request.headers.get("idempotency-key")
         if not key or not store.CLIENT_ID.fullmatch(key):
             raise bad_request("Idempotency-Key header is required and must match " + store.CLIENT_ID.pattern)
         payload = body_dict(await _json_body(request, LIMITS.max_body_bytes * 2 + 64 * 1024))
-        result, message, replayed = await db.write(personal_queue.action, p, item_id, payload, key, time.time())
+        result, message, replayed = await db.write(personal_tasks.action, p, item_id, payload, key, time.time())
         if message:
             board.counters["posts"] += 1
             board.notifier.notify(message["channel_id"])
             board.notifier.notify(ANY_CHANNEL)
         return JSONResponse(result, headers={"Idempotent-Replayed": "true"} if replayed else None)
 
-    @app.post("/v1/queue/items/{item_id}/move")
-    async def move_queue_item(item_id: int, request: Request):
+    @app.post("/v1/tasks/items/{item_id}/move")
+    async def move_task(item_id: int, request: Request):
         p = await authn(request)
-        return await db.write(personal_queue.move_item, p, item_id,
+        return await db.write(personal_tasks.move_item, p, item_id,
                               body_dict(await _json_body(request)), time.time())
 
     @app.post("/v1/channels/{channel_id}/messages")

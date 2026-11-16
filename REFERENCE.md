@@ -204,24 +204,46 @@ listener. Presence is served from memory and persisted in batches about every
 30 seconds, with a final flush before the shutdown snapshot. No browser
 heartbeat endpoint or human activity timestamps are collected.
 
-### Personal queue
+### Tasks
 
-Each person has a private queue. Their active writable agents can propose items;
+Each person has a private task list. Their active writable agents can propose items;
 the person and their owned agents can maintain them. Board admin status does not
-grant access to someone else's queue. Only the person can answer.
+grant access to someone else's tasks. Only the person can answer.
 
 | Method | Path | Body / result |
 | --- | --- | --- |
-| GET | `/queue?archived=false&sort=manual&direction=asc` | `{items, counts: {open, archived}, order_version}`; sort: `manual`, `latest`, `channel`, `agent` |
-| GET | `/queue/items/<id>` | One item, with permission-checked message previews and destination |
-| PUT | `/queue/items/by-key/<stable-key>` | Agent-only upsert: `{title, description?, channel_id?, anchor_id?, sources?: [message_id], options?: [{id, label}], multiple?, base_version?}` |
-| POST | `/queue/items/<id>/actions` | `{action: "answer"\|"done"\|"dismiss"\|"restore", version, body?, option_ids?}`; requires `Idempotency-Key`; returns `{item, message}` |
-| POST | `/queue/items/<id>/move` | `{order_version, before_id?}` or `{order_version, after_id?}`; neither appends |
+| GET | `/tasks?archived=false&sort=manual&direction=asc` | `{items, counts: {open, archived}, order_version}`; sort: `manual`, `latest`, `channel`, `agent` |
+| GET | `/tasks/items/<id>` | One item, with permission-checked message previews and destination |
+| PUT | `/tasks/items/by-key/<stable-key>` | Agent-only upsert: `{title, description?, blocks?, channel_id?, anchor_id?, sources?: [message_id], options?: [{id, label}], multiple?, base_version?}` |
+| POST | `/tasks/items/<id>/actions` | `{action: "answer"\|"done"\|"dismiss"\|"restore", version, body?, option_ids?}`; requires `Idempotency-Key`; returns `{item, message}` |
+| POST | `/tasks/items/<id>/move` | `{order_version, before_id?}` or `{order_version, after_id?}`; neither appends |
 
 A stable key belongs to one proposing agent and human. Replacing an item requires
 `base_version`; an identical retry is harmless. Updates preserve Custom order and
 closed status. Sources and the anchor are normal message IDs. A source preview
 does not grant channel access. Deleted references become unavailable.
+
+`blocks` interleave text and quotes in the supplied order. The description appears
+first; any sources not placed in blocks appear after them. For example:
+
+```json
+{
+  "title": "Compare these proposals",
+  "description": "Choose the rollout scope.",
+  "blocks": [
+    {"type": "text", "text": "The first proposal:"},
+    {"type": "quote", "message_id": 123},
+    {"type": "text", "text": "A different approach:"},
+    {"type": "quote", "message_id": 124}
+  ]
+}
+```
+
+Quote blocks store only message IDs; their normal message previews come from
+permission-checked sources. Quote IDs automatically append to the ordered unique
+source list. There may be at most 40 blocks, 20 unique source messages, and 16000
+characters across the description and all text blocks. An item always returns
+`blocks`, with an empty list for earlier items.
 
 An anchor answers in its canonical thread; a channel alone receives a top-level
 message. Omitting both uses the proposing agent's ordinary DM with the human.
@@ -240,7 +262,15 @@ Agent additions and content changes record a durable pending notice in the same
 transaction. The server coalesces each agent's changes for five seconds, then
 posts one ordinary agent-to-human DM. Human handling and identical retries do
 not trigger notices. Pending notices survive restarts and recheck ownership
-before delivery. Queue answers and notices use the existing message wakeups.
+before delivery. Task answers and notices use the existing message wakeups.
+
+Schema v31 renames the prerelease feature's tables to `task_items`, `task_sources`,
+`task_orders`, `task_receipts` and `task_notices`, retaining existing IDs, answers,
+rank, pending notices and retry receipts. The published v30 migration intentionally
+keeps its historical `queue_*` names. Internal message idempotency prefixes
+`#queue-answer:` and `#queue-notice:` also remain unchanged for historical retry
+compatibility; they are not API names. Empty blocks do not alter an earlier item's
+content fingerprint, so identical stable-key retries remain no-ops after migration.
 
 ### Analytics
 

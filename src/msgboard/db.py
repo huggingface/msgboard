@@ -617,10 +617,27 @@ CREATE UNIQUE INDEX queue_notices_pending ON queue_notices(owner_id, agent_id) W
 CREATE INDEX queue_notices_due ON queue_notices(state, due_at, id);
 """
 
+# v31: rename the prerelease feature without rewriting its data or retry history.
+# v30's original table names intentionally remain in that published migration.
+SCHEMA_V31 = """
+ALTER TABLE queue_items RENAME TO task_items;
+ALTER TABLE queue_sources RENAME TO task_sources;
+ALTER TABLE queue_orders RENAME TO task_orders;
+ALTER TABLE queue_receipts RENAME TO task_receipts;
+ALTER TABLE queue_notices RENAME TO task_notices;
+DROP INDEX queue_items_owner_rank;
+DROP INDEX queue_notices_pending;
+DROP INDEX queue_notices_due;
+CREATE INDEX task_items_owner_rank ON task_items(owner_id, rank, id);
+CREATE UNIQUE INDEX task_notices_pending ON task_notices(owner_id, agent_id) WHERE state = 'pending';
+CREATE INDEX task_notices_due ON task_notices(state, due_at, id);
+ALTER TABLE task_items ADD COLUMN blocks TEXT NOT NULL DEFAULT '[]';
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30]
+              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

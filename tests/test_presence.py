@@ -245,7 +245,7 @@ def test_migrate_existing_board_to_presence(tmp_path):
         conn.execute("DROP TABLE presence_history")
         for index in ("messages_created_at", "messages_response_thread", "messages_response_dm", "attachments_published_at"):
             conn.execute(f"DROP INDEX {index}")
-        for table in ("queue_receipts", "queue_sources", "queue_notices", "queue_items", "queue_orders"):
+        for table in ("task_receipts", "task_sources", "task_notices", "task_items", "task_orders"):
             conn.execute(f"DROP TABLE {table}")
         conn.execute("PRAGMA user_version=23")
         conn.execute("DROP TABLE channel_imports")

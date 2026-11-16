@@ -806,77 +806,88 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 }
 /* iOS zooms into any focused field under 16px */
 @media (pointer: coarse) { input, textarea, select { font-size: 16px !important; } }
-/* ---------- personal queue ---------- */
-#queue { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-#queue-scroll { min-height: 0; padding: 0; }
-.queue-page { max-width: 1000px; margin: 0 auto; padding: 24px 28px 32px; }
-#queue-sort { display: flex; justify-content: flex-end; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
-#queue-sort button { border: 1px solid var(--rule-2); padding: 5px 10px; font-size: 11px; min-height: 28px; background: transparent; }
-#queue-sort button.on { color: var(--select-ink, var(--bg)); background: var(--select, var(--ink)); border-color: var(--select, var(--ink)); }
-.queue-row { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); }
-.queue-row.drag-before { box-shadow: inset 0 2px var(--ink); }
-.queue-row.drag-after { box-shadow: inset 0 -2px var(--ink); }
-.queue-row[draggable=true] { cursor: grab; }
-.queue-row.touch-dragging { background: var(--hover); outline: 1px solid var(--rule-2); cursor: grabbing; }
-.queue-row[draggable=true] .queue-row-open { -webkit-touch-callout: none; }
-.queue-row-open { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
-.queue-row-title { display: block; font-size: 15px; line-height: 1.45; font-weight: 500; letter-spacing: -.12px; }
-.queue-row-open:hover .queue-row-title { text-decoration: underline; text-underline-offset: 3px; }
-.queue-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 5px; color: var(--ink-3); font-size: 11px; }
-.queue-row.closed .queue-row-title { color: var(--ink-3); }
-.queue-row-mark { margin-right: 6px; font-size: 12px; }
-.queue-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.queue-icon { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; background: transparent; border: 1px solid var(--rule-2); color: var(--ink-2); }
-.queue-icon:hover { color: var(--ink); border-color: var(--ink); }
-.queue-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
-.queue-summary { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 26px; padding-top: 13px; border-top: 1px solid var(--rule); font-size: 11px; color: var(--ink-3); }
-.queue-summary label { display: flex; align-items: center; gap: 7px; }
-.queue-summary input { margin: 0; }
-#queue-error { margin: 12px 0; }
-#queue-dm { flex: none; background: var(--bg); border-top: 1px solid var(--rule-2); }
-.queue-dm-head { display: flex; gap: 10px; align-items: center; padding: 12px 24px 0; font-size: 12px; }
-.queue-dm-head select { min-width: 138px; max-width: 70%; font-size: 12px; padding: 5px 24px 5px 9px; }
-#queue-dm-hide { margin-left: auto; font-size: 11px; }
-#queue-dm-messages { max-height: 125px; overflow-y: auto; padding: 6px 0; }
-#queue-dm-messages .msg { font-size: 13px; }
-#queue-dm-messages .msg .body { font-size: inherit; }
-#queue-dm-composer { border-top: 0; }
-#queue-dm.collapsed { align-self: flex-end; border: 0; }
-#queue-dm.collapsed #queue-dm-content { display: none; }
-#queue-agent-tab { display: flex; gap: 10px; align-items: center; padding: 9px 13px; border: 1px solid var(--rule-2); border-bottom: 0; background: var(--bg); font-size: 12px; margin-right: 28px; }
-#queue-dialog { width: min(730px, calc(100% - 32px)); max-height: calc(var(--vvh, 100dvh) - 32px); padding: 26px 28px 18px; overflow-y: auto; }
-#queue-item-close { position: absolute; top: 10px; right: 12px; font-size: 22px; background: transparent; border: 0; padding: 0 5px; color: var(--ink-2); z-index: 1; }
-#queue-dialog .queue-proposal { padding: 0; padding-right: 16px; }
-#queue-item-title { font-size: 16px; line-height: 1.45; font-weight: 550; margin: 13px 0 9px; letter-spacing: -.15px; }
-#queue-dialog .queue-description { white-space: pre-wrap; font-size: 14px; line-height: 1.65; margin-bottom: 17px; color: var(--ink); }
-.queue-source { border: 1px solid var(--rule); margin: 10px 0; padding: 10px 0; }
-.queue-source .msg { padding: 0 14px; }
-.queue-source-link { display: block; margin: 6px 14px 0 62px; font-size: 11px; color: var(--ink-3); text-decoration: underline; }
-.queue-answer-area { border-top: 1px solid var(--rule-2); padding-top: 15px; margin-top: 21px; }
-#queue-item-destination { color: var(--ink-3); margin-bottom: 14px; }
-#queue-item-options { display: flex; flex-direction: column; gap: 11px; }
-#queue-item-options:not(:empty) { margin: 0 0 17px; }
-.queue-option { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 13px; }
-.queue-option input { width: 13px; height: 13px; flex-shrink: 0; margin: 4px 0 0; }
-#queue-answer-composer { border-top: 0; padding-left: 0; padding-right: 0; }
-.queue-item-foot { display: flex; align-items: center; gap: 12px; }
-.queue-item-foot > span { flex: 1; }
+/* ---------- personal tasks ---------- */
+.search-box, [data-look="a2"] .search-box { padding-bottom: 4px; }
+#tasks-nav, #activity-list { padding-left: 16px; padding-right: 16px; margin-top: 0; }
+#tasks-nav .glyph svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.2; }
+#tasks { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#tasks-scroll { min-height: 0; padding: 0; }
+.tasks-page { max-width: 1000px; margin: 0 auto; padding: 24px 28px 32px; }
+#tasks-sort { display: flex; justify-content: flex-end; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+#tasks-sort button { border: 1px solid var(--rule-2); padding: 5px 10px; font-size: 11px; min-height: 28px; background: transparent; }
+#tasks-sort button.on { color: var(--select-ink, var(--bg)); background: var(--select, var(--ink)); border-color: var(--select, var(--ink)); }
+.tasks-row { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.tasks-row.drag-before { box-shadow: inset 0 2px var(--ink); }
+.tasks-row.drag-after { box-shadow: inset 0 -2px var(--ink); }
+.tasks-row[draggable=true] { cursor: grab; }
+.tasks-row.touch-dragging { background: var(--hover); outline: 1px solid var(--rule-2); cursor: grabbing; }
+.tasks-row[draggable=true] .tasks-row-open { -webkit-touch-callout: none; }
+.tasks-row-open { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
+.tasks-row-title { display: block; font-size: 15px; line-height: 1.45; font-weight: 500; letter-spacing: -.12px; }
+.tasks-row-open:hover .tasks-row-title { text-decoration: underline; text-underline-offset: 3px; }
+.tasks-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 5px; color: var(--ink-3); font-size: 11px; }
+.tasks-row.closed .tasks-row-title { color: var(--ink-3); }
+.tasks-row-mark { display: inline-flex; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+.tasks-row-mark svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.tasks-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.tasks-icon { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; background: transparent; border: 1px solid var(--rule-2); color: var(--ink-2); }
+.tasks-icon:hover { color: var(--ink); border-color: var(--ink); }
+.tasks-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.tasks-summary { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 14px; font-size: 11px; color: var(--ink-3); }
+.tasks-summary label { display: flex; align-items: center; gap: 7px; }
+.tasks-summary input { margin: 0; }
+#tasks-error { margin: 12px 0; }
+#tasks-dm { flex: none; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 28px; background: var(--bg); }
+#tasks-dm-content { border-top: 1px solid var(--rule-2); }
+.tasks-dm-head { display: flex; gap: 10px; align-items: center; padding: 12px 0 0; font-size: 12px; }
+.tasks-dm-head select { min-width: 138px; max-width: 70%; font-size: 12px; padding: 5px 24px 5px 9px; }
+#tasks-dm-hide { margin-left: auto; font-size: 11px; }
+#tasks-dm-messages { max-height: 125px; overflow-y: auto; padding: 6px 0; }
+#tasks-dm-messages .msg { font-size: 13px; padding-left: 0; padding-right: 0; }
+#tasks-dm-messages .msg .body { font-size: inherit; }
+#tasks-dm-composer { border-top: 0; padding: 10px 0 16px; }
+#tasks-dm.collapsed { border: 0; }
+#tasks-dm.collapsed #tasks-dm-content { display: none; }
+#tasks-agent-tab { display: flex; gap: 10px; align-items: center; padding: 9px 13px; border: 1px solid var(--rule-2); border-bottom: 0; background: var(--bg); font-size: 12px; margin-left: auto; }
+#tasks-dialog { width: min(730px, calc(100% - 32px)); max-height: calc(var(--vvh, 100dvh) - 32px); padding: 26px 28px 18px; overflow-y: auto; }
+#tasks-item-close { position: absolute; top: 10px; right: 12px; font-size: 22px; background: transparent; border: 0; padding: 0 5px; color: var(--ink-2); z-index: 1; }
+#tasks-dialog .tasks-proposal { padding: 0; }
+#tasks-dialog .tasks-proposal:hover { background: transparent; }
+#tasks-item-title { font-size: 16px; line-height: 1.45; font-weight: 550; margin: 13px 0 9px; letter-spacing: -.15px; }
+#tasks-dialog .tasks-description { font-size: 14px; line-height: 1.65; margin: 0 0 17px; color: var(--ink); }
+.tasks-description > :first-child { margin-top: 0; }
+.tasks-description > :last-child { margin-bottom: 0; }
+.tasks-source { border: 1px solid var(--rule); margin: 12px 0; }
+.tasks-source[role=link] { cursor: pointer; }
+.tasks-source[role=link]:hover { background: var(--hover); }
+.tasks-source:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+.tasks-source .msg, .tasks-source .msg.first { padding: 10px 12px; }
+.tasks-source .msg:hover { background: transparent; }
+.tasks-source-unavailable { padding: 12px; }
+.tasks-answer-area { border-top: 1px solid var(--rule-2); padding-top: 15px; margin-top: 21px; }
+#tasks-item-destination { color: var(--ink-3); margin-bottom: 14px; }
+#tasks-item-options { display: flex; flex-direction: column; gap: 11px; }
+#tasks-item-options:not(:empty) { margin: 0 0 17px; }
+.tasks-option { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 13px; }
+.tasks-option input { width: 13px; height: 13px; flex-shrink: 0; margin: 4px 0 0; }
+#tasks-answer-composer { border-top: 0; padding-left: 0; padding-right: 0; }
+.tasks-item-foot { display: flex; align-items: center; gap: 12px; }
+.tasks-item-foot > span { flex: 1; }
 @media (max-width: 720px) {
-  .queue-page { padding: 20px 16px 28px; }
-  .queue-row { padding: 7.5px 0; }
-  .queue-row-title { font-size: 14px; }
-  .queue-row-meta { font-size: 10px; gap: 6px; }
-  .queue-summary { font-size: 10px; gap: 8px; }
-  #queue-dialog { width: calc(100% - 24px); max-height: calc(var(--vvh, 100dvh) - 24px); padding: 25px 18px 18px; }
-  #queue-dialog .queue-proposal { grid-template-columns: 30px minmax(0, 1fr); padding: 0 12px 0 0; }
-  #queue-item-title { font-size: 15px; }
-  #queue-dialog .queue-description { font-size: 13px; }
-  .queue-source .msg { padding: 0 10px; }
-  .queue-source-link { margin-left: 52px; }
-  .queue-dm-head { padding: 10px 16px 0; }
-  #queue-dm-messages { max-height: 95px; }
-  #queue-agent-tab { margin-right: 12px; }
-  #queue-answer-composer { padding-left: 0; padding-right: 0; }
+  .tasks-page { padding: 20px 16px 28px; }
+  .tasks-row { padding: 7.5px 0; }
+  .tasks-row-title { font-size: 14px; }
+  .tasks-row-meta { font-size: 10px; gap: 6px; }
+  .tasks-summary { font-size: 10px; gap: 8px; }
+  #tasks-dialog { width: calc(100% - 24px); max-height: calc(var(--vvh, 100dvh) - 24px); padding: 25px 18px 18px; }
+  #tasks-dialog .tasks-proposal { grid-template-columns: 30px minmax(0, 1fr); padding: 0; }
+  #tasks-item-title { font-size: 15px; }
+  #tasks-dialog .tasks-description { font-size: 13px; }
+  .tasks-source .msg, .tasks-source .msg.first { padding: 8px 10px; }
+  #tasks-dm { padding: 0 16px; }
+  .tasks-dm-head { padding: 10px 0 0; }
+  #tasks-dm-messages { max-height: 95px; }
+  #tasks-answer-composer { padding-left: 0; padding-right: 0; }
 }
 
 </style>
@@ -891,7 +902,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="brand"><b>msgboard</b><button class="hidden" id="analytics-open" title="Analytics" aria-label="Analytics"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14h12M4.5 11.5V8M8 11.5V3.5M11.5 11.5V6"/></svg></button><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
     <div class="search-box"><input id="search-input" type="search" placeholder="Search" title="Ctrl/⌘ K opens the full search" aria-label="Search" autocomplete="off" spellcheck="false"></div>
     <div class="nav-scroll">
-      <ul class="navlist hidden" id="queue-nav"><li><button id="queue-open"><span class="glyph">☑</span><span class="name">Queue</span></button></li></ul>
+      <ul class="navlist hidden" id="tasks-nav"><li><button id="tasks-open"><span class="glyph"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3h8M6.5 8h8M6.5 13h8"/><rect x="1.5" y="1.7" width="2.6" height="2.6"/><rect x="1.5" y="6.7" width="2.6" height="2.6"/><rect x="1.5" y="11.7" width="2.6" height="2.6"/></svg></span><span class="name">Tasks</span></button></li></ul>
       <ul class="navlist" id="activity-list"><li><button id="activity-open"><span class="glyph"><svg class="lock" viewBox="0 0 10 11" aria-hidden="true"><path d="M2 8 V5 a3 3 0 0 1 6 0 V8 H2 Z M4 9.5 h2"/></svg></span><span class="name">Activity</span></button></li></ul>
       <div class="side-head"><span class="label">Channels</span><button id="new-channel" class="hidden" title="New channel">+</button></div>
       <ul class="navlist" id="channels"></ul>
@@ -932,17 +943,17 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div id="activity" class="scroll hidden" style="padding:0"></div>
     <div id="search" class="scroll hidden"></div>
     <div id="analytics" class="scroll hidden"></div>
-    <section id="queue" class="hidden" aria-label="Personal queue">
-      <div id="queue-scroll" class="scroll"><div class="queue-page">
-        <nav id="queue-sort" aria-label="Order queue"></nav>
-        <p id="queue-error" class="err hidden" role="status"></p>
-        <div id="queue-list" aria-label="Queue items"></div>
-        <footer class="queue-summary"><span id="queue-count"></span><span aria-hidden="true">|</span><span id="queue-archived-count"></span><span aria-hidden="true">|</span><label><input type="checkbox" id="queue-show-archived"> Show archived</label></footer>
+    <section id="tasks" class="hidden" aria-label="Personal tasks">
+      <div id="tasks-scroll" class="scroll"><div class="tasks-page">
+        <nav id="tasks-sort" aria-label="Order tasks"></nav>
+        <p id="tasks-error" class="err hidden" role="status"></p>
+        <div id="tasks-list" aria-label="Tasks items"></div>
+        <footer class="tasks-summary"><span id="tasks-count"></span><span aria-hidden="true">|</span><span id="tasks-archived-count"></span><span aria-hidden="true">|</span><label><input type="checkbox" id="tasks-show-archived"> Show archived</label></footer>
       </div></div>
-      <section id="queue-dm" aria-label="Direct message with your agent">
-        <button id="queue-agent-tab" class="hidden" aria-label="Show Agent panel" aria-expanded="false">Agent <span aria-hidden="true">⌃</span></button>
-        <div id="queue-dm-content"><div class="queue-dm-head"><label for="queue-dm-agent">Agent:</label><select id="queue-dm-agent" aria-label="Your agent"></select><button id="queue-dm-hide" class="linkish">Hide</button></div>
-          <div id="queue-dm-messages" aria-live="polite"></div><div id="queue-dm-composer" class="composer"></div>
+      <section id="tasks-dm" aria-label="Direct message with your agent">
+        <button id="tasks-agent-tab" class="hidden" aria-label="Show Agent panel" aria-expanded="false">Agent <span aria-hidden="true">⌃</span></button>
+        <div id="tasks-dm-content"><div class="tasks-dm-head"><label for="tasks-dm-agent">Agent:</label><select id="tasks-dm-agent" aria-label="Your agent"></select><button id="tasks-dm-hide" class="linkish">Hide</button></div>
+          <div id="tasks-dm-messages" aria-live="polite"></div><div id="tasks-dm-composer" class="composer"></div>
         </div>
       </section>
     </section>
@@ -972,13 +983,13 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
   </div>
 </div>
 
-<dialog id="queue-dialog" aria-labelledby="queue-item-title">
-  <button class="close" id="queue-item-close" aria-label="Close item">×</button>
-  <div id="queue-item-content"></div>
-  <section class="queue-answer-area"><div id="queue-item-destination" class="small"></div>
-    <p class="err hidden" id="queue-item-error" role="status"></p>
-    <div id="queue-item-options"></div><div id="queue-answer-composer" class="composer"></div>
-    <div class="queue-item-foot"><button id="queue-restore" class="btn ghost small hidden">Restore</button><span></span><div id="queue-item-actions"></div></div>
+<dialog id="tasks-dialog" aria-labelledby="tasks-item-title">
+  <button class="close" id="tasks-item-close" aria-label="Close item">×</button>
+  <div id="tasks-item-content"></div>
+  <section class="tasks-answer-area"><div id="tasks-item-destination" class="small"></div>
+    <p class="err hidden" id="tasks-item-error" role="status"></p>
+    <div id="tasks-item-options"></div><div id="tasks-answer-composer" class="composer"></div>
+    <div class="tasks-item-foot"><button id="tasks-restore" class="btn ghost small hidden">Restore</button><span></span><div id="tasks-item-actions"></div></div>
   </section>
 </dialog>
 
@@ -1182,7 +1193,7 @@ function decorate(html, mentions) {
     if (h) {   // a link to a message, file or channel on this board: open it here, with a readable label
       a.dataset.internal = h; a.removeAttribute("target");
       if (a.textContent.trim() === a.getAttribute("href") || a.textContent.trim() === a.href) {
-        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics|queue)$/.test(h) ? h : "#" + h;
+        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics|tasks)$/.test(h) ? h : "#" + h;
       }
     } else { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   });
@@ -1682,7 +1693,7 @@ async function boot() {
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
   renderMe();
-  $("queue-nav").classList.toggle("hidden", state.me.identity_type !== "user");
+  $("tasks-nav").classList.toggle("hidden", state.me.identity_type !== "user");
   $("new-channel").classList.toggle("hidden", !can("create_channels"));
   $("new-dm").classList.toggle("hidden", !can("post"));
   $("settings-open").classList.toggle("hidden", !(can("invite_agents") || can("manage")));
@@ -1694,7 +1705,7 @@ async function boot() {
   initNotify();
   if (location.hash === "#settings") return openSettings();
   if (location.hash === "#activity") return openActivity();
-  if (/^#queue(?:\/[^/]+)?$/.test(location.hash) && state.me.identity_type === "user") return openQueue(location.hash.split("/")[1] || null);
+  if (/^#(?:tasks|queue)(?:\/[^/]+)?$/.test(location.hash) && state.me.identity_type === "user") return openTasks(location.hash.split("/")[1] || null);
   if (location.hash === "#analytics" && canAnalytics()) return openAnalytics();
   if (/^#(msg|file)\//.test(location.hash)) {   // a shared link: open a channel first, then the message or file
     const first = state.channels.find((c) => c.name === store.get("channel")) || state.channels.find((c) => c.kind !== "dm") || state.channels[0];
@@ -1885,7 +1896,7 @@ function renderChannels() {
   document.title = (total ? `(${total > 99 ? "99+" : total}) ` : "") + baseTitle;
   noteFront();   // the channel on screen may have changed
   $("settings-open").classList.toggle("on", state.view === "settings");
-  $("queue-open").classList.toggle("active", state.view === "queue");
+  $("tasks-open").classList.toggle("active", state.view === "tasks");
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
@@ -1929,7 +1940,7 @@ function updateMeta(live) {
   $("ch-join").onclick = () => joinChannel(c);
 }
 function showChat() {
-  leaveQueue();
+  leaveTasks();
   state.view = "chat";
   $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("chat-view").style.display = "contents";
 }
@@ -2762,7 +2773,7 @@ document.addEventListener("keydown", (e) => {
 });
 document.addEventListener("click", (e) => {
   const dialog = e.target.closest("dialog");
-  if (dialog && dialog.id !== "queue-dialog") return;
+  if (dialog && dialog.id !== "tasks-dialog") return;
   const del = e.target.closest("[data-delete-msg]");
   if (del) { deleteMessage(Number(del.dataset.deleteMsg)); return; }
   const ct = e.target.closest("[data-copy-text]");
@@ -3056,382 +3067,407 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
   if (autofocus && window.matchMedia("(min-width: 721px)").matches) input.focus();
 }
 
-// ------------------------------------------------------------------ personal queue
-const queueState = {
+// ------------------------------------------------------------------ personal tasks
+const tasksState = {
   items: [], counts: { open: 0, archived: 0 }, orderVersion: 0, sort: "manual", direction: "asc",
   archived: false, request: 0, loading: false, signature: "", open: null, opening: 0,
   busy: new Set(), movePending: false, agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmRefreshRequest: 0, dmSignature: "", dmHidden: false,
 };
-const queueCheck = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.5 3.5L13 4.5"/></svg>`;
-const queueCross = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>`;
-const queueDraftKey = (id) => `q:${state.me.id}:${id}`;
-const queueChoiceKey = (id) => `queue-choices:${state.me.id}:${id}`;
-function queueError(error, item = false) {
-  const el = $(item ? "queue-item-error" : "queue-error");
+const tasksCheck = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.5 3.5L13 4.5"/></svg>`;
+const tasksCross = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>`;
+const tasksDraftKey = (id) => `q:${state.me.id}:${id}`;
+const tasksChoiceKey = (id) => `tasks-choices:${state.me.id}:${id}`;
+function tasksError(error, item = false) {
+  const el = $(item ? "tasks-item-error" : "tasks-error");
   el.textContent = typeof error === "string" ? error : error.message;
   el.classList.remove("hidden");
 }
-function queueActions(item, row = false) {
-  const disabled = item.state !== "open" || queueState.busy.has(item.id) ? " disabled" : "";
-  return `<div class="queue-actions"><button class="queue-icon" data-queue-action="done" data-qid="${esc(item.id)}" title="Done" aria-label="Mark ${row ? esc(item.title) + " " : "item "}done"${disabled}>${queueCheck}</button>` +
-    `<button class="queue-icon" data-queue-action="dismiss" data-qid="${esc(item.id)}" title="Dismiss" aria-label="Dismiss ${row ? esc(item.title) : "item"}"${disabled}>${queueCross}</button></div>`;
+function tasksActions(item, row = false) {
+  const disabled = item.state !== "open" || tasksState.busy.has(item.id) ? " disabled" : "";
+  return `<div class="tasks-actions"><button class="tasks-icon" data-tasks-action="done" data-qid="${esc(item.id)}" title="Done" aria-label="Mark ${row ? esc(item.title) + " " : "item "}done"${disabled}>${tasksCheck}</button>` +
+    `<button class="tasks-icon" data-tasks-action="dismiss" data-qid="${esc(item.id)}" title="Dismiss" aria-label="Dismiss ${row ? esc(item.title) : "item"}"${disabled}>${tasksCross}</button></div>`;
 }
-function leaveQueue() {
-  queueCancelTouch(); queueDragged = null; queueClearDrop();
-  $("queue").classList.add("hidden");
-  queueState.request++; queueState.loading = false; queueState.opening++;
-  queueCloseItem(false);
+function leaveTasks() {
+  tasksCancelTouch(); tasksDragged = null; tasksClearDrop();
+  $("tasks").classList.add("hidden");
+  tasksState.request++; tasksState.loading = false; tasksState.opening++;
+  tasksCloseItem(false);
 }
-async function openQueue(itemId = null) {
+async function openTasks(itemId = null) {
   if (!state.me || state.me.identity_type !== "user") return;
-  const entering = state.view !== "queue";
+  const entering = state.view !== "tasks";
   if (!refreshTimer) { refreshTimer = setInterval(refreshChannels, 10000); setInterval(refreshPresence, 30000); refreshPresence(); }
-  state.view = "queue";
+  state.view = "tasks";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels(); closeInfo();
   $("app").classList.remove("nav");
-  history.replaceState(null, "", location.pathname + "#queue" + (itemId ? "/" + encodeURIComponent(itemId) : ""));
+  history.replaceState(null, "", location.pathname + "#tasks" + (itemId ? "/" + encodeURIComponent(itemId) : ""));
   $("chat-view").style.display = "none";
   for (const id of ["settings", "activity", "search"]) $(id).classList.add("hidden");
-  leaveAnalytics(); $("queue").classList.remove("hidden");
-  $("ch-title").textContent = "Queue"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
+  leaveAnalytics(); $("tasks").classList.remove("hidden");
+  $("ch-title").textContent = "Tasks"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
   for (const id of ["members-open", "ch-info", "ch-doc", "ch-join"]) $(id).classList.add("hidden");
-  queueRenderSort();
+  tasksRenderSort();
   if (entering) {
-    $("queue-error").classList.add("hidden");
-    if (!queueState.items.length) $("queue-list").innerHTML = `<div class="empty">Loading…</div>`;
+    $("tasks-error").classList.add("hidden");
+    if (!tasksState.items.length) $("tasks-list").innerHTML = `<div class="empty">Loading…</div>`;
   }
-  await Promise.all([queueRefresh(), entering ? queueLoadAgents() : Promise.resolve()]);
-  if (itemId && state.view === "queue") await queueOpenItem(itemId);
+  await Promise.all([tasksRefresh(), entering ? tasksLoadAgents() : Promise.resolve()]);
+  if (itemId && state.view === "tasks") await tasksOpenItem(itemId);
 }
-function queueRenderSort() {
-  const q = queueState;
-  $("queue-sort").innerHTML = [["manual", "Custom"], ["latest", "Time"], ["channel", "Channel"], ["agent", "Agent"]].map(([sort, title]) =>
-    `<button type="button" data-queue-sort="${sort}" class="${sort === q.sort ? "on" : ""}" aria-pressed="${sort === q.sort}">${title}${sort === q.sort && sort !== "manual" ? " " + (q.direction === "asc" ? "↑" : "↓") : ""}</button>`).join("");
+function tasksRenderSort() {
+  const q = tasksState;
+  $("tasks-sort").innerHTML = [["manual", "Custom"], ["latest", "Time"], ["channel", "Channel"], ["agent", "Agent"]].map(([sort, title]) =>
+    `<button type="button" data-tasks-sort="${sort}" class="${sort === q.sort ? "on" : ""}" aria-pressed="${sort === q.sort}">${title}${sort === q.sort && sort !== "manual" ? " " + (q.direction === "asc" ? "↑" : "↓") : ""}</button>`).join("");
 }
-async function queueRefresh() {
-  if (state.view !== "queue") return;
-  const q = queueState, request = ++q.request;
+async function tasksRefresh() {
+  if (state.view !== "tasks") return;
+  const q = tasksState, request = ++q.request;
   q.loading = true;
   try {
-    const data = await api("GET", `/queue?archived=${q.archived}&sort=${q.sort}&direction=${q.direction}`);
-    if (state.view !== "queue" || request !== q.request) return;
+    const data = await api("GET", `/tasks?archived=${q.archived}&sort=${q.sort}&direction=${q.direction}`);
+    if (state.view !== "tasks" || request !== q.request) return;
     q.items = data.items; q.counts = data.counts; q.orderVersion = data.order_version;
     const signature = JSON.stringify([q.sort, q.direction, data.items]);
-    if (signature !== q.signature) { q.signature = signature; queueRenderList(); }
-    $("queue-count").textContent = `${data.counts.open} ${data.counts.open === 1 ? "item" : "items"}`;
-    $("queue-archived-count").textContent = `${data.counts.archived} archived`;
+    if (signature !== q.signature) { q.signature = signature; tasksRenderList(); }
+    $("tasks-count").textContent = `${data.counts.open} ${data.counts.open === 1 ? "item" : "items"}`;
+    $("tasks-archived-count").textContent = `${data.counts.archived} archived`;
     if (q.open) {
       let item = data.items.find((i) => String(i.id) === String(q.open.item.id));
       if (!item) {
-        try { item = await api("GET", `/queue/items/${encodeURIComponent(q.open.item.id)}`); }
-        catch (e) { if (q.open && request === q.request) queueError("This item is no longer available: " + e.message, true); }
+        try { item = await api("GET", `/tasks/items/${encodeURIComponent(q.open.item.id)}`); }
+        catch (e) { if (q.open && request === q.request) tasksError("This item is no longer available: " + e.message, true); }
       }
-      if (item && q.open && String(q.open.item.id) === String(item.id) && request === q.request) queueUpdateItem(item);
+      if (item && q.open && String(q.open.item.id) === String(item.id) && request === q.request) tasksUpdateItem(item);
     }
-  } catch (e) { if (state.view === "queue" && request === q.request) queueError(e); }
+  } catch (e) { if (state.view === "tasks" && request === q.request) tasksError(e); }
   finally { if (request === q.request) q.loading = false; }
 }
-function queueRenderList() {
-  queueCancelTouch();
-  const q = queueState, box = $("queue-list"), focus = document.activeElement;
-  const focusId = focus && focus.dataset && focus.dataset.queueOpen;
-  box.innerHTML = q.items.map((i) => `<article class="queue-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" draggable="${q.sort === "manual" && i.state === "open"}">
-    <button class="queue-row-open" data-queue-open="${esc(i.id)}" aria-haspopup="dialog"${q.sort === "manual" && i.state === "open" ? ' title="Hold and drag to reorder · Alt+↑/↓ with keyboard" aria-description="Hold and drag to reorder, or press Alt plus Arrow Up or Arrow Down."' : ""}><span class="queue-row-title">${i.state !== "open" ? `<span class="queue-row-mark" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? "×" : "✓"}</span>` : ""}${esc(i.title)}</span>
-    <span class="queue-row-meta">${i.channel ? `<span>${esc(queueChannelLabel(i.channel))}</span><span>·</span>` : ""}<span>${esc(nameOf(i.agent))}</span><span>·</span><time title="${esc(fmtDate(i.created_at) + " " + fmtTime(i.created_at))}">${esc(ago(i.created_at))}</time></span></button>${queueActions(i, true)}</article>`).join("") || `<div class="empty">The queue is clear.</div>`;
-  if (focusId) { const b = [...box.querySelectorAll("[data-queue-open]")].find((b) => b.dataset.queueOpen === focusId); if (b) b.focus({ preventScroll: true }); }
+function tasksRenderList() {
+  tasksCancelTouch();
+  const q = tasksState, box = $("tasks-list"), focus = document.activeElement;
+  const focusId = focus && focus.dataset && focus.dataset.tasksOpen;
+  box.innerHTML = q.items.map((i) => `<article class="tasks-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" draggable="${q.sort === "manual" && i.state === "open"}">
+    <button class="tasks-row-open" data-tasks-open="${esc(i.id)}" aria-haspopup="dialog"${q.sort === "manual" && i.state === "open" ? ' title="Hold and drag to reorder · Alt+↑/↓ with keyboard" aria-description="Hold and drag to reorder, or press Alt plus Arrow Up or Arrow Down."' : ""}><span class="tasks-row-title">${i.state !== "open" ? `<span class="tasks-row-mark" role="img" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? tasksCross : tasksCheck}</span>` : ""}${esc(i.title)}</span>
+    <span class="tasks-row-meta">${i.channel ? `<span>${esc(tasksChannelLabel(i.channel))}</span><span>·</span>` : ""}<span>${esc(nameOf(i.agent))}</span><span>·</span><time title="${esc(fmtDate(i.created_at) + " " + fmtTime(i.created_at))}">${esc(ago(i.created_at))}</time></span></button>${tasksActions(i, true)}</article>`).join("") || `<div class="empty">No open tasks.</div>`;
+  if (focusId) { const b = [...box.querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === focusId); if (b) b.focus({ preventScroll: true }); }
 }
-$("queue-open").onclick = () => openQueue();
-$("queue-sort").onclick = (e) => {
-  const b = e.target.closest("[data-queue-sort]"); if (!b) return;
-  const q = queueState, next = b.dataset.queueSort;
+$("tasks-open").onclick = () => openTasks();
+$("tasks-sort").onclick = (e) => {
+  const b = e.target.closest("[data-tasks-sort]"); if (!b) return;
+  const q = tasksState, next = b.dataset.tasksSort;
   q.direction = next === q.sort && next !== "manual" ? (q.direction === "asc" ? "desc" : "asc") : next === "latest" ? "desc" : "asc";
-  queueCancelTouch(); q.sort = next; queueRenderSort(); queueRefresh();
+  tasksCancelTouch(); q.sort = next; tasksRenderSort(); tasksRefresh();
 };
-$("queue-show-archived").onchange = (e) => { queueState.archived = e.target.checked; queueRefresh(); };
-$("queue-list").onclick = (e) => {
-  const action = e.target.closest("[data-queue-action]");
-  if (action) return queueFinish(action.dataset.qid, action.dataset.queueAction);
-  const b = e.target.closest("[data-queue-open]"); if (b) queueOpenItem(b.dataset.queueOpen, b);
+$("tasks-show-archived").onchange = (e) => { tasksState.archived = e.target.checked; tasksRefresh(); };
+$("tasks-list").onclick = (e) => {
+  const action = e.target.closest("[data-tasks-action]");
+  if (action) return tasksFinish(action.dataset.qid, action.dataset.tasksAction);
+  const b = e.target.closest("[data-tasks-open]"); if (b) tasksOpenItem(b.dataset.tasksOpen, b);
 };
-let queueDragged = null, queueTouch = null, queueIgnoreClickUntil = 0;
-const queueClearDrop = () => $("queue-list").querySelectorAll(".drag-before,.drag-after").forEach((r) => r.classList.remove("drag-before", "drag-after"));
-function queueCancelTouch() {
-  if (!queueTouch) return;
-  clearTimeout(queueTouch.timer);
-  if (queueTouch.active) queueIgnoreClickUntil = Date.now() + 800;
-  queueTouch.row.classList.remove("touch-dragging");
-  queueTouch = null; queueClearDrop();
+let tasksDragged = null, tasksTouch = null, tasksIgnoreClickUntil = 0;
+const tasksClearDrop = () => $("tasks-list").querySelectorAll(".drag-before,.drag-after").forEach((r) => r.classList.remove("drag-before", "drag-after"));
+function tasksCancelTouch() {
+  if (!tasksTouch) return;
+  clearTimeout(tasksTouch.timer);
+  if (tasksTouch.active) tasksIgnoreClickUntil = Date.now() + 800;
+  tasksTouch.row.classList.remove("touch-dragging");
+  tasksTouch = null; tasksClearDrop();
 }
-async function queueMove(id, neighbor, before) {
-  const q = queueState;
-  if (!neighbor || q.movePending || state.view !== "queue" || q.sort !== "manual") return;
+async function tasksMove(id, neighbor, before) {
+  const q = tasksState;
+  if (!neighbor || q.movePending || state.view !== "tasks" || q.sort !== "manual") return;
   const item = q.items.find((i) => String(i.id) === String(id));
   if (!item || item.state !== "open" || item.id === neighbor.id) return;
   q.movePending = true;
   try {
-    await api("POST", `/queue/items/${encodeURIComponent(id)}/move`, { body: { order_version: q.orderVersion, [before ? "before_id" : "after_id"]: neighbor.id } });
-    $("queue-error").classList.add("hidden"); await queueRefresh();
-  } catch (err) { queueError(err.status === 409 ? "The queue order changed. It has been refreshed; try the move again." : err); await queueRefresh(); }
+    await api("POST", `/tasks/items/${encodeURIComponent(id)}/move`, { body: { order_version: q.orderVersion, [before ? "before_id" : "after_id"]: neighbor.id } });
+    $("tasks-error").classList.add("hidden"); await tasksRefresh();
+  } catch (err) { tasksError(err.status === 409 ? "The tasks order changed. It has been refreshed; try the move again." : err); await tasksRefresh(); }
   finally { q.movePending = false; }
 }
-function queueMarkDrop(row, y) {
-  queueClearDrop();
+function tasksMarkDrop(row, y) {
+  tasksClearDrop();
   const bounds = row.getBoundingClientRect();
   const before = y < bounds.top + bounds.height / 2;
   row.classList.add(before ? "drag-before" : "drag-after");
   return before;
 }
-$("queue-list").addEventListener("dragstart", (e) => {
-  const row = e.target.closest(".queue-row[draggable=true]");
-  if (e.target.closest(".queue-actions") || queueTouch || queueState.movePending) { e.preventDefault(); return; }
-  if (!row || queueState.sort !== "manual" || hasFiles(e)) return;
-  queueDragged = row.dataset.qid;
-  e.dataTransfer.setData("application/x-msgboard-queue", queueDragged); e.dataTransfer.effectAllowed = "move";
+$("tasks-list").addEventListener("dragstart", (e) => {
+  const row = e.target.closest(".tasks-row[draggable=true]");
+  if (e.target.closest(".tasks-actions") || tasksTouch || tasksState.movePending) { e.preventDefault(); return; }
+  if (!row || tasksState.sort !== "manual" || hasFiles(e)) return;
+  tasksDragged = row.dataset.qid;
+  e.dataTransfer.setData("application/x-msgboard-tasks", tasksDragged); e.dataTransfer.effectAllowed = "move";
 });
-$("queue-list").addEventListener("dragover", (e) => {
-  const row = e.target.closest(".queue-row");
-  if (!row || !queueDragged || row.dataset.qid === queueDragged || queueState.sort !== "manual") return;
-  e.preventDefault(); queueMarkDrop(row, e.clientY);
+$("tasks-list").addEventListener("dragover", (e) => {
+  const row = e.target.closest(".tasks-row");
+  if (!row || !tasksDragged || row.dataset.qid === tasksDragged || tasksState.sort !== "manual") return;
+  e.preventDefault(); tasksMarkDrop(row, e.clientY);
 });
-$("queue-list").addEventListener("dragleave", (e) => { if (!$("queue-list").contains(e.relatedTarget)) queueClearDrop(); });
-$("queue-list").addEventListener("dragend", () => { queueDragged = null; queueClearDrop(); });
-$("queue-list").addEventListener("drop", (e) => {
-  const row = e.target.closest(".queue-row"), id = queueDragged;
-  if (!row || !id || row.dataset.qid === id || queueState.sort !== "manual") return;
+$("tasks-list").addEventListener("dragleave", (e) => { if (!$("tasks-list").contains(e.relatedTarget)) tasksClearDrop(); });
+$("tasks-list").addEventListener("dragend", () => { tasksDragged = null; tasksClearDrop(); });
+$("tasks-list").addEventListener("drop", (e) => {
+  const row = e.target.closest(".tasks-row"), id = tasksDragged;
+  if (!row || !id || row.dataset.qid === id || tasksState.sort !== "manual") return;
   e.preventDefault();
-  const before = row.classList.contains("drag-before"), neighbor = queueState.items.find((i) => String(i.id) === row.dataset.qid);
-  queueDragged = null; queueClearDrop();
-  queueMove(id, neighbor, before);
+  const before = row.classList.contains("drag-before"), neighbor = tasksState.items.find((i) => String(i.id) === row.dataset.qid);
+  tasksDragged = null; tasksClearDrop();
+  tasksMove(id, neighbor, before);
 });
-$("queue-list").addEventListener("keydown", (e) => {
-  const button = e.target.closest("[data-queue-open]");
-  if (!button || !e.altKey || e.ctrlKey || e.metaKey || !["ArrowUp", "ArrowDown"].includes(e.key) || queueState.sort !== "manual") return;
-  const q = queueState, index = q.items.findIndex((i) => String(i.id) === button.dataset.queueOpen);
+$("tasks-list").addEventListener("keydown", (e) => {
+  const button = e.target.closest("[data-tasks-open]");
+  if (!button || !e.altKey || e.ctrlKey || e.metaKey || !["ArrowUp", "ArrowDown"].includes(e.key) || tasksState.sort !== "manual") return;
+  const q = tasksState, index = q.items.findIndex((i) => String(i.id) === button.dataset.tasksOpen);
   if (index < 0 || q.items[index].state !== "open") return;
   e.preventDefault();
-  queueMove(button.dataset.queueOpen, q.items[index + (e.key === "ArrowUp" ? -1 : 1)], e.key === "ArrowUp");
+  tasksMove(button.dataset.tasksOpen, q.items[index + (e.key === "ArrowUp" ? -1 : 1)], e.key === "ArrowUp");
 });
-$("queue-list").addEventListener("touchstart", (e) => {
-  queueCancelTouch();
-  const row = e.target.closest(".queue-row[draggable=true]");
-  if (!row || e.target.closest(".queue-actions") || e.touches.length !== 1 || queueState.sort !== "manual" || queueState.movePending) return;
+$("tasks-list").addEventListener("touchstart", (e) => {
+  tasksCancelTouch();
+  const row = e.target.closest(".tasks-row[draggable=true]");
+  if (!row || e.target.closest(".tasks-actions") || e.touches.length !== 1 || tasksState.sort !== "manual" || tasksState.movePending) return;
   const touch = e.touches[0];
-  const gesture = queueTouch = { id: row.dataset.qid, row, identifier: touch.identifier, x: touch.clientX, y: touch.clientY, active: false, target: null, before: false, timer: null };
+  const gesture = tasksTouch = { id: row.dataset.qid, row, identifier: touch.identifier, x: touch.clientX, y: touch.clientY, active: false, target: null, before: false, timer: null };
   gesture.timer = setTimeout(() => {
-    if (queueTouch !== gesture) return;
-    if (!row.isConnected || state.view !== "queue" || queueState.sort !== "manual") return queueCancelTouch();
+    if (tasksTouch !== gesture) return;
+    if (!row.isConnected || state.view !== "tasks" || tasksState.sort !== "manual") return tasksCancelTouch();
     gesture.active = true; row.classList.add("touch-dragging");
   }, 350);
 }, { passive: true });
 // Keep native scrolling until the hold is complete. The first active drag move then owns the gesture.
-$("queue-list").addEventListener("touchmove", (e) => {
-  const gesture = queueTouch; if (!gesture) return;
+$("tasks-list").addEventListener("touchmove", (e) => {
+  const gesture = tasksTouch; if (!gesture) return;
   const touch = [...e.touches].find((t) => t.identifier === gesture.identifier);
-  if (!touch || e.touches.length !== 1) { queueCancelTouch(); return; }
+  if (!touch || e.touches.length !== 1) { tasksCancelTouch(); return; }
   if (!gesture.active) {
-    if (Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y) > 10) queueCancelTouch();
+    if (Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y) > 10) tasksCancelTouch();
     return;
   }
-  if (!e.cancelable) { queueCancelTouch(); return; }
+  if (!e.cancelable) { tasksCancelTouch(); return; }
   e.preventDefault();
-  const hit = document.elementFromPoint(touch.clientX, touch.clientY), row = hit && hit.closest(".queue-row");
-  if (!row || !$("queue-list").contains(row) || row.dataset.qid === gesture.id) {
-    gesture.target = null; queueClearDrop(); return;
+  const hit = document.elementFromPoint(touch.clientX, touch.clientY), row = hit && hit.closest(".tasks-row");
+  if (!row || !$("tasks-list").contains(row) || row.dataset.qid === gesture.id) {
+    gesture.target = null; tasksClearDrop(); return;
   }
-  gesture.target = row.dataset.qid; gesture.before = queueMarkDrop(row, touch.clientY);
+  gesture.target = row.dataset.qid; gesture.before = tasksMarkDrop(row, touch.clientY);
 }, { passive: false });
-$("queue-list").addEventListener("touchend", (e) => {
-  const gesture = queueTouch; if (!gesture) return;
+$("tasks-list").addEventListener("touchend", (e) => {
+  const gesture = tasksTouch; if (!gesture) return;
   if (![...e.changedTouches].some((t) => t.identifier === gesture.identifier)) return;
-  const active = gesture.active, neighbor = queueState.items.find((i) => String(i.id) === gesture.target);
+  const active = gesture.active, neighbor = tasksState.items.find((i) => String(i.id) === gesture.target);
   if (active && e.cancelable) e.preventDefault();
-  queueCancelTouch();
-  if (active && neighbor) queueMove(gesture.id, neighbor, gesture.before);
+  tasksCancelTouch();
+  if (active && neighbor) tasksMove(gesture.id, neighbor, gesture.before);
 }, { passive: false });
-$("queue-list").addEventListener("touchcancel", queueCancelTouch, { passive: true });
-$("queue-list").addEventListener("contextmenu", (e) => { if (queueTouch) e.preventDefault(); });
-$("queue-list").addEventListener("click", (e) => {
-  if (Date.now() < queueIgnoreClickUntil) { e.preventDefault(); e.stopImmediatePropagation(); }
+$("tasks-list").addEventListener("touchcancel", tasksCancelTouch, { passive: true });
+$("tasks-list").addEventListener("contextmenu", (e) => { if (tasksTouch) e.preventDefault(); });
+$("tasks-list").addEventListener("click", (e) => {
+  if (Date.now() < tasksIgnoreClickUntil) { e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
-window.addEventListener("blur", queueCancelTouch);
-document.addEventListener("visibilitychange", () => { if (document.hidden) queueCancelTouch(); });
-function queueMessageHTML(m) {
+window.addEventListener("blur", tasksCancelTouch);
+document.addEventListener("visibilitychange", () => { if (document.hidden) tasksCancelTouch(); });
+function tasksMessageHTML(m) {
   return `<div class="msg first" data-mid="${esc(m.id)}">${avatar(m.sender)}<div class="content"><div class="head"><span class="name" data-profile="${esc(m.sender.id)}">${esc(nameOf(m.sender))}</span><span class="label">${esc(kindLabel(m.sender))}</span><span class="time">${esc(fmtTime(m.created_at))}</span></div>
     <div class="${bodyClass()}">${renderBody(m.body, m.mentions || [])}</div>${(m.attachments || []).length ? `<div class="files">${m.attachments.map((a) => `<button class="fchip" data-att="${esc(a)}"><span class="fprev">file</span><span class="fcopy"><span class="fname">loading…</span><span class="fmeta"></span></span></button>`).join("")}</div>` : ""}</div></div>`;
 }
-function queueHydrate(host) { hydrate(host); host.querySelectorAll("[data-att]").forEach(fillFile); }
-function queueChannelLabel(channel) {
+function tasksHydrate(host) { hydrate(host); host.querySelectorAll("[data-att]").forEach(fillFile); }
+function tasksSourceHTML(source, answer = false) {
+  if (!source || source.unavailable || !source.message) return `<section class="tasks-source"><div class="small tasks-source-unavailable">Source message unavailable.</div></section>`;
+  const id = source.message_id, label = answer ? "Open answer" : "Open quoted message " + id;
+  return `<section class="tasks-source" role="link" tabindex="0" data-tasks-source="${esc(id)}" aria-label="${esc(label)}">${tasksMessageHTML(source.message)}</section>`;
+}
+function tasksTextHTML(text) {
+  return text ? `<div class="tasks-description ${bodyClass()}">${renderBody(text)}</div>` : "";
+}
+function tasksBodyHTML(item) {
+  const sources = item.sources || [], byId = new Map(sources.map((s) => [String(s.message_id), s])), placed = new Set();
+  let html = tasksTextHTML(item.description);
+  for (const block of item.blocks || []) {
+    if (block.type === "text") html += tasksTextHTML(block.text);
+    else if (block.type === "quote") { placed.add(String(block.message_id)); html += tasksSourceHTML(byId.get(String(block.message_id))); }
+  }
+  html += sources.filter((s) => !placed.has(String(s.message_id))).map((s) => tasksSourceHTML(s)).join("");
+  if (item.state !== "open" && item.answer) html += tasksSourceHTML({ message_id: item.answer.id, message: item.answer }, true);
+  return html;
+}
+function tasksChannelLabel(channel) {
   if (channel.kind !== "dm") return "#" + channel.name;
   const full = state.channels.find((c) => c.id === channel.id) || channel;
   const title = channelTitle(full);
   return title ? "DM with " + title : "DM #" + channel.id;
 }
-function queueDestination(i) {
+function tasksDestination(i) {
   if (i.destination_unavailable || (i.channel && i.channel.archived)) return "Reply destination unavailable. You can still mark this item done or dismiss it.";
   if (!i.channel_id) return "Reply in DM with " + nameOf(i.agent);
   const channel = i.channel || state.channels.find((c) => c.id === i.channel_id);
-  return "Reply to " + (channel ? queueChannelLabel(channel) : "channel") + (i.anchor_id ? " · thread #" + i.anchor_id : "");
+  return "Reply to " + (channel ? tasksChannelLabel(channel) : "channel") + (i.anchor_id ? " · thread #" + i.anchor_id : "");
 }
-async function queueOpenItem(id, trigger = null) {
-  const q = queueState, opening = ++q.opening;
+async function tasksOpenItem(id, trigger = null) {
+  const q = tasksState, opening = ++q.opening;
   try {
-    const item = await api("GET", `/queue/items/${encodeURIComponent(id)}`);
-    if (state.view !== "queue" || opening !== q.opening) return;
-    queueCloseItem(false);
-    let choices; try { choices = JSON.parse(store.get(queueChoiceKey(item.id)) || "[]"); } catch { choices = []; }
+    const item = await api("GET", `/tasks/items/${encodeURIComponent(id)}`);
+    if (state.view !== "tasks" || opening !== q.opening) return;
+    tasksCloseItem(false);
+    const choiceKey = tasksChoiceKey(item.id), legacyChoiceKey = `queue-choices:${state.me.id}:${item.id}`;
+    const savedChoices = store.get(choiceKey) ?? store.get(legacyChoiceKey);
+    if (savedChoices !== null) { store.set(choiceKey, savedChoices); store.del(legacyChoiceKey); }
+    let choices; try { choices = JSON.parse(savedChoices || "[]"); } catch { choices = []; }
     q.open = { item, trigger, choices: Array.isArray(choices) ? choices : [], rendered: "", options: "", composer: false };
-    $("queue-item-error").classList.add("hidden");
-    $("queue-answer-composer").innerHTML = "";
-    $("queue-dialog").showModal();
-    queueUpdateItem(item, true); $("queue-item-close").focus();
-    history.replaceState(null, "", location.pathname + "#queue/" + encodeURIComponent(item.id));
-  } catch (e) { if (opening === q.opening) queueError(e); }
+    $("tasks-item-error").classList.add("hidden");
+    $("tasks-answer-composer").innerHTML = "";
+    $("tasks-dialog").showModal();
+    tasksUpdateItem(item, true); $("tasks-item-close").focus();
+    history.replaceState(null, "", location.pathname + "#tasks/" + encodeURIComponent(item.id));
+  } catch (e) { if (opening === q.opening) tasksError(e); }
 }
-function queueUpdateItem(item, initial = false) {
-  const q = queueState, open = q.open; if (!open) return;
+function tasksUpdateItem(item, initial = false) {
+  const q = tasksState, open = q.open; if (!open) return;
   const signature = JSON.stringify(item);
   if (!initial && signature === open.rendered) return;
-  const changed = !initial && item.version !== open.item.version, scroll = $("queue-dialog").scrollTop;
+  const changed = !initial && item.version !== open.item.version, scroll = $("tasks-dialog").scrollTop;
   open.item = item; open.rendered = signature;
-  $("queue-item-content").innerHTML = `<div class="msg first queue-proposal">${avatar(item.agent)}<div class="content"><div class="head"><span class="name" data-profile="${esc(item.agent.id)}">${esc(nameOf(item.agent))}</span><span class="label">agent</span><span class="time">${esc(ago(item.created_at))}</span></div>
-    <h2 id="queue-item-title">${esc(item.title)}</h2><p class="queue-description">${esc(item.description)}</p></div></div>` +
-    (item.sources || []).map((s) => `<section class="queue-source">${s.unavailable || !s.message ? `<div class="small" style="padding:0 14px">Source message unavailable.</div>` : queueMessageHTML(s.message) + `<a class="queue-source-link" href="#msg/${esc(s.message_id)}" data-queue-source="${esc(s.message_id)}">${esc(s.message.channel ? queueChannelLabel(s.message.channel) : "Source")} · message ${esc(s.message_id)} ↗</a>`}</section>`).join("") +
-    (item.state !== "open" && item.answer ? `<section class="queue-source">${queueMessageHTML(item.answer)}<a class="queue-source-link" href="#msg/${esc(item.answer.id)}" data-queue-source="${esc(item.answer.id)}">View answer ↗</a></section>` : "");
-  queueHydrate($("queue-item-content"));
-  $("queue-item-destination").textContent = item.state === "open" ? queueDestination(item) : item.closed_reason === "dismissed" ? "Dismissed" : item.closed_reason === "answered" ? "Done · answered" : "Done";
+  $("tasks-item-content").innerHTML = `<div class="msg first tasks-proposal">${avatar(item.agent)}<div class="content"><div class="head"><span class="name" data-profile="${esc(item.agent.id)}">${esc(nameOf(item.agent))}</span><span class="label">agent</span><span class="time">${esc(ago(item.created_at))}</span></div>
+    <h2 id="tasks-item-title">${esc(item.title)}</h2><div class="tasks-body">${tasksBodyHTML(item)}</div></div></div>`;
+  tasksHydrate($("tasks-item-content"));
+  $("tasks-item-destination").textContent = item.state === "open" ? tasksDestination(item) : item.closed_reason === "dismissed" ? "Dismissed" : item.closed_reason === "answered" ? "Done · answered" : "Done";
   const options = item.options || [];
   open.choices = open.choices.filter((id) => options.some((o) => o.id === id));
   if (!item.multiple) open.choices = open.choices.slice(0, 1);
   const optionSignature = JSON.stringify([options, item.multiple, item.state]);
   if (open.options !== optionSignature) {
     open.options = optionSignature;
-    $("queue-item-options").innerHTML = item.state === "open" ? options.map((o) => `<label class="queue-option"><input type="${item.multiple ? "checkbox" : "radio"}" name="queue-answer-choice" value="${esc(o.id)}" ${open.choices.includes(o.id) ? "checked" : ""}><span>${esc(o.label)}</span></label>`).join("") : "";
+    $("tasks-item-options").innerHTML = item.state === "open" ? options.map((o) => `<label class="tasks-option"><input type="${item.multiple ? "checkbox" : "radio"}" name="tasks-answer-choice" value="${esc(o.id)}" ${open.choices.includes(o.id) ? "checked" : ""}><span>${esc(o.label)}</span></label>`).join("") : "";
   }
-  $("queue-item-actions").innerHTML = queueActions(item);
-  $("queue-restore").classList.toggle("hidden", item.state === "open");
-  $("queue-answer-composer").classList.toggle("hidden", item.state !== "open");
+  $("tasks-item-actions").innerHTML = tasksActions(item);
+  $("tasks-restore").classList.toggle("hidden", item.state === "open");
+  $("tasks-answer-composer").classList.toggle("hidden", item.state !== "open");
   if (item.state === "open" && !open.composer) {
     open.composer = true;
     const channel = state.channels.find((c) => c.id === item.channel_id) || item.channel ||
       (!item.channel_id && state.channels.find((c) => c.kind === "dm" && dmPeer(c) && dmPeer(c).id === item.agent.id)) || null;
-    mountComposer($("queue-answer-composer"), {
+    mountComposer($("tasks-answer-composer"), {
       placeholder: options.length ? "Add a note (optional)…" : "Write your answer…", targetChannel: channel,
-      draftKey: queueDraftKey(item.id), canPost: can("post"), autofocus: false,
+      draftKey: tasksDraftKey(item.id), canPost: can("post"), autofocus: false,
       allowEmpty: () => open.choices.length > 0,
       canSend: () => open.item.state === "open" && !open.item.destination_unavailable && !(open.item.channel && open.item.channel.archived),
       prepareSend: (payload) => ({ action: "answer", version: open.item.version, body: payload.body, option_ids: [...open.choices] }),
-      sendMessage: (payload, key) => api("POST", `/queue/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }),
-      onSent: () => { store.del(queueChoiceKey(item.id)); if (q.open === open) queueCloseItem(); queueRefresh(); queueRefreshDm(); },
-      onSendError: (err) => { if (q.open === open) queueError(err.status === 409 ? "This item changed. Your draft is kept. Review the refreshed item before sending again." : err, true); queueRefresh(); },
+      sendMessage: (payload, key) => api("POST", `/tasks/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }),
+      onSent: () => { store.del(tasksChoiceKey(item.id)); if (q.open === open) tasksCloseItem(); tasksRefresh(); tasksRefreshDm(); },
+      onSendError: (err) => { if (q.open === open) tasksError(err.status === 409 ? "This item changed. Your draft is kept. Review the refreshed item before sending again." : err, true); tasksRefresh(); },
     });
   }
-  if (changed) queueError("This item was updated. Your draft and remaining choices are kept; review it before sending.", true);
-  $("queue-dialog").scrollTop = scroll;
+  if (changed) tasksError("This item was updated. Your draft and remaining choices are kept; review it before sending.", true);
+  $("tasks-dialog").scrollTop = scroll;
 }
-function queueCloseItem(restoreFocus = true) {
-  const open = queueState.open;
-  queueState.open = null;
-  if ($("queue-dialog").open) $("queue-dialog").close();
-  if (state.view === "queue") history.replaceState(null, "", location.pathname + "#queue");
+function tasksCloseItem(restoreFocus = true) {
+  const open = tasksState.open;
+  tasksState.open = null;
+  if ($("tasks-dialog").open) $("tasks-dialog").close();
+  if (state.view === "tasks") history.replaceState(null, "", location.pathname + "#tasks");
   if (restoreFocus && open) {
-    const target = open.trigger && open.trigger.isConnected ? open.trigger : [...$("queue-list").querySelectorAll("[data-queue-open]")].find((b) => b.dataset.queueOpen === String(open.item.id)) || $("queue-open");
+    const target = open.trigger && open.trigger.isConnected ? open.trigger : [...$("tasks-list").querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === String(open.item.id)) || $("tasks-open");
     target.focus({ preventScroll: true });
   }
 }
-$("queue-item-close").onclick = () => { queueState.opening++; queueCloseItem(); };
-$("queue-dialog").addEventListener("cancel", (e) => { e.preventDefault(); queueState.opening++; queueCloseItem(); });
-$("queue-dialog").addEventListener("click", (e) => {
-  if (e.target === $("queue-dialog")) {
+$("tasks-item-close").onclick = () => { tasksState.opening++; tasksCloseItem(); };
+$("tasks-dialog").addEventListener("cancel", (e) => { e.preventDefault(); tasksState.opening++; tasksCloseItem(); });
+$("tasks-dialog").addEventListener("click", (e) => {
+  if (e.target === $("tasks-dialog")) {
     const r = e.target.getBoundingClientRect();
-    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) queueCloseItem();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) tasksCloseItem();
   }
-  const action = e.target.closest("[data-queue-action]"); if (action) queueFinish(action.dataset.qid, action.dataset.queueAction);
-  const source = e.target.closest("[data-queue-source]");
-  if (source) { e.preventDefault(); const id = source.dataset.queueSource; queueCloseItem(false); routeHash("#msg/" + id); }
+  const action = e.target.closest("[data-tasks-action]"); if (action) tasksFinish(action.dataset.qid, action.dataset.tasksAction);
+  const source = e.target.closest("[data-tasks-source]");
+  if (source && !e.target.closest("a[href],[data-att],a[data-board-file],.board-img,[data-file]")) {
+    e.preventDefault(); e.stopPropagation(); const id = source.dataset.tasksSource; tasksCloseItem(false); routeHash("#msg/" + id); return;
+  }
   // The existing profile and attachment viewers live outside this modal's top layer.
-  if (e.target.closest("[data-profile],[data-att],a[data-board-file],.board-img,[data-file]")) queueCloseItem(false);
+  if (e.target.closest("[data-profile],[data-att],a[data-board-file],.board-img,[data-file]")) tasksCloseItem(false);
 });
-$("queue-item-options").onchange = () => {
-  const open = queueState.open; if (!open) return;
-  open.choices = [...$("queue-item-options").querySelectorAll("input:checked")].map((n) => n.value);
-  store.set(queueChoiceKey(open.item.id), JSON.stringify(open.choices));
+$("tasks-dialog").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches(".tasks-source[role=link]")) { e.preventDefault(); e.target.click(); }
+});
+$("tasks-item-options").onchange = () => {
+  const open = tasksState.open; if (!open) return;
+  open.choices = [...$("tasks-item-options").querySelectorAll("input:checked")].map((n) => n.value);
+  store.set(tasksChoiceKey(open.item.id), JSON.stringify(open.choices));
 };
-$("queue-restore").onclick = () => { if (queueState.open) queueFinish(queueState.open.item.id, "restore"); };
-async function queueFinish(id, action) {
-  const q = queueState, item = q.open && String(q.open.item.id) === String(id) ? q.open.item : q.items.find((i) => String(i.id) === String(id));
+$("tasks-restore").onclick = () => { if (tasksState.open) tasksFinish(tasksState.open.item.id, "restore"); };
+async function tasksFinish(id, action) {
+  const q = tasksState, item = q.open && String(q.open.item.id) === String(id) ? q.open.item : q.items.find((i) => String(i.id) === String(id));
   if (!item || q.busy.has(item.id)) return;
-  q.busy.add(item.id); queueRenderList(); if (q.open && q.open.item.id === item.id) $("queue-item-actions").innerHTML = queueActions(item);
+  q.busy.add(item.id); tasksRenderList(); if (q.open && q.open.item.id === item.id) $("tasks-item-actions").innerHTML = tasksActions(item);
   try {
     const key = uid(), payload = { action, version: item.version };
     for (let attempt = 0; ; attempt++) {
-      try { await api("POST", `/queue/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }); break; }
+      try { await api("POST", `/tasks/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }); break; }
       catch (e) { if (attempt >= 3 || (e.status && e.status < 500 && e.status !== 429)) throw e; await sleep(Math.min(500 * 2 ** attempt, 4000)); }
     }
-    if (q.open && q.open.item.id === item.id) queueCloseItem();
-    $("queue-error").classList.add("hidden"); await queueRefresh();
+    if (q.open && q.open.item.id === item.id) tasksCloseItem();
+    $("tasks-error").classList.add("hidden"); await tasksRefresh();
   } catch (e) {
-    queueError(e.status === 409 ? "This item changed. It has been refreshed; review it and try again." : e, !!q.open && q.open.item.id === item.id);
-    await queueRefresh();
-  } finally { q.busy.delete(item.id); if (state.view === "queue") queueRenderList(); if (q.open) $("queue-item-actions").innerHTML = queueActions(q.open.item); }
+    tasksError(e.status === 409 ? "This item changed. It has been refreshed; review it and try again." : e, !!q.open && q.open.item.id === item.id);
+    await tasksRefresh();
+  } finally { q.busy.delete(item.id); if (state.view === "tasks") tasksRenderList(); if (q.open) $("tasks-item-actions").innerHTML = tasksActions(q.open.item); }
 }
-async function queueLoadAgents() {
-  const q = queueState;
+async function tasksLoadAgents() {
+  const q = tasksState;
   try {
     const people = await loadPeople(true);
-    if (state.view !== "queue") return;
+    if (state.view !== "tasks") return;
     q.agents = people.filter((p) => p.identity_type === "agent" && p.owner && p.owner.id === state.me.id && !p.disabled && !p.suspended);
-    $("queue-dm-agent").innerHTML = q.agents.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p))}</option>`).join("");
+    $("tasks-dm-agent").innerHTML = q.agents.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p))}</option>`).join("");
     if (!q.agents.some((p) => p.id === q.dmAgent)) q.dmAgent = q.agents[0] ? q.agents[0].id : null;
-    $("queue-dm-agent").disabled = !q.agents.length;
+    $("tasks-dm-agent").disabled = !q.agents.length;
     if (!q.agents.length) {
-      q.dmChannel = null; $("queue-dm-messages").innerHTML = `<div class="small" style="padding:8px 24px">No active agents yet.</div>`;
-      $("queue-dm-composer").innerHTML = "";
-    } else { $("queue-dm-agent").value = q.dmAgent; await queueSelectAgent(q.dmAgent); }
-  } catch (e) { if (state.view === "queue") queueError(e); }
+      q.dmChannel = null; $("tasks-dm-messages").innerHTML = `<div class="small" style="padding:8px 0">No active agents yet.</div>`;
+      $("tasks-dm-composer").innerHTML = "";
+    } else { $("tasks-dm-agent").value = q.dmAgent; await tasksSelectAgent(q.dmAgent); }
+  } catch (e) { if (state.view === "tasks") tasksError(e); }
 }
-async function queueSelectAgent(id) {
-  const q = queueState, agent = q.agents.find((p) => String(p.id) === String(id)); if (!agent) return;
+async function tasksSelectAgent(id) {
+  const q = tasksState, agent = q.agents.find((p) => String(p.id) === String(id)); if (!agent) return;
   const request = ++q.dmRequest;
   q.dmAgent = agent.id; q.dmChannel = null; q.dmSignature = "";
-  $("queue-dm-composer").innerHTML = ""; $("queue-dm-messages").innerHTML = `<div class="small" style="padding:8px 24px">Loading…</div>`;
+  $("tasks-dm-composer").innerHTML = ""; $("tasks-dm-messages").innerHTML = `<div class="small" style="padding:8px 0">Loading…</div>`;
   try {
     const channel = await api("POST", "/dms", { body: { with: agent.id } });
-    if (state.view !== "queue" || request !== q.dmRequest) return;
+    if (state.view !== "tasks" || request !== q.dmRequest) return;
     q.dmChannel = channel;
-    mountComposer($("queue-dm-composer"), { placeholder: "Message " + nameOf(agent), targetChannel: channel, draftKey: "c:" + channel.id,
-      autofocus: false, onSent: () => { if (q.dmChannel === channel) queueRefreshDm(); refreshChannels(); } });
-    await queueRefreshDm();
-  } catch (e) { if (state.view === "queue" && request === q.dmRequest) $("queue-dm-messages").textContent = e.message; }
+    mountComposer($("tasks-dm-composer"), { placeholder: "Message " + nameOf(agent), targetChannel: channel, draftKey: "c:" + channel.id,
+      autofocus: false, onSent: () => { if (q.dmChannel === channel) tasksRefreshDm(); refreshChannels(); } });
+    await tasksRefreshDm();
+  } catch (e) { if (state.view === "tasks" && request === q.dmRequest) $("tasks-dm-messages").textContent = e.message; }
 }
-async function queueRefreshDm() {
-  const q = queueState, channel = q.dmChannel; if (state.view !== "queue" || !channel) return;
+async function tasksRefreshDm() {
+  const q = tasksState, channel = q.dmChannel; if (state.view !== "tasks" || !channel) return;
   const request = ++q.dmRefreshRequest;
   try {
     // A before read returns the newest window in conversation order. An after=0
     // read would keep showing the first forty messages forever.
     const page = await api("GET", `/channels/${channel.id}/messages?limit=40&before=${Number.MAX_SAFE_INTEGER}`);
-    if (state.view !== "queue" || q.dmChannel !== channel || request !== q.dmRefreshRequest) return;
+    if (state.view !== "tasks" || q.dmChannel !== channel || request !== q.dmRefreshRequest) return;
     const signature = JSON.stringify(page.messages); if (signature === q.dmSignature) return;
     q.dmSignature = signature;
-    const host = $("queue-dm-messages"), bottom = nearBottom(host), scroll = host.scrollTop;
-    host.innerHTML = page.messages.map(queueMessageHTML).join("") || `<div class="small" style="padding:8px 24px">No messages yet.</div>`;
-    queueHydrate(host); host.scrollTop = bottom ? host.scrollHeight : scroll;
-  } catch (e) { if (state.view === "queue" && q.dmChannel === channel && request === q.dmRefreshRequest) queueError("Agent messages: " + e.message); }
+    const host = $("tasks-dm-messages"), bottom = nearBottom(host), scroll = host.scrollTop;
+    host.innerHTML = page.messages.map(tasksMessageHTML).join("") || `<div class="small" style="padding:8px 0">No messages yet.</div>`;
+    tasksHydrate(host); host.scrollTop = bottom ? host.scrollHeight : scroll;
+  } catch (e) { if (state.view === "tasks" && q.dmChannel === channel && request === q.dmRefreshRequest) tasksError("Agent messages: " + e.message); }
 }
-function queueToggleDm() {
-  const q = queueState; q.dmHidden = !q.dmHidden;
-  $("queue-dm").classList.toggle("collapsed", q.dmHidden);
-  $("queue-agent-tab").classList.toggle("hidden", !q.dmHidden);
-  $("queue-agent-tab").setAttribute("aria-expanded", String(!q.dmHidden));
+function tasksToggleDm() {
+  const q = tasksState; q.dmHidden = !q.dmHidden;
+  $("tasks-dm").classList.toggle("collapsed", q.dmHidden);
+  $("tasks-agent-tab").classList.toggle("hidden", !q.dmHidden);
+  $("tasks-agent-tab").setAttribute("aria-expanded", String(!q.dmHidden));
 }
-$("queue-dm-hide").onclick = queueToggleDm;
-$("queue-agent-tab").onclick = queueToggleDm;
-$("queue-dm-agent").onchange = (e) => queueSelectAgent(e.target.value);
+$("tasks-dm-hide").onclick = tasksToggleDm;
+$("tasks-agent-tab").onclick = tasksToggleDm;
+$("tasks-dm-agent").onchange = (e) => tasksSelectAgent(e.target.value);
 setInterval(() => {
-  if (state.view === "queue" && document.visibilityState === "visible") {
-    if (!queueState.loading) queueRefresh();
-    if (!queueState.dmHidden) queueRefreshDm();
+  if (state.view === "tasks" && document.visibilityState === "visible") {
+    if (!tasksState.loading) tasksRefresh();
+    if (!tasksState.dmHidden) tasksRefreshDm();
   }
 }, 8000);
 
@@ -3599,12 +3635,13 @@ const boardURL = (hash) => `${location.origin}${location.pathname}#${hash}`;
 function internalHash(href) {
   let u; try { u = new URL(href, location.href); } catch { return null; }
   if (u.origin !== location.origin || u.pathname !== location.pathname || !u.hash) return null;
-  const h = decodeURIComponent(u.hash.slice(1));
-  return /^(msg|file|queue)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics|queue)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
+  const h = decodeURIComponent(u.hash.slice(1)).replace(/^queue(?=\/|$)/, "tasks"); // pre-release links
+  return /^(msg|file|tasks)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics|tasks)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
 }
 async function routeHash(h) {
   h = decodeURIComponent((h || "").replace(/^#/, ""));
-  if (queueState.open && h !== "queue" && !h.startsWith("queue/")) queueCloseItem(false);
+  h = h.replace(/^queue(?=\/|$)/, "tasks"); // keep existing test-board bookmarks working
+  if (tasksState.open && h !== "tasks" && !h.startsWith("tasks/")) tasksCloseItem(false);
   let m;
   if ((m = /^msg\/(\d+)$/.exec(h))) {
     try { jumpTo(await api("GET", `/messages/${m[1]}`)); }
@@ -3614,7 +3651,7 @@ async function routeHash(h) {
   if ((m = /^file\/([\w-]+)$/.exec(h))) { openViewer([m[1]], 0); return true; }
   if (h === "settings") { openSettings(); return true; }
   if (h === "activity") { openActivity(); return true; }
-  if (h === "queue" || (m = /^queue\/([\w-]+)$/.exec(h))) { openQueue(m ? m[1] : null); return true; }
+  if (h === "tasks" || (m = /^tasks\/([\w-]+)$/.exec(h))) { openTasks(m ? m[1] : null); return true; }
   if (h === "analytics") { openAnalytics(); return true; }
   if (h === "search") { openSearch(""); return true; }
   const c = state.chanIndex.get(h.toLowerCase()) || state.channels.find((x) => x.name === h);
@@ -4153,7 +4190,7 @@ function drawActivity(host, days) {
 
 // ------------------------------------------------------------------ activity
 async function openActivity() {
-  leaveQueue();
+  leaveTasks();
   state.view = "activity";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -4340,7 +4377,7 @@ document.addEventListener("keydown", (e) => {
 
 // full search: a view in the main area, with filters
 async function openSearch(q, opts = {}) {
-  leaveQueue();
+  leaveTasks();
   state.view = "search";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -4435,7 +4472,7 @@ async function jumpTo(m) {
 // ------------------------------------------------------------------ settings
 const EXPIRY = [["never", null], ["1 day", 86400], ["7 days", 604800], ["30 days", 2592000]];
 function openSettings(tab) {
-  leaveQueue();
+  leaveTasks();
   state.view = "settings";
   if (state.poll) state.poll.abort();
   state.current = null; renderChannels(); closePanel();
@@ -4820,7 +4857,7 @@ function analyticsRange() {
 function leaveAnalytics() { $("analytics").classList.add("hidden"); $("analytics-open").classList.remove("on"); }
 async function openAnalytics() {
   if (!canAnalytics()) return;
-  leaveQueue();
+  leaveTasks();
   state.view = "analytics";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();

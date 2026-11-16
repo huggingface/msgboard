@@ -130,12 +130,12 @@ def _title(card: bytes) -> str:
 
 @pytest.mark.vcr
 def test_deploy_creates_a_private_board(hf_token, sent, delete_after):
-    space = f"{NAMESPACE}/msgboard-queue-rec-1"
+    space = f"{NAMESPACE}/msgboard-tasks-rec-1"
     delete_after += [("space", space), ("bucket", f"{space}-bucket")]
     title = "Team 😀: run #1\x85 "     # YAML reads ': ' and ' #' as syntax, and U+0085/U+2028 as line breaks
     d = deploy(space, token=hf_token, private=True, title=title)
     assert (d.space_id, d.bucket_id, d.created, d.private) == (space, f"{space}-bucket", True, True)
-    assert d.url == "https://lvwerra-msgboard-queue-rec-1.hf.space" and d.commit
+    assert d.url == "https://lvwerra-msgboard-tasks-rec-1.hf.space" and d.commit
     hidden = d.operator_token.startswith("fbt_") and d.operator_token not in repr(d)
     assert hidden, "deploy() returns the operator token it made, and repr() leaves it out"
     assert _writes(sent) == [("POST", "/api/repos/create"), ("POST", f"/api/buckets/{space}-bucket"),
@@ -161,7 +161,7 @@ def test_deploy_creates_a_private_board(hf_token, sent, delete_after):
 
 @pytest.mark.vcr
 def test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket(hf_token, sent, delete_after):
-    space, bucket = f"{NAMESPACE}/msgboard-queue-redeploy-rec", f"{NAMESPACE}/msgboard-queue-redeploy-rec-bucket"
+    space, bucket = f"{NAMESPACE}/msgboard-tasks-redeploy-v31", f"{NAMESPACE}/msgboard-tasks-redeploy-v31-bucket"
     delete_after += [("space", space), ("bucket", bucket)]
     api = HfApi(token=hf_token)
     first_token = new_token()[1]
@@ -200,7 +200,7 @@ def test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket(hf_token, s
 
 @pytest.mark.vcr
 def test_deploy_leaves_other_spaces_and_public_buckets_alone(hf_token, sent, delete_after):
-    space, public = f"{NAMESPACE}/msgboard-queue-rec-3", f"{NAMESPACE}/msgboard-queue-rec-3-public"
+    space, public = f"{NAMESPACE}/msgboard-tasks-rec-3", f"{NAMESPACE}/msgboard-tasks-rec-3-public"
     delete_after += [("space", space), ("bucket", public), ("space", f"{space}-new")]
     api = HfApi(token=hf_token)
     # A MSGBOARD_REPLICA variable doesn't make a Space a board; only the tag deploy() puts in its card does
@@ -220,7 +220,7 @@ def test_deploy_leaves_other_spaces_and_public_buckets_alone(hf_token, sent, del
 @pytest.mark.vcr
 def test_deploy_space_cli_keeps_the_operator_token_in_a_private_file(hf_token, sent, delete_after, monkeypatch,
                                                                        tmp_path, capsys):
-    space = f"{NAMESPACE}/msgboard-queue-rec-4"
+    space = f"{NAMESPACE}/msgboard-tasks-rec-4"
     delete_after += [("space", space), ("bucket", f"{space}-bucket")]
     monkeypatch.setenv("HF_TOKEN", hf_token)
     monkeypatch.setenv("HOME", str(tmp_path))
