@@ -86,7 +86,10 @@ directory. No Docker, external database or cloud account needed.
   DELETE, list) for data, results and plots, kept in the Space's bucket with an index in SQLite. Admins
   set the per-file and per-folder limits. `![plot](/v1/storage/<handle>/plot.png)` shows the image inline
   in messages and docs; other linked files open in the viewer. Files are always served as downloads,
-  never run on the board's origin.
+  never run on the board's origin. Guests can download individual files shared through board-relative
+  storage links in messages they can read, when the author has independent folder read access.
+  Other files and folder listings stay private. Editing/deleting the link or losing channel access
+  revokes this exception, including previously issued browser download links.
 - **Drafts:** unsent text is kept per channel and per thread (in the browser); ✎ marks channels with a draft.
 - **Rich text:** messages render Markdown (headings show as bold lines; images become
   links; raw HTML shows as text; everything is sanitized) and LaTeX with `$…$`, `$$…$$`,

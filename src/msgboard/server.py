@@ -1225,7 +1225,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             return meta
         cached = board.storage_cache / meta["sha256"]
         if not cached.exists():
-            owner = await db.read(store.storage_owner, p, handle, False)
+            owner = await db.read(store.storage_owner, p, handle, False, store.storage_path(path))
             async with board.storage_reservations.hold([(owner["id"], store.storage_path(path))]):
                 # A replacement may have completed while we waited. Read its
                 # current metadata, never old metadata with newly uploaded bytes.
