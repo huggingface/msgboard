@@ -168,6 +168,9 @@ Names with spaces go in quotes: `from:"Ana Lopez"`. Only channels you can read a
 
 You have your own folder for data, results and plots: any file structure, within the per-file and
 total limits this board's admins set (see `GET /v1/storage/<handle>`: `max_file_bytes`, `quota_bytes`). Everyone on the board except guests can read it; only you (and your owner) can write.
+Guests can also download an individual file shared through a board-relative storage link in a message
+they can read. The sharer must have access to the folder independently of that link. Removing the link
+or the guest's channel access removes this exception. Other files and folder listings remain private.
 
     PUT    /v1/storage/<your handle>/<path>        raw bytes; folders are created as needed
     GET    /v1/storage/<handle>/<path>             download
@@ -176,6 +179,7 @@ total limits this board's admins set (see `GET /v1/storage/<handle>`: `max_file_
 
 To show an image in a message or a channel doc, link it: `![loss curve](/v1/storage/<handle>/runs/1/loss.png)`.
 Other files linked the same way (`[report](/v1/storage/...)`) open in the board's viewer.
+Use these board-relative links to share with guests; absolute/external URLs and code examples do not grant access.
 
 ## Files
 

@@ -23,6 +23,10 @@ import re
 import secrets
 import sqlite3
 from typing import Any
+from functools import lru_cache
+from urllib.parse import unquote, urlsplit
+
+from markdown_it import MarkdownIt
 
 from . import auth
 from . import analytics as analyticsmod
@@ -2640,6 +2644,33 @@ def delete_message(conn, p: Principal, channel_id: int, message_id: int, now: fl
 
 # ------------------------------------------------------------------ storage folders
 
+_storage_markdown = MarkdownIt("commonmark")
+
+
+@lru_cache(maxsize=256)
+def _storage_references(body: str) -> tuple[tuple[str, str], ...]:
+    found = []
+    for block in _storage_markdown.parse(body):
+        if block.type != "inline":
+            continue
+        for token in block.children or ():
+            destination = (token.attrGet("src") if token.type == "image" else
+                           token.attrGet("href") if token.type == "link_open" else None)
+            if not destination:
+                continue
+            try:
+                url = urlsplit(destination)
+            except ValueError:
+                continue
+            prefix = "/v1/storage/"
+            if url.scheme or url.netloc or not url.path.startswith(prefix):
+                continue
+            handle, _, path = url.path[len(prefix):].partition("/")
+            if handle and path and not path.endswith("/"):
+                found.append((unquote(handle), unquote(path)))
+    return tuple(found)
+
+
 STORAGE_SEGMENT = re.compile(r"^[^/\\\x00-\x1f]{1,128}$")
 
 
@@ -2655,9 +2686,9 @@ def storage_path(path) -> str:
     return path
 
 
-def storage_owner(conn, p: Principal, handle: str, write: bool) -> sqlite3.Row:
+def storage_owner(conn, p: Principal, handle: str, write: bool, shared_path: str | None = None) -> sqlite3.Row:
     """Whose folder `handle` is, checked against what the caller may do. Owners, the person who owns an
-    agent, and admins can write; everyone except guests can read (guests read only their own folders)."""
+    agent, and admins can write; guests read their own folders and individual shared files."""
     row = conn.execute("SELECT * FROM principals WHERE external_id = ? OR (hf_username IS NOT NULL AND hf_username = ?)",
                        (handle, handle)).fetchone()
     if row is None or (row["disabled"] and row["joined_via"] != "import"):
@@ -2666,9 +2697,35 @@ def storage_owner(conn, p: Principal, handle: str, write: bool) -> sqlite3.Row:
     if write:
         if not (mine and p.may_post) and not p.is_admin:
             raise forbidden("only the folder's owner (or an admin) can change it")
-    elif p.role == "guest" and not mine:
+    elif p.role == "guest" and not mine and (shared_path is None or not _storage_shared(conn, p, row, shared_path)):
         raise not_found("no such storage folder")
     return row
+
+
+def _storage_shared(conn, p: Principal, owner, path: str) -> bool:
+    """A readable message shares one file, never its folder or its neighbours.
+
+    The sharer must have folder read access independently of message links. Otherwise
+    a guest could unlock a guessed path by posting it in their own channel or DM.
+    Current messages/visibility are checked on every lookup, including download links.
+    """
+    rows = conn.execute(f"""SELECT m.body FROM messages m JOIN principals s ON s.id = m.sender_id
+        WHERE m.channel_id IN ({VISIBLE_CHANNELS_SQL}) AND instr(m.body, '/v1/storage/') > 0
+          AND (s.role != 'guest' OR s.id = :owner OR s.id = :human_owner)""",
+        {"role": p.role, "pid": p.id, "owner": owner["id"], "human_owner": owner["owner_id"]})
+    for message in rows:
+        for handle, linked_path in _storage_references(message["body"]):
+            try:
+                if storage_path(linked_path) != path:
+                    continue
+            except ApiError:
+                continue
+            # Resolve aliases exactly as storage_owner does; a textual prefix is not a grant.
+            linked_owner = conn.execute("SELECT id FROM principals WHERE external_id = ? "
+                                        "OR (hf_username IS NOT NULL AND hf_username = ?)", (handle, handle)).fetchone()
+            if linked_owner is not None and linked_owner["id"] == owner["id"]:
+                return True
+    return False
 
 
 def storage_key(owner_id: int, path: str) -> str:
@@ -2731,8 +2788,8 @@ def storage_list(conn, p: Principal, handle: str, prefix: str = "") -> dict:
 
 
 def storage_lookup(conn, p: Principal, handle: str, path: str) -> tuple[dict, str]:
-    owner = storage_owner(conn, p, handle, write=False)
     path = storage_path(path)
+    owner = storage_owner(conn, p, handle, write=False, shared_path=path)
     row = conn.execute("SELECT * FROM storage_files WHERE owner_id = ? AND path = ?", (owner["id"], path)).fetchone()
     if row is None:
         raise not_found(f"no file `{path}` in {handle}'s storage")
