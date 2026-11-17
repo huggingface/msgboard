@@ -86,6 +86,33 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
     for before in ["`literal` :D", "```\ncode\n```\n:D", "~~~\ncode\n~~~\n:D", "[link](url) :D"]:
         space(input, before, before[:-2] + "😄 ")
 
+    # Edit inside completed blocks/titles too: closing syntax remains after the caret.
+    for body in [
+        "~~~text\n- ~~~\n:D \n~~~",
+        "~~~text\n> ~~~\n:D \n~~~",
+        "- > ~~~text\n  > :D \n  > ~~~",
+        "> > ~~~text\n> > - ~~~\n> > :D \n> > ~~~",
+        "- - ~~~text\n    :D \n    ~~~",
+        '[link](https://example.com "title ) :D ")',
+        "[link](https://example.com 'title ) :D ')",
+        '[link](<https://example.com/)path> "title :D ")',
+        '[ref]: https://example.com\n  "title )\n:D "\n\n[link][ref]',
+        "[ref]: <https://example.com/)path>\n  'title )\n:D '\n\n[link][ref]",
+        '[ref]:\n https://example.com\n "title )\n:D "\n\n[link][ref]',
+    ]:
+        input.fill(body)
+        caret = body.index(":D") + 2
+        input.evaluate("(el, pos) => el.setSelectionRange(pos, pos)", caret)
+        input.press("Space")
+        pw.expect(input).to_have_value(body[:caret] + " " + body[caret:])
+    for before in [
+        "> ~~~\n> code\n> ~~~\n:D", "- ~~~\n  code\n  ~~~\n:D",
+        "- > ~~~\n  > code\n  > ~~~\n:D", "> ~~~\n> code\n\n:D",
+        '[link](url "title )") :D', "[link](<https://example.com/)path>) :D",
+        '[ref]: url\n "title )"\n\n:D',
+    ]:
+        space(input, before, before[:-2] + "😄 ")
+
     input.fill("hello :rocket: tail")
     input.evaluate("el => el.setSelectionRange(14, 14)")
     input.press("Space")

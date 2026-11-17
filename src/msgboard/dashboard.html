@@ -3585,18 +3585,80 @@ const emojiTitle = (emoji, label) => `${label} · :${EMOJI_NAMES.get(emoji)}: + 
 // Inspect unfinished Markdown too: a renderer's completed tokens cannot tell us that
 // the caret is inside an unclosed code span, fence or link destination. No CDN needed.
 function emojiLiteralContext(text) {
-  let fence = null, ticks = 0, destination = 0, angle = false;
-  const lines = text.split("\n");
-  for (let n = 0; n < lines.length; n++) {
-    const line = lines[n].replace(/^(?: {0,3}> ?)+/, ""), last = n === lines.length - 1;
-    const mark = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line.replace(/^ {0,3}(?:[-+*]|\d+[.)])\s+/, ""));
-    if (fence) {
-      if (mark && mark[1][0] === fence[0] && mark[1].length >= fence.length && !mark[2].trim()) fence = null;
-      else if (last) return true;
-      continue;
+  let fence = null, ticks = 0, destination = null, angle = false, reference = null;
+  const lines = text.split("\n").map((line) => line.split("\t").reduce((s, part, i) => s + (i ? " ".repeat(4 - s.length % 4) : "") + part, ""));
+  const titleEnd = (line, quote) => {
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === "\\") i++;
+      else if (line[i] === quote) return true;
     }
-    if (mark && !ticks) { fence = mark[1]; if (last) return true; continue; }
-    if (/^(?: {4}|\t| {0,3}\[[^\]]+\]:)/.test(line)) { if (last) return true; continue; }
+    return false;
+  };
+  for (let n = 0; n < lines.length; n++) {
+    let line = lines[n];
+    const last = n === lines.length - 1;
+    if (fence) {
+      // Remove only the containers that enclosed the opening fence. A list marker
+      // or quote inside its code is content, never a new container or delimiter.
+      let sameContainer = true;
+      for (const container of fence.containers) {
+        const prefix = container === ">" ? /^ {0,3}> ?/.exec(line) : new RegExp(`^ {${container}}`).exec(line);
+        if (!prefix) { sameContainer = false; break; }
+        line = line.slice(prefix[0].length);
+      }
+      // Marked also accepts unprefixed lazy lines inside a quoted fence until a
+      // blank line. They remain code, but cannot close the enclosing container.
+      if (!sameContainer && fence.containers.includes(">") && lines[n].trim() && lines[n - 1]?.trim()) {
+        if (last) return true;
+        continue;
+      }
+      if (sameContainer || !lines[n].trim()) {
+        const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+        if (close && close[1][0] === fence.marker[0] && close[1].length >= fence.marker.length) fence = null;
+        else if (last) return true;
+        continue;
+      }
+      fence = null; line = lines[n];   // leaving the list/quote also ends its fence
+    }
+    const containers = [];
+    let prefix;
+    while ((prefix = /^ {0,3}(> ?|(?:[-+*]|\d+[.)]) +)/.exec(line))) {
+      containers.push(prefix[1].startsWith(">") ? ">" : prefix[0].length);
+      line = line.slice(prefix[0].length);
+    }
+    // A reference title may start on the line after its destination and span lines.
+    // Keep its delimiter independently of parentheses or backticks in the title.
+    if (reference && !reference.quote && /^ {0,3}(`{3,}|~{3,})/.test(line)) reference = null;
+    const definition = /^ {0,3}\[[^\]]+\]:[ \t]*(.*)$/.exec(line);
+    if (definition && !ticks && !destination) reference = { quote: null, needsDestination: true };
+    if (reference) {
+      let rest = definition ? definition[1].trimStart() : line.trimStart();
+      if (reference.quote) {
+        if (titleEnd(rest, reference.quote)) reference = null;
+        if (last) return true;
+        continue;
+      }
+      let destinationLine = false;
+      if (reference.needsDestination) {
+        const url = /^(?:<[^>]*>|(?:\\.|[^\s])+)/.exec(rest);
+        if (url) { rest = rest.slice(url[0].length).trimStart(); reference.needsDestination = false; destinationLine = true; }
+        else if (definition) { if (last) return true; continue; }
+        else reference = null;
+      }
+      if (reference) {
+        if (/^["'(]/.test(rest)) {
+          const quote = rest[0] === "(" ? ")" : rest[0];
+          reference = titleEnd(rest.slice(1), quote) ? null : { quote };
+          if (last) return true;
+          continue;
+        }
+        if (definition || destinationLine) { if (last) return true; continue; }
+      }
+      reference = null;
+    }
+    const mark = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (mark && !ticks && !destination) { fence = { marker: mark[1], containers }; if (last) return true; continue; }
+    if (/^ {4}/.test(line)) { if (last) return true; continue; }
     for (let i = 0; i < line.length; i++) {
       const c = line[i];
       if (c === "`" && !destination && !angle) {
@@ -3608,13 +3670,17 @@ function emojiLiteralContext(text) {
       if (c === "\\") { i++; continue; }
       if (angle) { if (c === ">") angle = false; continue; }
       if (destination) {
-        if (c === "(") destination++;
-        if (c === ")") destination--;
-      } else if (c === "]" && line[i + 1] === "(") { destination = 1; i++; }
+        if (destination.quote) { if (c === destination.quote) destination.quote = null; }
+        else if (destination.angle) { if (c === ">") destination.angle = false; }
+        else if (c === '"' || c === "'") destination.quote = c;
+        else if (c === "<") destination.angle = true;
+        else if (c === "(") destination.depth++;
+        else if (c === ")") { if (!--destination.depth) destination = null; }
+      } else if (c === "]" && line[i + 1] === "(") { destination = { depth: 1, quote: null, angle: false }; i++; }
       else if (c === "<" && /^[a-z!?/]/i.test(line.slice(i + 1))) angle = true;
     }
   }
-  return !!(fence || ticks || destination || angle);
+  return !!(fence || ticks || destination || angle || reference?.quote);
 }
 
 function attachEmojiShortcuts(input) {
