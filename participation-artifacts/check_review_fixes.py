@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix='participation-review-',dir='/home/node/
   bot,_,helper=env.agent('probe-bot',display_name='ProbeOld',channels=['planning'])
   helper.post(channel,'Review fixture')
   race=env.op.create_channel('race')['id'];env.op.add_member(race,bot['id']);helper.post(race,'Race fixture')
-  channels={name:env.op.create_channel(name)['id'] for name in ['retry-left','retry-joined','retry-read-error']}
+  channels={name:env.op.create_channel(name)['id'] for name in ['retry-left','retry-joined','retry-read-error','retry-known-joined-read-error','retry-known-left-read-error']}
   with sync_playwright() as pw:
    b=pw.chromium.launch(executable_path=CHROME,args=['--no-sandbox'])
    ctx=b.new_context(viewport={'width':1280,'height':850})
@@ -67,30 +67,66 @@ with tempfile.TemporaryDirectory(prefix='participation-review-',dir='/home/node/
    suggestions();expect(p.locator('.mention-pop')).to_contain_text('ProbeLatest');expect(p.locator('.mention-pop')).not_to_contain_text('ProbeNew')
    checks.append('candidate fetch held across a profile rename cannot repopulate stale cache')
    for name,cid in channels.items():
-    p.goto(env.url+'/#'+name);expect(box).to_be_visible();expect(p.locator('#ch-join')).to_be_visible()
+    known_joined=name.startswith('retry-known-')
+    keep_joined=name in ('retry-joined','retry-known-joined-read-error')
+    if known_joined:
+     env.op.add_member(cid,identity['id']);p.evaluate('refreshChannels()')
+    p.goto(env.url+'/#'+name);expect(box).to_be_visible()
+    if known_joined:expect(p.locator('#ch-join')).not_to_be_visible()
+    else:expect(p.locator('#ch-join')).to_be_visible()
+    # Hold periodic membership reconciliation until the retained-state assertion.
+    if known_joined:p.route('**/v1/channels',lambda r:r.fulfill(status=503,json={'error':{'code':'busy','message':'busy'}}))
     seen=[];pattern='**/v1/channels/'+str(cid)+'/messages'
     def lost(route):
      if route.request.method!='POST':return route.continue_()
      seen.append(route.request.headers.get('idempotency-key'))
      if len(seen)==1:
       reply=route.fetch();assert reply.status==201
-      if name!='retry-joined':sender.remove_member(cid,identity['id'])
+      if not keep_joined:sender.remove_member(cid,identity['id'])
       route.abort('failed')
      else:route.continue_()
     p.route(pattern,lost)
     fail_pattern='**/v1/channels/'+str(cid)+'/members'
-    if name=='retry-read-error':p.route(fail_pattern,lambda r:r.fulfill(status=503,json={'error':{'code':'busy','message':'busy'}}),times=1)
+    if name.endswith('read-error'):p.route(fail_pattern,lambda r:r.fulfill(status=503,json={'error':{'code':'busy','message':'busy'}}),times=1)
     box.fill('A single message despite the lost response.');p.locator('#composer .btn').click();expect(box).to_have_value('')
     assert len(seen)==2 and len(set(seen))==1
     assert len(env.op.read(cid)['messages'])==1
     actual=next(c for c in sender.list_channels() if c['id']==cid)['member']
-    assert actual==(name=='retry-joined')
-    if actual:expect(p.locator('#ch-join')).not_to_be_visible()
+    assert actual==keep_joined
+    immediate=known_joined if name.endswith('read-error') else actual
+    if immediate:expect(p.locator('#ch-join')).not_to_be_visible()
     else:expect(p.locator('#ch-join')).to_be_visible()
+    if known_joined:
+     p.unroute('**/v1/channels');p.evaluate('refreshChannels()')
+     if actual:expect(p.locator('#ch-join')).not_to_be_visible()
+     else:expect(p.locator('#ch-join')).to_be_visible()
     if name=='retry-left':p.screenshot(path=str(OUT/'replay-left.png'))
     checks.append(name+': one message, two same-key POST attempts; UI matches authoritative membership')
     p.unroute(pattern)
-    if name=='retry-read-error':p.unroute(fail_pattern)
+    if name.endswith('read-error'):p.unroute(fail_pattern)
+   # An older channels response cannot overwrite a newly acknowledged local join.
+   stale=env.op.create_channel('stale-channel-refresh')['id']
+   p.reload();expect(box).to_be_visible();p.goto(env.url+'/#stale-channel-refresh');expect(box).to_be_visible()
+   pending_channels=[]
+   def hold_channels(route):pending_channels.append((route,route.fetch()))
+   p.route('**/v1/channels',hold_channels,times=1);p.evaluate('void refreshChannels()');p.wait_for_timeout(150);assert pending_channels
+   box.fill('New post joins despite an older pending refresh.');p.locator('#composer .btn').click();expect(box).to_have_value('')
+   expect(p.locator('#ch-join')).not_to_be_visible()
+   pending_channels[0][0].fulfill(response=pending_channels[0][1]);p.wait_for_timeout(150)
+   expect(p.locator('#ch-join')).not_to_be_visible()
+   assert next(c for c in sender.list_channels() if c['id']==stale)['member']
+   checks.append('old channel refresh cannot overwrite a more recent successful local join')
+   # Also protect a new join when the last known value was already true (same-value local update).
+   stale_known=env.op.create_channel('stale-known-refresh')['id'];env.op.add_member(stale_known,identity['id'])
+   p.reload();expect(box).to_be_visible();p.goto(env.url+'/#stale-known-refresh');expect(box).to_be_visible()
+   expect(p.locator('#ch-join')).not_to_be_visible();sender.remove_member(stale_known,identity['id'])
+   pending_channels=[]
+   p.route('**/v1/channels',hold_channels,times=1);p.evaluate('void refreshChannels()');p.wait_for_timeout(150);assert pending_channels
+   box.fill('A newer successful join keeps its revision even when already known joined.');p.locator('#composer .btn').click();expect(box).to_have_value('')
+   expect(p.locator('#ch-join')).not_to_be_visible();pending_channels[0][0].fulfill(response=pending_channels[0][1]);p.wait_for_timeout(150)
+   expect(p.locator('#ch-join')).not_to_be_visible()
+   assert next(c for c in sender.list_channels() if c['id']==stale_known)['member']
+   checks.append('same-value local membership update also rejects an older channel response')
    assert not errors,errors
    b.close()
  finally:env.close()

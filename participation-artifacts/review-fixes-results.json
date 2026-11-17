@@ -7,7 +7,11 @@
     "candidate fetch held across a profile rename cannot repopulate stale cache",
     "retry-left: one message, two same-key POST attempts; UI matches authoritative membership",
     "retry-joined: one message, two same-key POST attempts; UI matches authoritative membership",
-    "retry-read-error: one message, two same-key POST attempts; UI matches authoritative membership"
+    "retry-read-error: one message, two same-key POST attempts; UI matches authoritative membership",
+    "retry-known-joined-read-error: one message, two same-key POST attempts; UI matches authoritative membership",
+    "retry-known-left-read-error: one message, two same-key POST attempts; UI matches authoritative membership",
+    "old channel refresh cannot overwrite a more recent successful local join",
+    "same-value local membership update also rejects an older channel response"
   ],
   "page_errors": []
 }
