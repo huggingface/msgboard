@@ -222,6 +222,14 @@ writes during the switch are delayed, not lost or doubled. The SDK keeps retryin
     snapshot `LATEST.json` names. The first container of this version to take the
     bucket from it publishes that board as its epoch's first snapshot before serving.
 
+  **Known blockers:** these transitions are not yet safe to deploy. The
+  [open review findings #4 and #5](https://github.com/huggingface/msgboard/pull/27#issuecomment-6765271995)
+  describe acknowledged-data loss from delayed released-owner leases and legacy
+  snapshot ordering. Also, the Tasks migrations on current `main` bring this version
+  to schema 31: historical release `563911d` (schema 29) refuses its snapshots on
+  rollback. The four historical-version regressions remain in `tests/test_versions.py`
+  and currently fail; their supported-transition requirement has not been removed.
+
   Development versions of this change between those two are not supported: their
   snapshot and claim names differ, and mixing them with this version can lose data.
 

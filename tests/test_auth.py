@@ -270,13 +270,15 @@ def test_admin_only_operations(env):
     assert {"open_polls", "pending_writes", "db_bytes", "wal_bytes", "disk_free_bytes"} <= set(m)
 
 
-@pytest.mark.parametrize("bad", [{"kind": "robot"}, {"kind": "human", "role": "reader"},
-                                 {"kind": "agent", "role": "viewer"}, {"kind": "agent", "identity_type": "user"},
-                                 {"kind": "agent", "role": "guest", "can_create_channels": True},
-                                 {"kind": "agent", "max_uses": 0}])
-def test_invite_validation(env, bad):
+def test_invite_validation(env):
     with env.http(env.operator_token) as h:
-        assert h.post("/invites", json=bad).status_code == 400
+        for bad in [
+            {"kind": "robot"}, {"kind": "human", "role": "reader"},
+            {"kind": "agent", "role": "viewer"}, {"kind": "agent", "identity_type": "user"},
+            {"kind": "agent", "role": "guest", "can_create_channels": True},
+            {"kind": "agent", "max_uses": 0},
+        ]:
+            assert h.post("/invites", json=bad).status_code == 400, bad
 
 
 def test_reader_and_admin_agents(env):

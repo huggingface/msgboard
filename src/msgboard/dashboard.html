@@ -397,6 +397,8 @@ button.fchip:hover { border-color: var(--ink); }
 .v-title .mono { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
 .v-head .close { background: none; border: 0; font: 20px/1 var(--mono); color: var(--ink-3); padding: 0 2px; }
 .v-head .close:hover { color: var(--ink); }
+.download-status { flex: none; min-width: 0; padding: 7px 14px; border-bottom: 1px solid var(--rule); font-size: 12px; overflow-wrap: anywhere; }
+#viewer.img-mode .download-status { color: #eee; background: rgba(0,0,0,.55); border: 0; }
 .v-nav { display: flex; align-items: center; gap: 6px; font: 11px var(--mono); color: var(--ink-3); }
 .v-nav button { background: none; border: 1px solid var(--rule-2); padding: 1px 8px; font: 13px/1.3 var(--mono); }
 .v-nav button:disabled { opacity: .35; cursor: default; }
@@ -408,6 +410,7 @@ button.fchip:hover { border-color: var(--ink); }
 .v-body.center { align-items: center; justify-content: center; background: var(--panel);
   background-image: linear-gradient(45deg, var(--rule) 25%, transparent 25%, transparent 75%, var(--rule) 75%), linear-gradient(45deg, var(--rule) 25%, transparent 25%, transparent 75%, var(--rule) 75%);
   background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.v-body video { max-width: 100%; max-height: 100%; display: block; background: #000; }
 .v-body img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; cursor: zoom-in; }
 .v-body.zoomed { align-items: flex-start; justify-content: flex-start; }
 .v-body.zoomed img { max-width: none; max-height: none; margin: auto; cursor: grab; }
@@ -803,6 +806,95 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 }
 /* iOS zooms into any focused field under 16px */
 @media (pointer: coarse) { input, textarea, select { font-size: 16px !important; } }
+/* ---------- personal tasks ---------- */
+.search-box, [data-look="a2"] .search-box { padding-bottom: 4px; }
+#tasks-nav, #activity-list { padding-left: 16px; padding-right: 16px; margin-top: 0; }
+#tasks-nav .glyph svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.2; }
+#tasks { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#tasks-scroll { min-height: 0; padding: 0; }
+.tasks-page { max-width: 1000px; margin: 0 auto; padding: 24px 28px 32px; }
+#tasks-sort { display: flex; justify-content: flex-end; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+#tasks-sort button { border: 1px solid var(--rule-2); padding: 5px 10px; font-size: 11px; min-height: 28px; background: transparent; }
+#tasks-sort button.on { color: var(--select-ink, var(--bg)); background: var(--select, var(--ink)); border-color: var(--select, var(--ink)); }
+.tasks-row { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.tasks-row.drag-before { box-shadow: inset 0 2px var(--ink); }
+.tasks-row.drag-after { box-shadow: inset 0 -2px var(--ink); }
+.tasks-row[draggable=true] { cursor: grab; }
+.tasks-row.touch-dragging { background: var(--hover); outline: 1px solid var(--rule-2); cursor: grabbing; }
+.tasks-row[draggable=true] .tasks-row-open { -webkit-touch-callout: none; }
+.tasks-row-open { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
+.tasks-row-title { display: block; font-size: 15px; line-height: 1.45; font-weight: 500; letter-spacing: -.12px; }
+.tasks-row-open:hover .tasks-row-title { text-decoration: underline; text-underline-offset: 3px; }
+.tasks-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 5px; color: var(--ink-3); font-size: 11px; }
+.tasks-row.closed .tasks-row-title { color: var(--ink-3); }
+.tasks-row-mark { display: inline-flex; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+.tasks-row-mark svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.tasks-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.tasks-icon { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; background: transparent; border: 1px solid var(--rule-2); color: var(--ink-2); }
+.tasks-icon:hover { color: var(--ink); border-color: var(--ink); }
+.tasks-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.tasks-summary { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 14px; font-size: 11px; color: var(--ink-3); }
+.tasks-summary label { display: flex; align-items: center; gap: 7px; }
+.tasks-summary input { margin: 0; }
+#tasks-error { margin: 12px 0; }
+#tasks-dm { flex: none; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 28px; background: var(--bg); }
+#tasks-dm-content { position: relative; border-top: 1px solid var(--rule-2); display: flex; flex-direction: column; }
+#tasks-dm-resize { position: absolute; top: -6px; left: 0; right: 0; height: 12px; cursor: ns-resize; touch-action: none; outline: none; z-index: 2; }
+#tasks-dm-resize:focus-visible::after { content: ""; position: absolute; top: 5px; left: 0; right: 0; border-top: 1px solid var(--ink); }
+#tasks-dm-content.resized #tasks-dm-messages { flex: 1; min-height: 0; max-height: none; }
+#tasks-dm-content.resized #tasks-dm-composer .cbox { overflow-y: auto; }
+.tasks-dm-head, #tasks-dm-composer { flex: none; }
+.tasks-dm-head { display: flex; gap: 10px; align-items: center; padding: 12px 0 0; font-size: 12px; }
+.tasks-dm-head select { min-width: 138px; max-width: 70%; font-size: 12px; padding: 5px 24px 5px 9px; }
+#tasks-dm-hide { margin-left: auto; font-size: 11px; }
+#tasks-dm-messages { max-height: 125px; overflow-y: auto; padding: 6px 0; }
+#tasks-dm-messages .msg { font-size: 13px; padding-left: 0; padding-right: 0; }
+#tasks-dm-messages .msg .body { font-size: inherit; }
+#tasks-dm-composer { border-top: 0; padding: 10px 0 16px; }
+#tasks-dm.collapsed { border: 0; }
+#tasks-dm.collapsed #tasks-dm-content { display: none; }
+#tasks-agent-tab { display: flex; gap: 10px; align-items: center; padding: 9px 13px; border: 1px solid var(--rule-2); border-bottom: 0; background: var(--bg); font-size: 12px; margin-left: auto; }
+#tasks-dialog { width: min(730px, calc(100% - 32px)); max-height: calc(var(--vvh, 100dvh) - 32px); padding: 26px 28px 18px; overflow-y: auto; }
+#tasks-item-close { position: absolute; top: 10px; right: 12px; font-size: 22px; background: transparent; border: 0; padding: 0 5px; color: var(--ink-2); z-index: 1; }
+#tasks-dialog .tasks-proposal { padding: 0; }
+#tasks-dialog .tasks-proposal:hover { background: transparent; }
+#tasks-item-title { font-size: 16px; line-height: 1.45; font-weight: 550; margin: 13px 0 9px; letter-spacing: -.15px; }
+#tasks-dialog .tasks-description { font-size: 14px; line-height: 1.65; margin: 0 0 17px; color: var(--ink); }
+.tasks-description > :first-child { margin-top: 0; }
+.tasks-description > :last-child { margin-bottom: 0; }
+.tasks-source { border: 1px solid var(--rule); margin: 12px 0; }
+.tasks-source[role=link] { cursor: pointer; }
+.tasks-source[role=link]:hover { background: var(--hover); }
+.tasks-source:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+.tasks-source .msg, .tasks-source .msg.first { padding: 10px 12px; }
+.tasks-source .msg:hover { background: transparent; }
+.tasks-source-unavailable { padding: 12px; }
+.tasks-answer-area { border-top: 1px solid var(--rule-2); padding-top: 15px; margin-top: 21px; }
+#tasks-item-destination { color: var(--ink-3); margin-bottom: 14px; }
+#tasks-item-options { display: flex; flex-direction: column; gap: 11px; }
+#tasks-item-options:not(:empty) { margin: 0 0 17px; }
+.tasks-option { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 13px; }
+.tasks-option input { width: 13px; height: 13px; flex-shrink: 0; margin: 4px 0 0; }
+#tasks-answer-composer { border-top: 0; padding-left: 0; padding-right: 0; }
+.tasks-item-foot { display: flex; align-items: center; gap: 12px; }
+.tasks-item-foot > span { flex: 1; }
+@media (max-width: 720px) {
+  .tasks-page { padding: 20px 16px 28px; }
+  .tasks-row { padding: 7.5px 0; }
+  .tasks-row-title { font-size: 14px; }
+  .tasks-row-meta { font-size: 10px; gap: 6px; }
+  .tasks-summary { font-size: 10px; gap: 8px; }
+  #tasks-dialog { width: calc(100% - 24px); max-height: calc(var(--vvh, 100dvh) - 24px); padding: 25px 18px 18px; }
+  #tasks-dialog .tasks-proposal { grid-template-columns: 30px minmax(0, 1fr); padding: 0; }
+  #tasks-item-title { font-size: 15px; }
+  #tasks-dialog .tasks-description { font-size: 13px; }
+  .tasks-source .msg, .tasks-source .msg.first { padding: 8px 10px; }
+  #tasks-dm { padding: 0 16px; }
+  .tasks-dm-head { padding: 10px 0 0; }
+  #tasks-dm-messages { max-height: 95px; }
+  #tasks-answer-composer { padding-left: 0; padding-right: 0; }
+}
+
 </style>
 <style id="avatar-styles"></style>
 </head>
@@ -815,6 +907,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="brand"><b>msgboard</b><button class="hidden" id="analytics-open" title="Analytics" aria-label="Analytics"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14h12M4.5 11.5V8M8 11.5V3.5M11.5 11.5V6"/></svg></button><button class="hidden" id="settings-open" title="Settings" aria-label="Settings"><svg class="gear" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/><circle cx="8" cy="8" r="4.6"/></svg></button></div>
     <div class="search-box"><input id="search-input" type="search" placeholder="Search" title="Ctrl/⌘ K opens the full search" aria-label="Search" autocomplete="off" spellcheck="false"></div>
     <div class="nav-scroll">
+      <ul class="navlist hidden" id="tasks-nav"><li><button id="tasks-open"><span class="glyph"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3h8M6.5 8h8M6.5 13h8"/><rect x="1.5" y="1.7" width="2.6" height="2.6"/><rect x="1.5" y="6.7" width="2.6" height="2.6"/><rect x="1.5" y="11.7" width="2.6" height="2.6"/></svg></span><span class="name">Tasks</span></button></li></ul>
       <ul class="navlist" id="activity-list"><li><button id="activity-open"><span class="glyph"><svg class="lock" viewBox="0 0 10 11" aria-hidden="true"><path d="M2 8 V5 a3 3 0 0 1 6 0 V8 H2 Z M4 9.5 h2"/></svg></span><span class="name">Activity</span></button></li></ul>
       <div class="side-head"><span class="label">Channels</span><button id="new-channel" class="hidden" title="New channel">+</button></div>
       <ul class="navlist" id="channels"></ul>
@@ -855,6 +948,20 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div id="activity" class="scroll hidden" style="padding:0"></div>
     <div id="search" class="scroll hidden"></div>
     <div id="analytics" class="scroll hidden"></div>
+    <section id="tasks" class="hidden" aria-label="Personal tasks">
+      <div id="tasks-scroll" class="scroll"><div class="tasks-page">
+        <nav id="tasks-sort" aria-label="Order tasks"></nav>
+        <p id="tasks-error" class="err hidden" role="status"></p>
+        <div id="tasks-list" aria-label="Tasks items"></div>
+        <footer class="tasks-summary"><span id="tasks-count"></span><span aria-hidden="true">|</span><span id="tasks-archived-count"></span><span aria-hidden="true">|</span><label><input type="checkbox" id="tasks-show-archived"> Show archived</label></footer>
+      </div></div>
+      <section id="tasks-dm" aria-label="Direct message with your agent">
+        <button id="tasks-agent-tab" class="hidden" aria-label="Show Agent panel" aria-expanded="false">Agent <span aria-hidden="true">⌃</span></button>
+        <div id="tasks-dm-content"><div id="tasks-dm-resize" role="separator" aria-orientation="horizontal" aria-label="Resize Agent panel" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="tasks-dm-head"><label for="tasks-dm-agent">Agent:</label><select id="tasks-dm-agent" aria-label="Your agent"></select><button id="tasks-dm-hide" class="linkish">Hide</button></div>
+          <div id="tasks-dm-messages" aria-live="polite"></div><div id="tasks-dm-composer" class="composer"></div>
+        </div>
+      </section>
+    </section>
   </main>
   <section id="panel" class="hidden">
     <div class="resizer" id="panel-resize" role="separator" aria-orientation="vertical" aria-label="Resize side panel" tabindex="0" title="Drag to resize · double-click to reset"></div>
@@ -873,12 +980,23 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       <div class="v-zoom hidden" id="v-zoom" role="group" aria-label="Zoom"><button id="v-zoom-out" title="Zoom out (−)" aria-label="Zoom out"><svg class="v-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7"/></svg></button><span id="v-zoom-level">fit</span><button id="v-zoom-in" title="Zoom in (+)" aria-label="Zoom in"><svg class="v-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7M6 2.5v7"/></svg></button><button id="v-zoom-fit" title="Fit to window (0)">fit</button></div>
       <button class="btn ghost small hidden" id="v-open" title="Open in the browser's own viewer">Open in new tab</button>
       <button class="btn ghost small" id="v-link" title="Copy a link to this file">Copy link</button>
-      <button class="btn small" id="v-download">Download</button>
+      <button class="btn small" id="v-download" data-download>Download</button>
       <button class="close" id="v-close" aria-label="Close">×</button>
     </div>
+    <div id="v-download-status" class="download-status hidden" role="status"></div>
     <div class="v-body" id="v-body"></div>
   </div>
 </div>
+
+<dialog id="tasks-dialog" aria-labelledby="tasks-item-title">
+  <button class="close" id="tasks-item-close" aria-label="Close item">×</button>
+  <div id="tasks-item-content"></div>
+  <section class="tasks-answer-area"><div id="tasks-item-destination" class="small"></div>
+    <p class="err hidden" id="tasks-item-error" role="status"></p>
+    <div id="tasks-item-options"></div><div id="tasks-answer-composer" class="composer"></div>
+    <div class="tasks-item-foot"><button id="tasks-restore" class="btn ghost small hidden">Restore</button><span></span><div id="tasks-item-actions"></div></div>
+  </section>
+</dialog>
 
 <dialog id="channel-dialog">
   <form method="dialog" id="channel-form">
@@ -941,6 +1059,8 @@ async function api(method, path, { body, headers = {}, raw = false, signal, auth
     try { const e = (await res.json()).error; code = e.code; msg = e.message; details = e.details; } catch {}
     throw new ApiError(res.status, code, msg, details);
   }
+  // Profile/role/status changes also affect channel-scoped mention eligibility and pictures.
+  if (method !== "GET" && /^\/principals\/\d+(?:\/(?:avatar|pattern|suspend|unsuspend))?$/.test(path)) invalidateMentionCandidates();
   return raw ? res : res.json();
 }
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/-/g, "");
@@ -1073,12 +1193,14 @@ function decorate(html, mentions) {
   t.innerHTML = html;
   t.content.querySelectorAll("a[href]").forEach((a) => {
     const fid = !internalHash(a.getAttribute("href")) && boardFileId(a.getAttribute("href"));
-    if (fid) { a.dataset.boardFile = fid; a.removeAttribute("target"); if (a.textContent.trim() === a.getAttribute("href")) a.textContent = "📎 " + fid.split("/").pop(); return; }
+    if (fid) { a.dataset.boardFile = fid; a.removeAttribute("target"); if (a.textContent.trim() === a.getAttribute("href")) a.textContent = "📎 " + fid.split("/").pop();
+      if (kindOf(fid, "") === "video") a.textContent = a.textContent.replace(/^📎\s*/, "▶ ");   // a film: say so
+      return; }
     const h = internalHash(a.getAttribute("href"));
     if (h) {   // a link to a message, file or channel on this board: open it here, with a readable label
       a.dataset.internal = h; a.removeAttribute("target");
       if (a.textContent.trim() === a.getAttribute("href") || a.textContent.trim() === a.href) {
-        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics)$/.test(h) ? h : "#" + h;
+        a.textContent = h.startsWith("msg/") ? "↪ message" : h.startsWith("file/") ? "📎 file" : /^(settings|activity|search|analytics|tasks)$/.test(h) ? h : "#" + h;
       }
     } else { a.target = "_blank"; a.rel = "noopener noreferrer"; }
   });
@@ -1434,22 +1556,19 @@ async function loadPeople(force = false) {
   if (!state.people || force) state.people = (await api("GET", "/principals")).principals;
   return state.people;
 }
-// people for @ suggestions: refetched once per member list when it names someone who joined after the page loaded
-const peopleCheckedFor = new WeakSet();
-async function loadPeopleFor(members) {
-  const people = await loadPeople();
-  if (peopleCheckedFor.has(members)) return people;
-  peopleCheckedFor.add(members);
-  const known = new Set(people.map((p) => p.id));
-  return [...members].some((id) => !known.has(id)) ? loadPeople(true) : people;
-}
-// ids of a channel's members, for @ suggestions; dropped when someone joins, leaves or is added
-const memberIds = new Map(), knownMembers = new Map();
-async function loadMemberIds(c) {
-  if (!memberIds.has(c.id)) memberIds.set(c.id, api("GET", `/channels/${c.id}/members`)
-    .then((r) => { const ids = new Set(r.members.map((m) => m.id)); knownMembers.set(c.id, ids); return ids; },
-      () => { memberIds.delete(c.id); return knownMembers.get(c.id) || new Set(); }));   // on failure: the last list, or none
-  return memberIds.get(c.id);
+// The server checks directory visibility and whether each suggested person can read this channel.
+const mentionCandidates = new Map();
+let mentionCandidatesVersion = 0;
+function invalidateMentionCandidates() { mentionCandidatesVersion++; mentionCandidates.clear(); }
+async function loadMentionCandidates(c) {
+  if (!mentionCandidates.has(c.id)) {
+    const version = mentionCandidatesVersion;
+    const pending = api("GET", `/channels/${c.id}/mention-candidates`).then(
+      (r) => version === mentionCandidatesVersion ? r.candidates : loadMentionCandidates(c),
+      () => { if (mentionCandidates.get(c.id) === pending) mentionCandidates.delete(c.id); return []; });
+    mentionCandidates.set(c.id, pending);
+  }
+  return mentionCandidates.get(c.id);
 }
 async function pick(title, filterFn, onPick) {
   $("pick-title").textContent = title; $("pick-filter").value = ""; $("pick-error").classList.add("hidden");
@@ -1578,6 +1697,7 @@ async function boot() {
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
   renderMe();
+  $("tasks-nav").classList.toggle("hidden", state.me.identity_type !== "user");
   $("new-channel").classList.toggle("hidden", !can("create_channels"));
   $("new-dm").classList.toggle("hidden", !can("post"));
   $("settings-open").classList.toggle("hidden", !(can("invite_agents") || can("manage")));
@@ -1589,6 +1709,7 @@ async function boot() {
   initNotify();
   if (location.hash === "#settings") return openSettings();
   if (location.hash === "#activity") return openActivity();
+  if (/^#(?:tasks|queue)(?:\/[^/]+)?$/.test(location.hash) && state.me.identity_type === "user") return openTasks(location.hash.split("/")[1] || null);
   if (location.hash === "#analytics" && canAnalytics()) return openAnalytics();
   if (/^#(msg|file)\//.test(location.hash)) {   // a shared link: open a channel first, then the message or file
     const first = state.channels.find((c) => c.name === store.get("channel")) || state.channels.find((c) => c.kind !== "dm") || state.channels[0];
@@ -1694,9 +1815,21 @@ function notifyFor(m) {
 }
 
 // ------------------------------------------------------------------ channels and DMs
+function setChannelMembership(c, member) {
+  c.member = member; c.localMemberRevision = (c.localMemberRevision || 0) + 1;
+}
 async function refreshChannels() {
+  const active = state.current, memberAtStart = active && active.member;
+  const revisionAtStart = active && active.localMemberRevision;
   try { state.channels = (await api("GET", "/channels")).channels; }
   catch (e) { if (e.status === 401) return showLogin(signinError(e)); return; }
+  const fresh = active && state.channels.find((c) => c.id === active.id);
+  // Reconcile the header too, without overwriting a newer local join/send while this read was in flight.
+  if (fresh && state.current === active && active.localMemberRevision === revisionAtStart &&
+      active.member === memberAtStart && active.member !== fresh.member) {
+    active.member = fresh.member; mentionCandidates.delete(active.id);
+    if (state.view === "chat") updateMeta(true);
+  }
   const linkable = state.channels.filter((c) => c.kind !== "dm");
   state.chanIndex = new Map(linkable.map((c) => [c.name.toLowerCase(), c]));
   const key = linkable.map((c) => `${c.id}:${c.name}:${c.kind}`).join(",");
@@ -1722,7 +1855,7 @@ const joinable = (c) => c.member === false && c.kind !== "dm" && !c.archived && 
 async function joinChannel(c) {
   try {
     await api("POST", `/channels/${c.id}/members`, { body: { principal_id: state.me.id } });
-    memberIds.delete(c.id); c.member = true; renderChannels(); updateMeta(true);
+    mentionCandidates.delete(c.id); setChannelMembership(c, true); renderChannels(); updateMeta(true);
   } catch (e) { alert("Could not join: " + e.message); }
 }
 const showPrivate = () => !!(state.me && state.me.prefs && state.me.prefs.show_private);
@@ -1779,6 +1912,7 @@ function renderChannels() {
   document.title = (total ? `(${total > 99 ? "99+" : total}) ` : "") + baseTitle;
   noteFront();   // the channel on screen may have changed
   $("settings-open").classList.toggle("on", state.view === "settings");
+  $("tasks-open").classList.toggle("active", state.view === "tasks");
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
@@ -1822,13 +1956,14 @@ function updateMeta(live) {
   $("ch-join").onclick = () => joinChannel(c);
 }
 function showChat() {
+  leaveTasks();
   state.view = "chat";
   $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("chat-view").style.display = "contents";
 }
 async function openChannel(id) {
   const c = state.channels.find((x) => x.id === id);
   if (!c) return;
-  memberIds.delete(c.id);   // members change elsewhere too: fetch them fresh for each visit
+  mentionCandidates.delete(c.id);   // members change elsewhere too: fetch them fresh for each visit
   showChat();
   if (state.poll) state.poll.abort();
   if (state.panel && state.panel.type !== "profile") closePanel();
@@ -2080,12 +2215,12 @@ function openReactPicker(anchor, mid) {
   document.body.appendChild(pop);
   const grid = pop.querySelector(".emoji-grid"), input = pop.querySelector("input");
   const render = (q) => {
-    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const words = q.trim().toLowerCase().replace(/[:_]/g, " ").split(/\s+/).filter(Boolean);
     let html = "";
     if (!words.length && recentEmoji().length) html += `<span class="label">Recent</span>` + recentEmoji().map((e) => `<button type="button" data-e="${e}">${e}</button>`).join("");
     for (const [cat, list] of EMOJI) {
       const shown = words.length ? list.filter((e) => words.every((w) => e[1].includes(w))) : list;
-      if (shown.length) html += `<span class="label">${cat}</span>` + shown.map(([e, n]) => `<button type="button" data-e="${e}" title="${n.split(" ")[0]}">${e}</button>`).join("");
+      if (shown.length) html += `<span class="label">${cat}</span>` + shown.map(([e, n]) => `<button type="button" data-e="${e}" title="${esc(emojiTitle(e, n))}">${e}</button>`).join("");
     }
     grid.innerHTML = html || `<div class="small" style="padding:10px">No emoji found.</div>`;
   };
@@ -2148,6 +2283,7 @@ function wireEditor(container) {
   const keep = () => { ed.draft = ta.value; ed.caret = ta.selectionStart; };
   ta.addEventListener("input", () => { keep(); size(); });
   ta.addEventListener("keyup", keep); ta.addEventListener("click", keep);
+  attachEmojiShortcuts(ta);
   ta.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && mobileTextInput()) return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); saveEdit(); }
@@ -2202,8 +2338,7 @@ function lastOwnMessage(list) {
 }
 
 // ------------------------------------------------------------------ rendering messages
-function canWriteHere() {
-  const c = state.current;
+function canWriteHere(c = state.current) {
   if (!c || !can("post") || c.archived) return false;
   if (c.kind === "dm") return !!dmPeer(c);
   return true;   // the server has the final say (guests, private channels)
@@ -2327,6 +2462,7 @@ function newBelow(n) {
 }
 // ---------- attachments: kinds, chips, thumbnails, download
 const IMAGE_EXT = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp", avif: "image/avif", ico: "image/x-icon" };
+const VIDEO_EXT = new Set(["mp4", "m4v", "webm", "mov", "ogv"]);
 const TEXT_EXT = new Set(["txt", "md", "markdown", "log", "csv", "tsv", "json", "jsonl", "ndjson", "yaml", "yml", "toml", "ini", "cfg", "conf", "env",
   "py", "js", "mjs", "cjs", "ts", "tsx", "jsx", "sh", "bash", "zsh", "rb", "go", "rs", "java", "kt", "c", "h", "cc", "cpp", "hpp", "cs", "swift",
   "php", "pl", "r", "jl", "lua", "sql", "css", "scss", "xml", "tex", "bib", "diff", "patch", "ipynb", "dockerfile", "makefile", "gitignore"]);
@@ -2334,6 +2470,7 @@ const extOf = (name) => { const n = (name || "").toLowerCase(); const i = n.last
 function kindOf(name, type) {
   const ext = extOf(name), t = (type || "").toLowerCase();
   if (IMAGE_EXT[ext] || t.startsWith("image/")) return "image";
+  if (VIDEO_EXT.has(ext) || t.startsWith("video/")) return "video";
   if (ext === "pdf" || t === "application/pdf") return "pdf";
   if (ext === "html" || ext === "htm" || t === "text/html") return "html";
   if (TEXT_EXT.has(ext) || t.startsWith("text/") || t === "application/json") return "text";
@@ -2379,11 +2516,33 @@ function typed(blob, info) {
   const type = kind === "image" ? (IMAGE_EXT[ext] || info.content_type) : kind === "pdf" ? "application/pdf" : kind === "html" ? "text/html" : "text/plain";
   return blob.slice(0, blob.size, type);
 }
+const downloadStates = new Map();
+function updateDownloadUI() {
+  const id = viewer.list[viewer.index], d = downloadStates.get(id);
+  $("viewer").querySelectorAll("[data-download]").forEach((b) => {
+    b.disabled = !!(d && d.busy);
+    b.textContent = d && d.phase === "preparing" ? "Preparing…" : d && d.busy ? "Starting…"
+      : d && d.phase === "started" ? "Download again" : "Download";
+  });
+  const status = $("v-download-status");
+  status.textContent = !d ? "" : d.phase === "preparing" ? "Preparing download…"
+    : d.phase === "error" ? "Download failed: " + d.error : "Download requested. Check your browser’s downloads.";
+  status.classList.toggle("hidden", !d);
+  status.setAttribute("role", d && d.phase === "error" ? "alert" : "status");
+}
 async function download(id) {
-  const info = await getInfo(id, true), blob = await getBlob(id, info);
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = (info && info.filename) || id; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  if (downloadStates.get(id)?.busy) return;
+  const d = { phase: "preparing", busy: true }; downloadStates.set(id, d); updateDownloadUI();
+  try {
+    const file = await api("POST", "/downloads", { body: { file_id: id } });
+    // The browser streams the response to its download manager; never buffer it as a Blob in this page.
+    const a = document.createElement("a"); a.href = file.url; a.download = file.filename || "";
+    a.rel = "noreferrer"; a.hidden = true; document.body.append(a); a.click(); a.remove();
+    d.phase = "started";
+    // Absorb a double click across the handoff; subsequent intentional downloads say "Download again".
+    setTimeout(() => { d.busy = false; if (downloadStates.get(id) === d) updateDownloadUI(); }, 1000);
+  } catch (e) { d.phase = "error"; d.error = e.message; d.busy = false; }
+  updateDownloadUI();
 }
 
 // ---------- the preview overlay
@@ -2407,14 +2566,16 @@ async function showInViewer(view = "render") {
   $("v-download").onclick = () => download(id).catch(() => {});
   $("v-link").onclick = () => copyText(boardURL("file/" + id), $("v-link"));
   const info = await getInfo(id, true);
+  updateDownloadUI();
   if (viewer.list[viewer.index] !== id) return;
   if (!info) { body.innerHTML = `<div class="v-empty">This file is not available.</div>`; return; }
   const kind = kindOf(info.filename, info.content_type);
   $("v-name").textContent = info.filename || id;
   $("v-meta").textContent = `${fmtSize(info.size)} · ${typeLabel(info.filename, kind)}`;
   const noPreview = (why) => { body.innerHTML = `<div class="v-empty"><div class="fprev">${esc(typeLabel(info.filename, kind))}</div>${why}<br><br>` +
-    `<button class="btn" onclick="document.getElementById('v-download').click()">Download</button></div>`; };
+    `<button class="btn" data-download onclick="document.getElementById('v-download').click()">Download</button></div>`; updateDownloadUI(); };
   if (kind === "other") return noPreview("No preview for this kind of file.");
+  if (kind === "video") return showVideo(body, id, info, noPreview);
   const limit = kind === "text" || kind === "html" ? 2 * 1024 * 1024 : 60 * 1024 * 1024;
   if (info.size > limit) return noPreview(`Too large to preview (${fmtSize(info.size)}).`);
   let blob;
@@ -2448,6 +2609,49 @@ async function showInViewer(view = "render") {
   const cut = lines.length > 20000;
   body.innerHTML = `<pre class="v-code">${lines.slice(0, 20000).map((l) => `<span class="l">${esc(l) || " "}</span>`).join("")}</pre>` +
     (cut ? `<div class="v-empty">Showing the first 20,000 of ${lines.length.toLocaleString()} lines.</div>` : "");
+}
+// Videos stream from a short-lived download link (the board token never goes in a URL). The browser fetches
+// ranges as you play or seek, so a big film starts at once instead of after a full download. A link lasts two
+// minutes; when a later range request fails, fetch a new link and carry on from the same spot.
+async function showVideo(body, id, info, noPreview) {
+  const link = async () => (await api("POST", "/downloads", { body: { file_id: id } })).url;
+  // every callback checks that the viewer still shows *this opening* of the video: a late answer must not touch
+  // the next file, nor the same file opened again
+  const opening = {}; body.videoOpening = opening;
+  const current = () => !$("viewer").classList.contains("hidden") && body.videoOpening === opening && viewer.list[viewer.index] === id && (!video || body.contains(video));
+  const fail = (why) => { if (current()) noPreview(why); };
+  let video = null, src;
+  try { src = await link(); } catch (e) { return fail(esc(e.message)); }
+  if (!current()) return;
+  body.classList.add("center");
+  body.innerHTML = `<video controls playsinline preload="metadata" title="${esc(info.filename || "")}"></video>`;
+  video = body.querySelector("video");
+  // "Was it playing?" Chromium pauses the player itself just before a network error, so a pause right after the
+  // viewer's own click or key is theirs; any other pause only counts once no error has followed it for a moment
+  let wantPlay = false, pauseAt = 0, inputAt = -1e9, renewed = 0;
+  const touched = () => { inputAt = performance.now(); };
+  video.addEventListener("pointerdown", touched); video.addEventListener("keydown", touched);
+  video.addEventListener("play", () => { wantPlay = true; pauseAt = 0; });   // a new play also cancels an old pause's timer
+  video.addEventListener("pause", () => {
+    if (performance.now() - inputAt < 500) { wantPlay = false; pauseAt = 0; return; }
+    const t = pauseAt = performance.now();
+    setTimeout(() => { if (pauseAt === t && !video.error) wantPlay = false; }, 1500);
+  });
+  video.onerror = async () => {
+    if (!current()) return;
+    const at = video.currentTime, playing = wantPlay;
+    for (;;) {   // a new link, a few times with a pause between, then give up with a clear message
+      if (renewed >= 3) return fail("This video could not be played here. Download it instead.");
+      renewed++;
+      try { src = await link(); break; }
+      catch { await sleep(1000 * renewed); if (!current()) return; }
+    }
+    if (!current()) return;
+    video.addEventListener("loadedmetadata", () => { video.currentTime = at; if (playing) video.play().catch(() => {}); }, { once: true });
+    video.src = src;
+  };
+  video.onloadeddata = () => { renewed = 0; };
+  video.src = src;
 }
 // PDFs are drawn with PDF.js, because browsers refuse their own PDF viewer inside sandboxed
 // frames (the huggingface.co Space page embeds the board in one). Loaded on first use.
@@ -2585,7 +2789,8 @@ document.addEventListener("keydown", (e) => {
   if (link && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); link.click(); }
 });
 document.addEventListener("click", (e) => {
-  if (e.target.closest("dialog")) return;
+  const dialog = e.target.closest("dialog");
+  if (dialog && dialog.id !== "tasks-dialog") return;
   const del = e.target.closest("[data-delete-msg]");
   if (del) { deleteMessage(Number(del.dataset.deleteMsg)); return; }
   const ct = e.target.closest("[data-copy-text]");
@@ -2657,11 +2862,16 @@ function fileLink(it) {
   const name = it.label.replace(/[[\]\\]/g, "\\$&");
   return kindOf(it.file.name, it.file.type) === "image" ? `![${name}](${it.url})` : `[📎 ${name}](${it.url})`;
 }
-function mountComposer(host, { placeholder, replyTo }) {
+const composerOwners = new Map();
+function mountComposer(host, { placeholder, replyTo = () => null, targetChannel = state.current, draftKey: ownDraftKey = null,
+  sendMessage = null, prepareSend = (payload) => payload, allowEmpty = () => false, canPost = null,
+  canSend = () => true, onSent = null, onSendError = null, autofocus = true }) {
+  // Capture a destination and draft once. Navigation during an upload/send must never change either.
+  const channel = targetChannel;
   host.classList.remove("hidden");
   host.addFiles = null;   // set again below only if this box can post
-  if (!canWriteHere()) {
-    const c = state.current;
+  if (!(canPost === null ? canWriteHere(channel) : canPost)) {
+    const c = channel;
     host.innerHTML = `<div class="readonly">${c && c.archived ? "This channel is archived. History is read-only."
       : !can("post") ? "You have read-only access to this board." : "You can read this conversation but not write in it."}</div>`;
     return;
@@ -2673,17 +2883,19 @@ function mountComposer(host, { placeholder, replyTo }) {
     <input type="file" multiple class="hidden">`;
   const box = host.querySelector(".cbox"), chips = host.querySelector(".files"), input = host.querySelector("textarea");
   const fileInput = host.querySelector("input[type=file]"), pending = host.querySelector(".pending"), sendBtn = host.querySelector(".btn");
-  const channel = state.current;
-  const draftKey = replyTo() ? "t:" + replyTo() : "c:" + channel.id;
+  const draftKey = ownDraftKey || (replyTo() ? "t:" + replyTo() : "c:" + channel.id);
+  const draftOwner = {};
+  composerOwners.set(draftKey, draftOwner);
+  const ownsDraft = () => input.isConnected && composerOwners.get(draftKey) === draftOwner;
   input.value = draftOf(draftKey);
-  input.addEventListener("input", () => setDraft(draftKey, input.value));
+  input.addEventListener("input", () => { if (ownsDraft()) setDraft(draftKey, input.value); });
   let items = [], sending = false;
   // uploaded files stay with the draft, so leaving and coming back keeps them (and their marks) working
   const filesKey = "draft-files:" + draftKey;
   try { items = JSON.parse(store.get(filesKey) || "[]").map((f) => ({ file: { name: f.name, type: f.type, size: f.size }, label: f.label, url: f.url, uid: uid(), loaded: f.size, status: "done", thumb: null })); } catch {}
   const saveFiles = () => {
     if (sending) return;   // in flight: the draft gives them up, so a box opened meanwhile cannot remove them
-    if (!input.isConnected) return;   // this box was replaced: the draft now belongs to the new one
+    if (!ownsDraft()) return;   // this box was replaced: the draft now belongs to the new one
     const done = items.filter((it) => it.status === "done").map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }));
     if (done.length) store.set(filesKey, JSON.stringify(done)); else store.del(filesKey);
   };
@@ -2808,11 +3020,12 @@ function mountComposer(host, { placeholder, replyTo }) {
   });
   host.addFiles = (files) => { addFiles(files); input.focus(); };   // drops anywhere over the channel or thread land here
   input.addEventListener("input", autosize);
-  const assist = attachAssist(host, input, autosize);
+  const assist = attachAssist(host, input, autosize, channel);
+  attachEmojiShortcuts(input);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && mobileTextInput()) return;
     if (assist.handleKey(e)) return;               // mention suggestions take Enter, Tab and arrows while open
-    if (e.key === "ArrowUp" && !input.value && !e.shiftKey) {   // like Slack: up in an empty box edits your last message
+    if (!sendMessage && state.current === channel && e.key === "ArrowUp" && !input.value && !e.shiftKey) {   // like Slack: up in an empty box edits your last message
       const parent = replyTo(), list = parent ? [state.panel.root, ...state.thread] : state.roots, m = lastOwnMessage(list);
       if (m && state.me.identity_type === "user") { e.preventDefault(); input.blur(); startEdit(m.id, parent ? "thread" : "feed"); }
       return;
@@ -2821,7 +3034,7 @@ function mountComposer(host, { placeholder, replyTo }) {
   });
   sendBtn.onclick = send;
   async function send() {
-    const c = state.current, ready = items.filter((it) => it.status === "done");
+    const c = channel, ready = items.filter((it) => it.status === "done");
     let text = input.value;
     const rest = [];
     for (const it of ready) {
@@ -2829,19 +3042,32 @@ function mountComposer(host, { placeholder, replyTo }) {
       else rest.push(fileLink(it));   // not placed: at the end, like attachments
     }
     text = [text.trim(), ...rest].filter(Boolean).join("\n");
-    if (sending || !c || uploading() || (!text && !ready.length)) return;
+    if (!ownsDraft() || sending || (!c && !sendMessage) || uploading() || (!text && !ready.length && !allowEmpty())) return;
+    if (!canSend()) { pending.textContent = "This item cannot accept an answer. Review its current status."; return; }
     if (items.some((it) => it.status === "error")) { pending.textContent = "Remove or retry the files that did not upload."; return; }
     sending = true; renderChips();
     store.del(filesKey); setDraft(draftKey, "");   // taken out of the draft while sending; put back if it fails
     const key = uid();  // reused on every retry, so a resend never duplicates
     try {
-      const payload = { body: text };
+      let payload = { body: text };
       const parent = replyTo();
       if (parent) payload.reply_to = parent;
+      payload = prepareSend(payload);
       for (let attempt = 0; ; attempt++) {
         try {
-          const m = await api("POST", `/channels/${c.id}/messages`, { body: payload, headers: { "Idempotency-Key": key } });
-          if (state.current === c && ingest(m)) renderFeed(!parent);
+          const response = !sendMessage && await api("POST", `/channels/${c.id}/messages`,
+            { body: payload, headers: { "Idempotency-Key": key }, raw: true });
+          const m = sendMessage ? await sendMessage(payload, key) : await response.json();
+          if (!sendMessage && c.kind !== "dm") {
+            mentionCandidates.delete(c.id);
+            if (response.status === 201) setChannelMembership(c, true);
+            else {   // a replay must not undo a later choice to leave
+              try { setChannelMembership(c, (await api("GET", `/channels/${c.id}/members`)).members.some((p) => p.id === state.me.id)); }
+              catch {}   // keep last known membership; refreshChannels reconciles it without resending the post
+            }
+            if (state.current === c) { renderChannels(); updateMeta(true); }
+          }
+          if (!sendMessage && state.current === c && ingest(m)) renderFeed(!parent);
           break;
         } catch (e) {
           if (attempt >= 6 || (e.status && e.status < 500 && e.status !== 429)) throw e;
@@ -2849,23 +3075,483 @@ function mountComposer(host, { placeholder, replyTo }) {
         }
       }
       input.value = ""; autosize(); pending.textContent = "";
-      if (input.isConnected) { setDraft(draftKey, ""); store.del(filesKey); }   // a newer box may own the draft by now
+      if (ownsDraft()) { setDraft(draftKey, ""); store.del(filesKey); }   // a newer box may own the draft by now
       items.forEach((it) => it.thumb && URL.revokeObjectURL(it.thumb)); items = [];
+      if (onSent) onSent();
     } catch (e) {
       pending.textContent = "Not sent: " + e.message;
+      if (onSendError) onSendError(e);
       // put the message back in its draft; if the box was replaced, only when the new one has not started another
-      if (input.isConnected || (!draftOf(draftKey) && !store.get(filesKey))) {
+      if (ownsDraft() || (!draftOf(draftKey) && !store.get(filesKey))) {
         setDraft(draftKey, input.value);
-        if (!input.isConnected) store.set(filesKey, JSON.stringify(items.filter((it) => it.status === "done")
+        if (!ownsDraft()) store.set(filesKey, JSON.stringify(items.filter((it) => it.status === "done")
           .map((it) => ({ name: it.file.name, type: it.file.type, size: it.file.size, label: it.label, url: it.url }))));
       }
     }
-    finally { sending = false; renderChips(); input.focus(); }
+    finally { sending = false; renderChips(); if (ownsDraft()) input.focus(); }
   }
   if (items.length) renderChips();   // files kept with the draft
   if (input.value) { autosize(); input.setSelectionRange(input.value.length, input.value.length); }
-  if (window.matchMedia("(min-width: 721px)").matches) input.focus();
+  if (autofocus && window.matchMedia("(min-width: 721px)").matches) input.focus();
 }
+
+// ------------------------------------------------------------------ personal tasks
+const tasksState = {
+  items: [], counts: { open: 0, archived: 0 }, orderVersion: 0, sort: "manual", direction: "asc",
+  archived: false, request: 0, loading: false, signature: "", open: null, opening: 0,
+  busy: new Set(), movePending: false, agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmRefreshRequest: 0, dmSignature: "", dmHidden: false,
+};
+const tasksCheck = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.5 3.5L13 4.5"/></svg>`;
+const tasksCross = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>`;
+const tasksDraftKey = (id) => `q:${state.me.id}:${id}`;
+const tasksChoiceKey = (id) => `tasks-choices:${state.me.id}:${id}`;
+function tasksError(error, item = false) {
+  const el = $(item ? "tasks-item-error" : "tasks-error");
+  el.textContent = typeof error === "string" ? error : error.message;
+  el.classList.remove("hidden");
+}
+function tasksActions(item, row = false) {
+  const disabled = item.state !== "open" || tasksState.busy.has(item.id) ? " disabled" : "";
+  return `<div class="tasks-actions"><button class="tasks-icon" data-tasks-action="done" data-qid="${esc(item.id)}" title="Done" aria-label="Mark ${row ? esc(item.title) + " " : "item "}done"${disabled}>${tasksCheck}</button>` +
+    `<button class="tasks-icon" data-tasks-action="dismiss" data-qid="${esc(item.id)}" title="Dismiss" aria-label="Dismiss ${row ? esc(item.title) : "item"}"${disabled}>${tasksCross}</button></div>`;
+}
+function leaveTasks() {
+  tasksCancelTouch(); tasksDragged = null; tasksClearDrop();
+  $("tasks").classList.add("hidden");
+  tasksState.request++; tasksState.loading = false; tasksState.opening++;
+  tasksCloseItem(false);
+}
+async function openTasks(itemId = null) {
+  if (!state.me || state.me.identity_type !== "user") return;
+  const entering = state.view !== "tasks";
+  if (!refreshTimer) { refreshTimer = setInterval(refreshChannels, 10000); setInterval(refreshPresence, 30000); refreshPresence(); }
+  state.view = "tasks";
+  if (state.poll) state.poll.abort();
+  state.current = null; closePanel(); renderChannels(); closeInfo();
+  $("app").classList.remove("nav");
+  history.replaceState(null, "", location.pathname + "#tasks" + (itemId ? "/" + encodeURIComponent(itemId) : ""));
+  $("chat-view").style.display = "none";
+  for (const id of ["settings", "activity", "search"]) $(id).classList.add("hidden");
+  leaveAnalytics(); $("tasks").classList.remove("hidden");
+  tasksSizeDm();
+  $("ch-title").textContent = "Tasks"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
+  for (const id of ["members-open", "ch-info", "ch-doc", "ch-join"]) $(id).classList.add("hidden");
+  tasksRenderSort();
+  if (entering) {
+    $("tasks-error").classList.add("hidden");
+    if (!tasksState.items.length) $("tasks-list").innerHTML = `<div class="empty">Loading…</div>`;
+  }
+  await Promise.all([tasksRefresh(), entering ? tasksLoadAgents() : Promise.resolve()]);
+  if (itemId && state.view === "tasks") await tasksOpenItem(itemId);
+}
+function tasksRenderSort() {
+  const q = tasksState;
+  $("tasks-sort").innerHTML = [["manual", "Custom"], ["latest", "Time"], ["channel", "Channel"], ["agent", "Agent"]].map(([sort, title]) =>
+    `<button type="button" data-tasks-sort="${sort}" class="${sort === q.sort ? "on" : ""}" aria-pressed="${sort === q.sort}">${title}${sort === q.sort && sort !== "manual" ? " " + (q.direction === "asc" ? "↑" : "↓") : ""}</button>`).join("");
+}
+async function tasksRefresh() {
+  if (state.view !== "tasks") return;
+  const q = tasksState, request = ++q.request;
+  q.loading = true;
+  try {
+    const data = await api("GET", `/tasks?archived=${q.archived}&sort=${q.sort}&direction=${q.direction}`);
+    if (state.view !== "tasks" || request !== q.request) return;
+    q.items = data.items; q.counts = data.counts; q.orderVersion = data.order_version;
+    const signature = JSON.stringify([q.sort, q.direction, data.items]);
+    if (signature !== q.signature) { q.signature = signature; tasksRenderList(); }
+    $("tasks-count").textContent = `${data.counts.open} ${data.counts.open === 1 ? "item" : "items"}`;
+    $("tasks-archived-count").textContent = `${data.counts.archived} archived`;
+    if (q.open) {
+      let item = data.items.find((i) => String(i.id) === String(q.open.item.id));
+      if (!item) {
+        try { item = await api("GET", `/tasks/items/${encodeURIComponent(q.open.item.id)}`); }
+        catch (e) { if (q.open && request === q.request) tasksError("This item is no longer available: " + e.message, true); }
+      }
+      if (item && q.open && String(q.open.item.id) === String(item.id) && request === q.request) tasksUpdateItem(item);
+    }
+  } catch (e) { if (state.view === "tasks" && request === q.request) tasksError(e); }
+  finally { if (request === q.request) q.loading = false; }
+}
+function tasksRenderList() {
+  tasksCancelTouch();
+  const q = tasksState, box = $("tasks-list"), focus = document.activeElement;
+  const focusId = focus && focus.dataset && focus.dataset.tasksOpen;
+  box.innerHTML = q.items.map((i) => `<article class="tasks-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" draggable="${q.sort === "manual" && i.state === "open"}">
+    <button class="tasks-row-open" data-tasks-open="${esc(i.id)}" aria-haspopup="dialog"${q.sort === "manual" && i.state === "open" ? ' title="Hold and drag to reorder · Alt+↑/↓ with keyboard" aria-description="Hold and drag to reorder, or press Alt plus Arrow Up or Arrow Down."' : ""}><span class="tasks-row-title">${i.state !== "open" ? `<span class="tasks-row-mark" role="img" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? tasksCross : tasksCheck}</span>` : ""}${esc(i.title)}</span>
+    <span class="tasks-row-meta">${i.channel ? `<span>${esc(tasksChannelLabel(i.channel))}</span><span>·</span>` : ""}<span>${esc(nameOf(i.agent))}</span><span>·</span><time title="${esc(fmtDate(i.created_at) + " " + fmtTime(i.created_at))}">${esc(ago(i.created_at))}</time></span></button>${tasksActions(i, true)}</article>`).join("") || `<div class="empty">No open tasks.</div>`;
+  if (focusId) { const b = [...box.querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === focusId); if (b) b.focus({ preventScroll: true }); }
+}
+$("tasks-open").onclick = () => openTasks();
+$("tasks-sort").onclick = (e) => {
+  const b = e.target.closest("[data-tasks-sort]"); if (!b) return;
+  const q = tasksState, next = b.dataset.tasksSort;
+  q.direction = next === q.sort && next !== "manual" ? (q.direction === "asc" ? "desc" : "asc") : next === "latest" ? "desc" : "asc";
+  tasksCancelTouch(); q.sort = next; tasksRenderSort(); tasksRefresh();
+};
+$("tasks-show-archived").onchange = (e) => { tasksState.archived = e.target.checked; tasksRefresh(); };
+$("tasks-list").onclick = (e) => {
+  const action = e.target.closest("[data-tasks-action]");
+  if (action) return tasksFinish(action.dataset.qid, action.dataset.tasksAction);
+  const b = e.target.closest("[data-tasks-open]"); if (b) tasksOpenItem(b.dataset.tasksOpen, b);
+};
+let tasksDragged = null, tasksTouch = null, tasksIgnoreClickUntil = 0;
+const tasksClearDrop = () => $("tasks-list").querySelectorAll(".drag-before,.drag-after").forEach((r) => r.classList.remove("drag-before", "drag-after"));
+function tasksCancelTouch() {
+  if (!tasksTouch) return;
+  clearTimeout(tasksTouch.timer);
+  if (tasksTouch.active) tasksIgnoreClickUntil = Date.now() + 800;
+  tasksTouch.row.classList.remove("touch-dragging");
+  tasksTouch = null; tasksClearDrop();
+}
+async function tasksMove(id, neighbor, before) {
+  const q = tasksState;
+  if (!neighbor || q.movePending || state.view !== "tasks" || q.sort !== "manual") return;
+  const item = q.items.find((i) => String(i.id) === String(id));
+  if (!item || item.state !== "open" || item.id === neighbor.id) return;
+  q.movePending = true;
+  try {
+    await api("POST", `/tasks/items/${encodeURIComponent(id)}/move`, { body: { order_version: q.orderVersion, [before ? "before_id" : "after_id"]: neighbor.id } });
+    $("tasks-error").classList.add("hidden"); await tasksRefresh();
+  } catch (err) { tasksError(err.status === 409 ? "The tasks order changed. It has been refreshed; try the move again." : err); await tasksRefresh(); }
+  finally { q.movePending = false; }
+}
+function tasksMarkDrop(row, y) {
+  tasksClearDrop();
+  const bounds = row.getBoundingClientRect();
+  const before = y < bounds.top + bounds.height / 2;
+  row.classList.add(before ? "drag-before" : "drag-after");
+  return before;
+}
+$("tasks-list").addEventListener("dragstart", (e) => {
+  const row = e.target.closest(".tasks-row[draggable=true]");
+  if (e.target.closest(".tasks-actions") || tasksTouch || tasksState.movePending) { e.preventDefault(); return; }
+  if (!row || tasksState.sort !== "manual" || hasFiles(e)) return;
+  tasksDragged = row.dataset.qid;
+  e.dataTransfer.setData("application/x-msgboard-tasks", tasksDragged); e.dataTransfer.effectAllowed = "move";
+});
+$("tasks-list").addEventListener("dragover", (e) => {
+  const row = e.target.closest(".tasks-row");
+  if (!row || !tasksDragged || row.dataset.qid === tasksDragged || tasksState.sort !== "manual") return;
+  e.preventDefault(); tasksMarkDrop(row, e.clientY);
+});
+$("tasks-list").addEventListener("dragleave", (e) => { if (!$("tasks-list").contains(e.relatedTarget)) tasksClearDrop(); });
+$("tasks-list").addEventListener("dragend", () => { tasksDragged = null; tasksClearDrop(); });
+$("tasks-list").addEventListener("drop", (e) => {
+  const row = e.target.closest(".tasks-row"), id = tasksDragged;
+  if (!row || !id || row.dataset.qid === id || tasksState.sort !== "manual") return;
+  e.preventDefault();
+  const before = row.classList.contains("drag-before"), neighbor = tasksState.items.find((i) => String(i.id) === row.dataset.qid);
+  tasksDragged = null; tasksClearDrop();
+  tasksMove(id, neighbor, before);
+});
+$("tasks-list").addEventListener("keydown", (e) => {
+  const button = e.target.closest("[data-tasks-open]");
+  if (!button || !e.altKey || e.ctrlKey || e.metaKey || !["ArrowUp", "ArrowDown"].includes(e.key) || tasksState.sort !== "manual") return;
+  const q = tasksState, index = q.items.findIndex((i) => String(i.id) === button.dataset.tasksOpen);
+  if (index < 0 || q.items[index].state !== "open") return;
+  e.preventDefault();
+  tasksMove(button.dataset.tasksOpen, q.items[index + (e.key === "ArrowUp" ? -1 : 1)], e.key === "ArrowUp");
+});
+$("tasks-list").addEventListener("touchstart", (e) => {
+  tasksCancelTouch();
+  const row = e.target.closest(".tasks-row[draggable=true]");
+  if (!row || e.target.closest(".tasks-actions") || e.touches.length !== 1 || tasksState.sort !== "manual" || tasksState.movePending) return;
+  const touch = e.touches[0];
+  const gesture = tasksTouch = { id: row.dataset.qid, row, identifier: touch.identifier, x: touch.clientX, y: touch.clientY, active: false, target: null, before: false, timer: null };
+  gesture.timer = setTimeout(() => {
+    if (tasksTouch !== gesture) return;
+    if (!row.isConnected || state.view !== "tasks" || tasksState.sort !== "manual") return tasksCancelTouch();
+    gesture.active = true; row.classList.add("touch-dragging");
+  }, 350);
+}, { passive: true });
+// Keep native scrolling until the hold is complete. The first active drag move then owns the gesture.
+$("tasks-list").addEventListener("touchmove", (e) => {
+  const gesture = tasksTouch; if (!gesture) return;
+  const touch = [...e.touches].find((t) => t.identifier === gesture.identifier);
+  if (!touch || e.touches.length !== 1) { tasksCancelTouch(); return; }
+  if (!gesture.active) {
+    if (Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y) > 10) tasksCancelTouch();
+    return;
+  }
+  if (!e.cancelable) { tasksCancelTouch(); return; }
+  e.preventDefault();
+  const hit = document.elementFromPoint(touch.clientX, touch.clientY), row = hit && hit.closest(".tasks-row");
+  if (!row || !$("tasks-list").contains(row) || row.dataset.qid === gesture.id) {
+    gesture.target = null; tasksClearDrop(); return;
+  }
+  gesture.target = row.dataset.qid; gesture.before = tasksMarkDrop(row, touch.clientY);
+}, { passive: false });
+$("tasks-list").addEventListener("touchend", (e) => {
+  const gesture = tasksTouch; if (!gesture) return;
+  if (![...e.changedTouches].some((t) => t.identifier === gesture.identifier)) return;
+  const active = gesture.active, neighbor = tasksState.items.find((i) => String(i.id) === gesture.target);
+  if (active && e.cancelable) e.preventDefault();
+  tasksCancelTouch();
+  if (active && neighbor) tasksMove(gesture.id, neighbor, gesture.before);
+}, { passive: false });
+$("tasks-list").addEventListener("touchcancel", tasksCancelTouch, { passive: true });
+$("tasks-list").addEventListener("contextmenu", (e) => { if (tasksTouch) e.preventDefault(); });
+$("tasks-list").addEventListener("click", (e) => {
+  if (Date.now() < tasksIgnoreClickUntil) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+window.addEventListener("blur", tasksCancelTouch);
+document.addEventListener("visibilitychange", () => { if (document.hidden) tasksCancelTouch(); });
+function tasksMessageHTML(m) {
+  return `<div class="msg first" data-mid="${esc(m.id)}">${avatar(m.sender)}<div class="content"><div class="head"><span class="name" data-profile="${esc(m.sender.id)}">${esc(nameOf(m.sender))}</span><span class="label">${esc(kindLabel(m.sender))}</span><span class="time">${esc(fmtTime(m.created_at))}</span></div>
+    <div class="${bodyClass()}">${renderBody(m.body, m.mentions || [])}</div>${(m.attachments || []).length ? `<div class="files">${m.attachments.map((a) => `<button class="fchip" data-att="${esc(a)}"><span class="fprev">file</span><span class="fcopy"><span class="fname">loading…</span><span class="fmeta"></span></span></button>`).join("")}</div>` : ""}</div></div>`;
+}
+function tasksHydrate(host) { hydrate(host); host.querySelectorAll("[data-att]").forEach(fillFile); }
+function tasksSourceHTML(source, answer = false) {
+  if (!source || source.unavailable || !source.message) return `<section class="tasks-source"><div class="small tasks-source-unavailable">Source message unavailable.</div></section>`;
+  const id = source.message_id, label = answer ? "Open answer" : "Open quoted message " + id;
+  return `<section class="tasks-source" role="link" tabindex="0" data-tasks-source="${esc(id)}" aria-label="${esc(label)}">${tasksMessageHTML(source.message)}</section>`;
+}
+function tasksTextHTML(text) {
+  return text ? `<div class="tasks-description ${bodyClass()}">${renderBody(text)}</div>` : "";
+}
+function tasksBodyHTML(item) {
+  const sources = item.sources || [], byId = new Map(sources.map((s) => [String(s.message_id), s])), placed = new Set();
+  let html = tasksTextHTML(item.description);
+  for (const block of item.blocks || []) {
+    if (block.type === "text") html += tasksTextHTML(block.text);
+    else if (block.type === "quote") { placed.add(String(block.message_id)); html += tasksSourceHTML(byId.get(String(block.message_id))); }
+  }
+  html += sources.filter((s) => !placed.has(String(s.message_id))).map((s) => tasksSourceHTML(s)).join("");
+  if (item.state !== "open" && item.answer) html += tasksSourceHTML({ message_id: item.answer.id, message: item.answer }, true);
+  return html;
+}
+function tasksChannelLabel(channel) {
+  if (channel.kind !== "dm") return "#" + channel.name;
+  const full = state.channels.find((c) => c.id === channel.id) || channel;
+  const title = channelTitle(full);
+  return title ? "DM with " + title : "DM #" + channel.id;
+}
+function tasksDestination(i) {
+  if (i.destination_unavailable || (i.channel && i.channel.archived)) return "Reply destination unavailable. You can still mark this item done or dismiss it.";
+  if (!i.channel_id) return "Reply in DM with " + nameOf(i.agent);
+  const channel = i.channel || state.channels.find((c) => c.id === i.channel_id);
+  return "Reply to " + (channel ? tasksChannelLabel(channel) : "channel") + (i.anchor_id ? " · thread #" + i.anchor_id : "");
+}
+async function tasksOpenItem(id, trigger = null) {
+  const q = tasksState, opening = ++q.opening;
+  try {
+    const item = await api("GET", `/tasks/items/${encodeURIComponent(id)}`);
+    if (state.view !== "tasks" || opening !== q.opening) return;
+    tasksCloseItem(false);
+    const choiceKey = tasksChoiceKey(item.id), legacyChoiceKey = `queue-choices:${state.me.id}:${item.id}`;
+    const savedChoices = store.get(choiceKey) ?? store.get(legacyChoiceKey);
+    if (savedChoices !== null) { store.set(choiceKey, savedChoices); store.del(legacyChoiceKey); }
+    let choices; try { choices = JSON.parse(savedChoices || "[]"); } catch { choices = []; }
+    q.open = { item, trigger, choices: Array.isArray(choices) ? choices : [], rendered: "", options: "", composer: false };
+    $("tasks-item-error").classList.add("hidden");
+    $("tasks-answer-composer").innerHTML = "";
+    $("tasks-dialog").showModal();
+    tasksUpdateItem(item, true); $("tasks-item-close").focus();
+    history.replaceState(null, "", location.pathname + "#tasks/" + encodeURIComponent(item.id));
+  } catch (e) { if (opening === q.opening) tasksError(e); }
+}
+function tasksUpdateItem(item, initial = false) {
+  const q = tasksState, open = q.open; if (!open) return;
+  const signature = JSON.stringify(item);
+  if (!initial && signature === open.rendered) return;
+  const changed = !initial && item.version !== open.item.version, scroll = $("tasks-dialog").scrollTop;
+  open.item = item; open.rendered = signature;
+  $("tasks-item-content").innerHTML = `<div class="msg first tasks-proposal">${avatar(item.agent)}<div class="content"><div class="head"><span class="name" data-profile="${esc(item.agent.id)}">${esc(nameOf(item.agent))}</span><span class="label">agent</span><span class="time">${esc(ago(item.created_at))}</span></div>
+    <h2 id="tasks-item-title">${esc(item.title)}</h2><div class="tasks-body">${tasksBodyHTML(item)}</div></div></div>`;
+  tasksHydrate($("tasks-item-content"));
+  $("tasks-item-destination").textContent = item.state === "open" ? tasksDestination(item) : item.closed_reason === "dismissed" ? "Dismissed" : item.closed_reason === "answered" ? "Done · answered" : "Done";
+  const options = item.options || [];
+  open.choices = open.choices.filter((id) => options.some((o) => o.id === id));
+  if (!item.multiple) open.choices = open.choices.slice(0, 1);
+  const optionSignature = JSON.stringify([options, item.multiple, item.state]);
+  if (open.options !== optionSignature) {
+    open.options = optionSignature;
+    $("tasks-item-options").innerHTML = item.state === "open" ? options.map((o) => `<label class="tasks-option"><input type="${item.multiple ? "checkbox" : "radio"}" name="tasks-answer-choice" value="${esc(o.id)}" ${open.choices.includes(o.id) ? "checked" : ""}><span>${esc(o.label)}</span></label>`).join("") : "";
+  }
+  $("tasks-item-actions").innerHTML = tasksActions(item);
+  $("tasks-restore").classList.toggle("hidden", item.state === "open");
+  $("tasks-answer-composer").classList.toggle("hidden", item.state !== "open");
+  if (item.state === "open" && !open.composer) {
+    open.composer = true;
+    const channel = state.channels.find((c) => c.id === item.channel_id) || item.channel ||
+      (!item.channel_id && state.channels.find((c) => c.kind === "dm" && dmPeer(c) && dmPeer(c).id === item.agent.id)) || null;
+    mountComposer($("tasks-answer-composer"), {
+      placeholder: options.length ? "Add a note (optional)…" : "Write your answer…", targetChannel: channel,
+      draftKey: tasksDraftKey(item.id), canPost: can("post"), autofocus: false,
+      allowEmpty: () => open.choices.length > 0,
+      canSend: () => open.item.state === "open" && !open.item.destination_unavailable && !(open.item.channel && open.item.channel.archived),
+      prepareSend: (payload) => ({ action: "answer", version: open.item.version, body: payload.body, option_ids: [...open.choices] }),
+      sendMessage: (payload, key) => api("POST", `/tasks/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }),
+      onSent: () => { store.del(tasksChoiceKey(item.id)); if (q.open === open) tasksCloseItem(); tasksRefresh(); tasksRefreshDm(); },
+      onSendError: (err) => { if (q.open === open) tasksError(err.status === 409 ? "This item changed. Your draft is kept. Review the refreshed item before sending again." : err, true); tasksRefresh(); },
+    });
+  }
+  if (changed) tasksError("This item was updated. Your draft and remaining choices are kept; review it before sending.", true);
+  $("tasks-dialog").scrollTop = scroll;
+}
+function tasksCloseItem(restoreFocus = true) {
+  const open = tasksState.open;
+  tasksState.open = null;
+  if ($("tasks-dialog").open) $("tasks-dialog").close();
+  if (state.view === "tasks") history.replaceState(null, "", location.pathname + "#tasks");
+  if (restoreFocus && open) {
+    const target = open.trigger && open.trigger.isConnected ? open.trigger : [...$("tasks-list").querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === String(open.item.id)) || $("tasks-open");
+    target.focus({ preventScroll: true });
+  }
+}
+$("tasks-item-close").onclick = () => { tasksState.opening++; tasksCloseItem(); };
+$("tasks-dialog").addEventListener("cancel", (e) => { e.preventDefault(); tasksState.opening++; tasksCloseItem(); });
+$("tasks-dialog").addEventListener("click", (e) => {
+  if (e.target === $("tasks-dialog")) {
+    const r = e.target.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) tasksCloseItem();
+  }
+  const action = e.target.closest("[data-tasks-action]"); if (action) tasksFinish(action.dataset.qid, action.dataset.tasksAction);
+  const source = e.target.closest("[data-tasks-source]");
+  if (source && !e.target.closest("a[href],[data-att],a[data-board-file],.board-img,[data-file]")) {
+    e.preventDefault(); e.stopPropagation(); const id = source.dataset.tasksSource; tasksCloseItem(false); routeHash("#msg/" + id); return;
+  }
+  // The existing profile and attachment viewers live outside this modal's top layer.
+  if (e.target.closest("[data-profile],[data-att],a[data-board-file],.board-img,[data-file]")) tasksCloseItem(false);
+});
+$("tasks-dialog").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches(".tasks-source[role=link]")) { e.preventDefault(); e.target.click(); }
+});
+$("tasks-item-options").onchange = () => {
+  const open = tasksState.open; if (!open) return;
+  open.choices = [...$("tasks-item-options").querySelectorAll("input:checked")].map((n) => n.value);
+  store.set(tasksChoiceKey(open.item.id), JSON.stringify(open.choices));
+};
+$("tasks-restore").onclick = () => { if (tasksState.open) tasksFinish(tasksState.open.item.id, "restore"); };
+async function tasksFinish(id, action) {
+  const q = tasksState, item = q.open && String(q.open.item.id) === String(id) ? q.open.item : q.items.find((i) => String(i.id) === String(id));
+  if (!item || q.busy.has(item.id)) return;
+  q.busy.add(item.id); tasksRenderList(); if (q.open && q.open.item.id === item.id) $("tasks-item-actions").innerHTML = tasksActions(item);
+  try {
+    const key = uid(), payload = { action, version: item.version };
+    for (let attempt = 0; ; attempt++) {
+      try { await api("POST", `/tasks/items/${encodeURIComponent(item.id)}/actions`, { body: payload, headers: { "Idempotency-Key": key } }); break; }
+      catch (e) { if (attempt >= 3 || (e.status && e.status < 500 && e.status !== 429)) throw e; await sleep(Math.min(500 * 2 ** attempt, 4000)); }
+    }
+    if (q.open && q.open.item.id === item.id) tasksCloseItem();
+    $("tasks-error").classList.add("hidden"); await tasksRefresh();
+  } catch (e) {
+    tasksError(e.status === 409 ? "This item changed. It has been refreshed; review it and try again." : e, !!q.open && q.open.item.id === item.id);
+    await tasksRefresh();
+  } finally { q.busy.delete(item.id); if (state.view === "tasks") tasksRenderList(); if (q.open) $("tasks-item-actions").innerHTML = tasksActions(q.open.item); }
+}
+async function tasksLoadAgents() {
+  const q = tasksState;
+  try {
+    const people = await loadPeople(true);
+    if (state.view !== "tasks") return;
+    q.agents = people.filter((p) => p.identity_type === "agent" && p.owner && p.owner.id === state.me.id && !p.disabled && !p.suspended);
+    $("tasks-dm-agent").innerHTML = q.agents.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p))}</option>`).join("");
+    if (!q.agents.some((p) => p.id === q.dmAgent)) q.dmAgent = q.agents[0] ? q.agents[0].id : null;
+    $("tasks-dm-agent").disabled = !q.agents.length;
+    if (!q.agents.length) {
+      q.dmChannel = null; $("tasks-dm-messages").innerHTML = `<div class="small" style="padding:8px 0">No active agents yet.</div>`;
+      $("tasks-dm-composer").innerHTML = "";
+    } else { $("tasks-dm-agent").value = q.dmAgent; await tasksSelectAgent(q.dmAgent); }
+  } catch (e) { if (state.view === "tasks") tasksError(e); }
+}
+async function tasksSelectAgent(id) {
+  const q = tasksState, agent = q.agents.find((p) => String(p.id) === String(id)); if (!agent) return;
+  const request = ++q.dmRequest;
+  q.dmAgent = agent.id; q.dmChannel = null; q.dmSignature = "";
+  $("tasks-dm-composer").innerHTML = ""; $("tasks-dm-messages").innerHTML = `<div class="small" style="padding:8px 0">Loading…</div>`;
+  try {
+    const channel = await api("POST", "/dms", { body: { with: agent.id } });
+    if (state.view !== "tasks" || request !== q.dmRequest) return;
+    q.dmChannel = channel;
+    mountComposer($("tasks-dm-composer"), { placeholder: "Message " + nameOf(agent), targetChannel: channel, draftKey: "c:" + channel.id,
+      autofocus: false, onSent: () => { if (q.dmChannel === channel) tasksRefreshDm(); refreshChannels(); } });
+    await tasksRefreshDm();
+  } catch (e) { if (state.view === "tasks" && request === q.dmRequest) $("tasks-dm-messages").textContent = e.message; }
+}
+async function tasksRefreshDm() {
+  const q = tasksState, channel = q.dmChannel; if (state.view !== "tasks" || !channel) return;
+  const request = ++q.dmRefreshRequest;
+  try {
+    // A before read returns the newest window in conversation order. An after=0
+    // read would keep showing the first forty messages forever.
+    const page = await api("GET", `/channels/${channel.id}/messages?limit=40&before=${Number.MAX_SAFE_INTEGER}`);
+    if (state.view !== "tasks" || q.dmChannel !== channel || request !== q.dmRefreshRequest) return;
+    const signature = JSON.stringify(page.messages); if (signature === q.dmSignature) return;
+    q.dmSignature = signature;
+    const host = $("tasks-dm-messages"), bottom = nearBottom(host), scroll = host.scrollTop;
+    host.innerHTML = page.messages.map(tasksMessageHTML).join("") || `<div class="small" style="padding:8px 0">No messages yet.</div>`;
+    tasksHydrate(host); host.scrollTop = bottom ? host.scrollHeight : scroll;
+  } catch (e) { if (state.view === "tasks" && q.dmChannel === channel && request === q.dmRefreshRequest) tasksError("Agent messages: " + e.message); }
+}
+function tasksToggleDm() {
+  const q = tasksState; q.dmHidden = !q.dmHidden;
+  $("tasks-dm").classList.toggle("collapsed", q.dmHidden);
+  $("tasks-agent-tab").classList.toggle("hidden", !q.dmHidden);
+  $("tasks-agent-tab").setAttribute("aria-expanded", String(!q.dmHidden));
+  if (!q.dmHidden) tasksSizeDm();
+}
+// Resize the ordinary Agent conversation, leaving room to scroll the task list.
+let tasksDmHeight = Number(store.get("tasks-dm-height")) || null;
+function tasksSizeDm(height = tasksDmHeight, save = false) {
+  const content = $("tasks-dm-content"), handle = $("tasks-dm-resize");
+  if (state.view !== "tasks" || tasksState.dmHidden) return;
+  const available = $("tasks").clientHeight;
+  const max = Math.max(100, available - Math.min(120, available / 3));
+  const composer = $("tasks-dm-composer"), box = composer.querySelector(".cbox"), head = content.querySelector(".tasks-dm-head").offsetHeight;
+  const padding = parseFloat(getComputedStyle(composer).paddingTop) + parseFloat(getComputedStyle(composer).paddingBottom);
+  const min = Math.min(Math.max(140, head + (box ? box.scrollHeight + padding : composer.scrollHeight) + 24), max);
+  tasksDmHeight = height;
+  content.classList.toggle("resized", height !== null);
+  content.style.height = height === null ? "" : Math.round(Math.max(min, Math.min(max, height))) + "px";
+  if (box) box.style.maxHeight = height === null ? "" : Math.max(40, content.clientHeight - head - padding - 24) + "px";
+  handle.setAttribute("aria-valuemin", Math.round(min));
+  handle.setAttribute("aria-valuemax", Math.round(max));
+  handle.setAttribute("aria-valuenow", Math.round(content.getBoundingClientRect().height));
+  if (save) {
+    tasksDmHeight = height === null ? null : content.getBoundingClientRect().height;
+    if (tasksDmHeight === null) store.del("tasks-dm-height");
+    else store.set("tasks-dm-height", String(tasksDmHeight));
+  }
+}
+{
+  const handle = $("tasks-dm-resize"); let drag = null;
+  handle.onpointerdown = (e) => {
+    if (!e.isPrimary || e.button !== 0) return;
+    e.preventDefault(); handle.focus();
+    drag = { id: e.pointerId, y: e.clientY, height: $("tasks-dm-content").getBoundingClientRect().height };
+    handle.setPointerCapture(e.pointerId);
+  };
+  handle.onpointermove = (e) => {
+    if (drag && drag.id === e.pointerId) tasksSizeDm(drag.height + drag.y - e.clientY);
+  };
+  const finish = (e) => {
+    if (!drag || drag.id !== e.pointerId) return;
+    tasksSizeDm($("tasks-dm-content").getBoundingClientRect().height, true); drag = null;
+    if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
+  };
+  handle.onpointerup = finish; handle.onpointercancel = finish; handle.onlostpointercapture = finish;
+  handle.ondblclick = () => tasksSizeDm(null, true);
+  handle.onkeydown = (e) => {
+    if (!["ArrowUp", "ArrowDown", "Home"].includes(e.key)) return;
+    e.preventDefault(); e.stopPropagation();
+    tasksSizeDm(e.key === "Home" ? null : $("tasks-dm-content").getBoundingClientRect().height + (e.key === "ArrowUp" ? 24 : -24), true);
+  };
+  window.addEventListener("resize", () => tasksSizeDm());
+  if (window.visualViewport) visualViewport.addEventListener("resize", () => tasksSizeDm());
+  new ResizeObserver(() => tasksSizeDm()).observe($("tasks-dm-composer"));
+  $("tasks-dm-composer").addEventListener("input", () => tasksSizeDm());
+  new MutationObserver(() => tasksSizeDm()).observe($("tasks-dm-composer"), { childList: true, subtree: true });
+}
+$("tasks-dm-hide").onclick = tasksToggleDm;
+$("tasks-agent-tab").onclick = tasksToggleDm;
+$("tasks-dm-agent").onchange = (e) => tasksSelectAgent(e.target.value);
+setInterval(() => {
+  if (state.view === "tasks" && document.visibilityState === "visible") {
+    if (!tasksState.loading) tasksRefresh();
+    if (!tasksState.dmHidden) tasksRefreshDm();
+  }
+}, 8000);
 
 // ------------------------------------------------------------------ emoji and @mentions in the composer
 const EMOJI = [
@@ -2877,7 +3563,184 @@ const EMOJI = [
   ["Food", "☕ coffee|🍵 tea|🍕 pizza|🍔 burger|🌮 taco|🍣 sushi|🍪 cookie|🍰 cake|🍎 apple|🍌 banana|🥑 avocado|🍿 popcorn|🍺 beer|🥂 cheers toast|🧁 cupcake"],
 ].map(([cat, list]) => [cat, list.split("|").map((x) => { const i = x.indexOf(" "); return [x.slice(0, i), x.slice(i + 1)]; })]);
 
-function attachAssist(host, input, autosize) {
+// Every picker entry has a shortcode. Reuse its search words (including phrases such as
+// thumbs_up); an exact name wins over a keyword, and ambiguous keywords stay literal.
+const EMOJI_SHORTCODES = new Map(), EMOJI_NAMES = new Map();
+for (const [, list] of EMOJI) for (const [emoji, label] of list) {
+  const words = label.split(" ");
+  for (let a = 0; a < words.length; a++) for (let b = a + 1; b <= words.length; b++) {
+    const name = words.slice(a, b).join("_");
+    EMOJI_SHORTCODES.set(name, EMOJI_SHORTCODES.has(name) && EMOJI_SHORTCODES.get(name) !== emoji ? null : emoji);
+  }
+}
+for (const [, list] of EMOJI) for (const [emoji, label] of list) EMOJI_SHORTCODES.set(label.replaceAll(" ", "_"), emoji);
+for (const [, list] of EMOJI) for (const [emoji, label] of list) {
+  const words = label.split(" ");
+  EMOJI_NAMES.set(emoji, words.map((_, i) => words.slice(0, i + 1).join("_")).find((name) => EMOJI_SHORTCODES.get(name) === emoji));
+}
+const EMOTICONS = new Map([[":D", "😄"], [":-D", "😄"], [":)", "🙂"], [":-)", "🙂"],
+  [";)", "😉"], [";-)", "😉"], [":(", "🙁"], [":-(", "🙁"], ["<3", "❤️"]]);
+const emojiTitle = (emoji, label) => `${label} · :${EMOJI_NAMES.get(emoji)}: + Space`;
+
+// Inspect unfinished Markdown too: a renderer's completed tokens cannot tell us that
+// the caret is inside an unclosed code span, fence or link destination. No CDN needed.
+function emojiLiteralContext(text) {
+  let fence = null, ticks = 0, destination = null, angle = false, reference = null;
+  const lines = text.split("\n").map((line) => line.split("\t").reduce((s, part, i) => s + (i ? " ".repeat(4 - s.length % 4) : "") + part, ""));
+  const titleEnd = (line, quote) => {
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === "\\") i++;
+      else if (line[i] === quote) return true;
+    }
+    return false;
+  };
+  // Marked's list tokenizer admits lazy text after a body line, but not after
+  // a fence opener, blank line, indented code, heading or another block boundary.
+  const listBoundary = (line, indent, previous = false) => {
+    const padding = "^ {0," + Math.min(3, indent - 1) + "}";
+    return new RegExp(padding + "(?:`{3}|~{3}|#|(?:(?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})$)").test(line)
+      || (!previous && new RegExp(padding + "(?:[-+*]|\\d{1,9}[.)])(?: |$)").test(line));
+  };
+  for (let n = 0; n < lines.length; n++) {
+    let line = lines[n];
+    const last = n === lines.length - 1;
+    // Inside a reference title every line is title content, even if it looks
+    // like a new definition, list or fence. Only its own delimiter ends it.
+    if (reference?.quote) {
+      if (titleEnd(line, reference.quote)) reference = null;
+      if (last) return true;
+      continue;
+    }
+    if (fence) {
+      // Remove only the containers that enclosed the opening fence. A list marker
+      // or quote inside its code is content, never a new container or delimiter.
+      let sameContainer = true, canClose = true;
+      for (const container of fence.containers) {
+        if (container === ">") {
+          const prefix = /^ {0,3}> ?/.exec(line);
+          if (prefix) line = line.slice(prefix[0].length);
+          else if (line.trim() && lines[n - 1]?.trim() && !/^ {0,3}(`{3,}|~{3,})/.test(line)) canClose = false;
+          else { sameContainer = false; break; }
+        } else {
+          const { indent, previous, blank } = container;
+          if (listBoundary(line, indent)) { sameContainer = false; break; }
+          const prefix = new RegExp(`^ {${indent}}`).exec(line);
+          if (!prefix && line.trim() && (blank || /^ {4}/.test(previous) || listBoundary(previous, indent, true))) { sameContainer = false; break; }
+          container.blank ||= !line.trim();
+          container.previous = line.slice(indent);
+          if (prefix) line = line.slice(indent); else canClose = false;
+        }
+      }
+      if (sameContainer) {
+        const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+        if (canClose && close && close[1][0] === fence.marker[0] && close[1].length >= fence.marker.length) fence = null;
+        else if (last) return true;
+        continue;
+      }
+      fence = null; line = lines[n];   // leaving the list/quote also ends its fence
+    }
+    const containers = [];
+    let prefix;
+    while ((prefix = /^ {0,3}(> ?|(?:[-+*]|\d+[.)]) +)/.exec(line))) {
+      line = line.slice(prefix[0].length);
+      containers.push(prefix[1].startsWith(">") ? ">" : { indent: prefix[0].length, previous: line, blank: false });
+    }
+    // A reference title may start on the line after its destination and span lines.
+    // Keep its delimiter independently of parentheses or backticks in the title.
+    if (reference && !reference.quote && /^ {0,3}(`{3,}|~{3,})/.test(line)) reference = null;
+    const definition = /^ {0,3}\[[^\]]+\]:[ \t]*(.*)$/.exec(line);
+    if (definition && !ticks && !destination) reference = { quote: null, needsDestination: true };
+    if (reference) {
+      let rest = definition ? definition[1].trimStart() : line.trimStart();
+      let destinationLine = false;
+      if (reference.needsDestination) {
+        const url = /^(?:<[^>]*>|(?:\\.|[^\s])+)/.exec(rest);
+        if (url) { rest = rest.slice(url[0].length).trimStart(); reference.needsDestination = false; destinationLine = true; }
+        else if (definition) { if (last) return true; continue; }
+        else reference = null;
+      }
+      if (reference) {
+        if (/^["'(]/.test(rest)) {
+          const quote = rest[0] === "(" ? ")" : rest[0];
+          reference = titleEnd(rest.slice(1), quote) ? null : { quote };
+          if (last) return true;
+          continue;
+        }
+        if (definition || destinationLine) { if (last) return true; continue; }
+      }
+      reference = null;
+    }
+    const mark = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (mark && !ticks && !destination) { fence = { marker: mark[1], containers }; if (last) return true; continue; }
+    if (/^ {4}/.test(line)) { if (last) return true; continue; }
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === "`" && !destination && !angle) {
+        const run = /^`+/.exec(line.slice(i))[0].length;
+        if (!ticks) ticks = run; else if (ticks === run) ticks = 0;
+        i += run - 1; continue;
+      }
+      if (ticks) continue;
+      if (c === "\\") { i++; continue; }
+      if (angle) { if (c === ">") angle = false; continue; }
+      if (destination) {
+        if (destination.quote) {
+          if (c === destination.quote) { destination.quote = null; destination.phase = "afterTitle"; }
+        } else if (destination.angle) { if (c === ">") destination.angle = false; }
+        else if (/\s/.test(c) && destination.depth === 1) { destination.space = true; if (destination.phase === "url") destination.phase = "afterUrl"; }
+        else if ((destination.phase === "afterUrl" || (destination.phase === "leading" && destination.space)) && (c === '"' || c === "'" || c === "(")) {
+          destination.quote = c === "(" ? ")" : c;
+        } else if (c === ")") { if (!--destination.depth) destination = null; }
+        else {
+          if (c === "<" && destination.phase === "leading") destination.angle = true;
+          if (c === "(") destination.depth++;
+          destination.phase = "url";
+        }
+      } else if (c === "]" && line[i + 1] === "(") { destination = { depth: 1, phase: "leading", space: false, quote: null, angle: false }; i++; }
+      else if (c === "<" && /^[a-z!?/]/i.test(line.slice(i + 1))) angle = true;
+    }
+    if (!last && destination && !destination.quote && !destination.angle && destination.depth === 1) {
+      destination.space = true;
+      if (destination.phase === "url") destination.phase = "afterUrl";
+    }
+  }
+  return !!(fence || ticks || destination || angle || reference?.quote);
+}
+
+function attachEmojiShortcuts(input) {
+  let composing = false, modifiedSpace = false, pending = null;
+  input.addEventListener("compositionstart", () => { composing = true; });
+  input.addEventListener("compositionend", () => { composing = false; });
+  input.addEventListener("keydown", (e) => { modifiedSpace = e.key === " " && (e.ctrlKey || e.metaKey || e.altKey); });
+  input.addEventListener("keyup", () => { modifiedSpace = false; });
+  input.addEventListener("blur", () => { composing = false; modifiedSpace = false; });
+  input.addEventListener("beforeinput", (e) => {
+    pending = null;
+    if (e.defaultPrevented || e.inputType !== "insertText" || e.data !== " " || e.isComposing || composing || modifiedSpace) return;
+    const end = input.selectionStart, value = input.value;
+    if (end !== input.selectionEnd || (end < value.length && !/\s/.test(value[end]))) return;
+    const match = /(?:^|\s)(:[a-z0-9_+\-]+:|:-?D|:-?\)|;-?\)|:-?\(|<3)$/.exec(value.slice(0, end));
+    if (!match) return;
+    const shortcut = match[1], emoji = EMOTICONS.get(shortcut) || EMOJI_SHORTCODES.get(shortcut.slice(1, -1));
+    if (!emoji || emojiLiteralContext(value.slice(0, end))) return;
+    pending = { start: end - shortcut.length, end, emoji, value };
+  });
+  input.addEventListener("input", (e) => {
+    const edit = pending; pending = null;
+    if (!edit || e.inputType !== "insertText" || e.data !== " " || e.isComposing) return;
+    const { start, end, emoji, value } = edit;
+    if (input.value !== value.slice(0, end) + " " + value.slice(end)) return;
+    input.setSelectionRange(start, end + 1);
+    // Let the browser insert Space first, then record the substitution as a native
+    // edit. Undo restores the literal shortcut; setRangeText alone loses that history.
+    if (!document.execCommand || !document.execCommand("insertText", false, emoji + " ")) {
+      input.setRangeText(emoji + " ", start, end + 1, "end");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+}
+
+function attachAssist(host, input, autosize, channel = state.current) {
   const insertAt = (text, from, to) => {
     const start = from ?? input.selectionStart, end = to ?? input.selectionEnd;
     input.setRangeText(text, start, end, "end");
@@ -2896,13 +3759,13 @@ function attachAssist(host, input, autosize) {
     closePicker();
   }
   function renderGrid(q) {
-    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const words = q.trim().toLowerCase().replace(/[:_]/g, " ").split(/\s+/).filter(Boolean);
     const match = (e) => words.every((w) => e[1].includes(w));
     let html = "";
     if (!words.length && recent().length) html += `<span class="label">Recent</span>` + recent().map((e) => `<button type="button" data-e="${e}">${e}</button>`).join("");
     for (const [cat, list] of EMOJI) {
       const shown = words.length ? list.filter(match) : list;
-      if (shown.length) html += `<span class="label">${cat}</span>` + shown.map(([e, n]) => `<button type="button" data-e="${e}" title="${n.split(" ")[0]}">${e}</button>`).join("");
+      if (shown.length) html += `<span class="label">${cat}</span>` + shown.map(([e, n]) => `<button type="button" data-e="${e}" title="${esc(emojiTitle(e, n))}">${e}</button>`).join("");
     }
     picker.querySelector(".emoji-grid").innerHTML = html || `<div class="small" style="padding:10px">No emoji found.</div>`;
   }
@@ -2916,7 +3779,7 @@ function attachAssist(host, input, autosize) {
     const search = picker.querySelector("input");
     search.oninput = () => renderGrid(search.value);
     search.onkeydown = (e) => {
-      if (e.key === "Escape") { closePicker(); input.focus(); }
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePicker(); input.focus(); }
       if (e.key === "Enter") { e.preventDefault(); const first = picker.querySelector("[data-e]"); if (first) choose(first.dataset.e); }
     };
     picker.querySelector(".emoji-grid").onclick = (e) => { const b = e.target.closest("[data-e]"); if (b) choose(b.dataset.e); };
@@ -2924,8 +3787,8 @@ function attachAssist(host, input, autosize) {
     document.addEventListener("click", outside, true);
   };
   // ---- suggestions: @people and #channels
-  let pop = null, options = [], active = 0, token = null;
-  const closeMentions = () => { if (pop) { pop.remove(); pop = null; } options = []; token = null; };
+  let pop = null, options = [], active = 0, token = null, suggestionVersion = 0;
+  const closeMentions = () => { suggestionVersion++; if (pop) { pop.remove(); pop = null; } options = []; token = null; };
   const rank = (q, ...names) => {
     if (!q) return 1;
     names = names.map((n) => n.toLowerCase());
@@ -2933,6 +3796,7 @@ function attachAssist(host, input, autosize) {
     return names.some((n) => n.includes(q)) ? 2 : 0;
   };
   async function update() {
+    const version = ++suggestionVersion;
     const before = input.value.slice(0, input.selectionStart);
     const m = /(^|[\s(])([@#])([A-Za-z0-9_.:-]*)$/.exec(before);
     if (!m) return closeMentions();
@@ -2945,14 +3809,15 @@ function attachAssist(host, input, autosize) {
         .map(([, c]) => ({ insert: `#${c.name} `, html: `<span class="glyph">${c.kind === "private" ? LOCK : "#"}</span><span>${esc(c.name)}</span>` +
           (c.description ? `<small>${esc(c.description.length > 40 ? c.description.slice(0, 39) + "…" : c.description)}</small>` : "") }));
     } else {
-      const members = state.current ? await loadMemberIds(state.current) : new Set();   // only people in this channel
-      const people = (await loadPeopleFor(members)).filter((p) => !p.disabled && p.id !== state.me.id && members.has(p.id));
-      const tags = state.current && state.current.kind !== "dm"
+      const people = channel ? await loadMentionCandidates(channel) : [];
+      if (version !== suggestionVersion || !input.isConnected) return;
+      const tags = channel && channel.kind !== "dm"
         ? ["all", "agents", "humans"].filter((g) => !q || g.startsWith(q)).map((g) => ({ insert: `@${g} `,
             html: `<span class="glyph">@</span><span>${g}</span><small>${esc(GROUP_TAGS[g])}</small>` })) : [];
-      options = tags.concat(people.map((p) => [rank(q, handleOf(p), nameOf(p)) + (p.identity_type === "user" ? 0.5 : 0), p]).filter(([s]) => s > 0)
-        .sort((a, b) => b[0] - a[0] || nameOf(a[1]).localeCompare(nameOf(b[1]))).slice(0, 7 - Math.min(tags.length, 3))
-        .map(([, p]) => ({ insert: `@${nameOf(p)} `, html: `${avatar(p, "xs", false)}<span>${esc(nameOf(p))}</span><small>@${esc(handleOf(p))} · ${esc(kindLabel(p))}</small>` })));
+      options = tags.concat(people.filter((p) => p.member || q).map((p) => [rank(q, handleOf(p), nameOf(p)), p]).filter(([s]) => s > 0)
+        .sort((a, b) => Number(b[1].member) - Number(a[1].member) || b[0] - a[0] || nameOf(a[1]).localeCompare(nameOf(b[1])))
+        .slice(0, 7 - Math.min(tags.length, 3))
+        .map(([, p]) => ({ insert: `@${nameOf(p)} `, html: `${avatar(p, "xs", false)}<span>${esc(nameOf(p))}</span><small>@${esc(handleOf(p))} · ${esc(kindLabel(p))}${p.member ? "" : " · not joined"}</small>` })));
     }
     if (!options.length) return closeMentions();
     active = Math.min(active, options.length - 1);
@@ -3031,11 +3896,13 @@ const boardURL = (hash) => `${location.origin}${location.pathname}#${hash}`;
 function internalHash(href) {
   let u; try { u = new URL(href, location.href); } catch { return null; }
   if (u.origin !== location.origin || u.pathname !== location.pathname || !u.hash) return null;
-  const h = decodeURIComponent(u.hash.slice(1));
-  return /^(msg|file)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
+  const h = decodeURIComponent(u.hash.slice(1)).replace(/^queue(?=\/|$)/, "tasks"); // pre-release links
+  return /^(msg|file|tasks)\/[\w-]+$/.test(h) || /^(settings|activity|search|analytics|tasks)$/.test(h) || state.chanIndex.has(h.toLowerCase()) ? h : null;
 }
 async function routeHash(h) {
   h = decodeURIComponent((h || "").replace(/^#/, ""));
+  h = h.replace(/^queue(?=\/|$)/, "tasks"); // keep existing test-board bookmarks working
+  if (tasksState.open && h !== "tasks" && !h.startsWith("tasks/")) tasksCloseItem(false);
   let m;
   if ((m = /^msg\/(\d+)$/.exec(h))) {
     try { jumpTo(await api("GET", `/messages/${m[1]}`)); }
@@ -3045,6 +3912,7 @@ async function routeHash(h) {
   if ((m = /^file\/([\w-]+)$/.exec(h))) { openViewer([m[1]], 0); return true; }
   if (h === "settings") { openSettings(); return true; }
   if (h === "activity") { openActivity(); return true; }
+  if (h === "tasks" || (m = /^tasks\/([\w-]+)$/.exec(h))) { openTasks(m ? m[1] : null); return true; }
   if (h === "analytics") { openAnalytics(); return true; }
   if (h === "search") { openSearch(""); return true; }
   const c = state.chanIndex.get(h.toLowerCase()) || state.channels.find((x) => x.name === h);
@@ -3323,10 +4191,10 @@ async function openMembers() {
   hydrate($("panel-scroll"));
   if ($("member-add")) $("member-add").onclick = () => pick("Add to " + c.name,
     (p) => !p.disabled && !members.some((m) => m.id === p.id),
-    async (p) => { await api("POST", `/channels/${c.id}/members`, { body: { principal_id: p.id } }); memberIds.delete(c.id); openMembers(); });
+    async (p) => { await api("POST", `/channels/${c.id}/members`, { body: { principal_id: p.id } }); mentionCandidates.delete(c.id); openMembers(); });
   $("panel-scroll").querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
     const r = await api("DELETE", `/channels/${c.id}/members/${b.dataset.remove}`);
-    memberIds.delete(c.id);
+    mentionCandidates.delete(c.id);
     if (r.left) { closePanel(); await refreshChannels(); const first = state.channels[0]; if (first) openChannel(first.id); }
     else openMembers();
   });
@@ -3583,6 +4451,7 @@ function drawActivity(host, days) {
 
 // ------------------------------------------------------------------ activity
 async function openActivity() {
+  leaveTasks();
   state.view = "activity";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -3769,6 +4638,7 @@ document.addEventListener("keydown", (e) => {
 
 // full search: a view in the main area, with filters
 async function openSearch(q, opts = {}) {
+  leaveTasks();
   state.view = "search";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();
@@ -3863,6 +4733,7 @@ async function jumpTo(m) {
 // ------------------------------------------------------------------ settings
 const EXPIRY = [["never", null], ["1 day", 86400], ["7 days", 604800], ["30 days", 2592000]];
 function openSettings(tab) {
+  leaveTasks();
   state.view = "settings";
   if (state.poll) state.poll.abort();
   state.current = null; renderChannels(); closePanel();
@@ -4247,6 +5118,7 @@ function analyticsRange() {
 function leaveAnalytics() { $("analytics").classList.add("hidden"); $("analytics-open").classList.remove("on"); }
 async function openAnalytics() {
   if (!canAnalytics()) return;
+  leaveTasks();
   state.view = "analytics";
   if (state.poll) state.poll.abort();
   state.current = null; closePanel(); renderChannels();

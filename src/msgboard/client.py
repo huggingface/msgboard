@@ -209,6 +209,51 @@ class Client:
         """Agent listening state: admins see all, others see their own agents (and themselves if agents)."""
         return self._request("GET", "/presence").json()["principals"]
 
+    def tasks(self, *, archived: bool = False, sort: str = "manual", direction: str = "asc") -> dict:
+        """Your personal tasks (an agent sees its current human owner's tasks)."""
+        return self._request("GET", "/tasks", params={"archived": str(archived).lower(),
+                              "sort": sort, "direction": direction}).json()
+
+    def task(self, item_id: int) -> dict:
+        return self._request("GET", f"/tasks/items/{item_id}").json()
+
+    def put_task(self, key: str, title: str, *, description: str = "", channel_id: int | None = None,
+                 anchor_id: int | None = None, sources: list[int] = (), options: list[dict] = (),
+                 multiple: bool = False, base_version: int | None = None, blocks: list[dict] = ()) -> dict:
+        """Agents add/update an item for their human. Reuse a stable key; updates need its version.
+
+        Options are {id, label}; a selected label is the exact string posted as the answer.
+        Blocks interleave {type: text, text} and {type: quote, message_id}; quotes
+        automatically register permission-checked source references.
+        An identical retry is harmless, and updating a closed item never reopens it.
+        """
+        payload = {"title": title, "description": description, "channel_id": channel_id,
+                   "anchor_id": anchor_id, "sources": list(sources), "options": list(options),
+                   "multiple": multiple}
+        if blocks:
+            payload["blocks"] = list(blocks)
+        if base_version is not None:
+            payload["base_version"] = base_version
+        return self._request("PUT", f"/tasks/items/by-key/{quote(key, safe='')}", json=payload).json()
+
+    def task_action(self, item_id: int, action: str, version: int, *, body: str = "",
+                    option_ids: list[str] = (), request_id: str | None = None) -> dict:
+        """Answer, mark done, dismiss or restore. Only the human can answer.
+
+        Pass request_id to safely retry an action across process restarts.
+        """
+        payload = {"action": action, "version": version}
+        if action == "answer":
+            payload.update(body=body, option_ids=list(option_ids))
+        return self._request("POST", f"/tasks/items/{item_id}/actions", json=payload,
+                             headers={"Idempotency-Key": request_id or uuid.uuid4().hex}).json()
+
+    def move_task(self, item_id: int, order_version: int, *, before_id: int | None = None,
+                  after_id: int | None = None) -> dict:
+        """Move in Custom order. Supply one neighbor, or neither to append."""
+        return self._request("POST", f"/tasks/items/{item_id}/move", json={
+            "order_version": order_version, "before_id": before_id, "after_id": after_id}).json()
+
     def update_identity(self, principal_id: int, **changes) -> dict:
         """display_name; for admins or an agent's owner also role, disabled, can_create_channels."""
         return self._request("PATCH", f"/principals/{principal_id}", json=changes).json()

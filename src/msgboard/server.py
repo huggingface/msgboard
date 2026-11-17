@@ -31,7 +31,9 @@ from .config import DB_NAME, LIMITS
 from .errors import ApiError, bad_request, forbidden
 from .presence import PRESENCE_FLUSH_SECONDS, Presence
 from . import transfer
+from . import tasks as personal_tasks
 from .reservations import Reservations
+from .auth import DOWNLOAD_TTL_SECONDS, DownloadLinks
 
 
 class NotInitialized(RuntimeError):
@@ -383,6 +385,27 @@ class Board:
                 # must not cause regular requests to fail when the writer is busy.
                 logging.getLogger(__name__).exception("could not persist agent presence")
 
+    async def task_notice_loop(self) -> None:
+        """Deliver coalesced task changes through ordinary agent-owner DMs.
+
+        The pending batch and its message are committed together by the writer;
+        cancelling this task or restarting the server cannot duplicate delivery.
+        """
+        while True:
+            await asyncio.sleep(1)
+            if self.shutting_down:
+                return
+            try:
+                if not await self.db.read(personal_tasks.notice_due, time.time()):
+                    continue
+                message = await self.db.write(personal_tasks.deliver_notice, time.time())
+                if message:
+                    self.counters["posts"] += 1
+                    self.notifier.notify(message["channel_id"])
+                    self.notifier.notify(ANY_CHANNEL)
+            except Exception:
+                logging.getLogger(__name__).exception("could not deliver task update")
+
     def close(self) -> None:
         if getattr(self, "_closed", False):
             return
@@ -437,19 +460,25 @@ async def _json_body(request: Request, max_bytes: int = 256 * 1024):
 
 
 def create_app(board: Board, dashboard: bool = True) -> FastAPI:
+    download_links = DownloadLinks()  # process-local and bounded; restarts invalidate outstanding links
+
     @asynccontextmanager
     async def lifespan(app):
         board.notifier.loop = asyncio.get_running_loop()
         board.commit_lock = asyncio.Lock()
         board.presence.sample(time.time())
         task = asyncio.create_task(board.presence_loop())
+        task_notice_task = asyncio.create_task(board.task_notice_loop())
         try:
             yield
         finally:
             board.begin_shutdown()
             task.cancel()
+            task_notice_task.cancel()
             with suppress(asyncio.CancelledError):
                 await task
+            with suppress(asyncio.CancelledError):
+                await task_notice_task
 
     app = FastAPI(title="msgboard", version="0.1.0", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url="/v1/openapi.json")
@@ -915,6 +944,11 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         p = await authn(request)
         return {"members": await with_presence(p, await db.read(store.list_members, p, channel_id))}
 
+    @app.get("/v1/channels/{channel_id}/mention-candidates")
+    async def mention_candidates(channel_id: int, request: Request):
+        p = await authn(request)
+        return {"candidates": await db.read(store.mention_candidates, p, channel_id)}
+
     @app.post("/v1/channels/{channel_id}/members")
     async def add_member(channel_id: int, request: Request):
         p = await authn(request)
@@ -936,6 +970,42 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         return JSONResponse(channel, status_code=201 if created else 200)
 
     # --------------------------------------------------------- messages
+
+    @app.get("/v1/tasks")
+    async def get_tasks(request: Request, archived: bool = False, sort: str = "manual", direction: str = "asc"):
+        p = await authn(request)
+        return await db.read(personal_tasks.list_items, p, archived, sort, direction)
+
+    @app.get("/v1/tasks/items/{item_id}")
+    async def get_task(item_id: int, request: Request):
+        p = await authn(request)
+        return await db.read(personal_tasks.get_item, p, item_id)
+
+    @app.put("/v1/tasks/items/by-key/{key}")
+    async def put_task(key: str, request: Request):
+        p = await authn(request)
+        payload = body_dict(await _json_body(request))
+        return await db.write(personal_tasks.put_item, p, key, payload, time.time())
+
+    @app.post("/v1/tasks/items/{item_id}/actions")
+    async def task_action(item_id: int, request: Request):
+        p = await authn(request)
+        key = request.headers.get("idempotency-key")
+        if not key or not store.CLIENT_ID.fullmatch(key):
+            raise bad_request("Idempotency-Key header is required and must match " + store.CLIENT_ID.pattern)
+        payload = body_dict(await _json_body(request, LIMITS.max_body_bytes * 2 + 64 * 1024))
+        result, message, replayed = await db.write(personal_tasks.action, p, item_id, payload, key, time.time())
+        if message:
+            board.counters["posts"] += 1
+            board.notifier.notify(message["channel_id"])
+            board.notifier.notify(ANY_CHANNEL)
+        return JSONResponse(result, headers={"Idempotent-Replayed": "true"} if replayed else None)
+
+    @app.post("/v1/tasks/items/{item_id}/move")
+    async def move_task(item_id: int, request: Request):
+        p = await authn(request)
+        return await db.write(personal_tasks.move_item, p, item_id,
+                              body_dict(await _json_body(request)), time.time())
 
     @app.post("/v1/channels/{channel_id}/messages")
     async def post_message(channel_id: int, request: Request):
@@ -1144,6 +1214,9 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/attachments/{att_id}")
     async def download(att_id: str, request: Request):
         p = await authn(request)
+        return await attachment_file(p, att_id)
+
+    async def attachment_file(p, att_id: str):
         info = await db.read(store.get_attachment, p, att_id)
         return FileResponse(
             board.blobs.path_for(info["storage_key"]),
@@ -1250,6 +1323,9 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/storage/{handle}/{path:path}")
     async def storage_get(handle: str, path: str, request: Request, info: bool = False):
         p = await authn(request)
+        return await storage_file(p, handle, path, info)
+
+    async def storage_file(p, handle: str, path: str, info: bool = False):
         if path.endswith("/"):                            # a folder: list it
             return await db.read(store.storage_list, p, handle, path)
         meta, key = await db.read(store.storage_lookup, p, handle, path)
@@ -1257,7 +1333,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             return meta
         cached = board.storage_cache / meta["sha256"]
         if not cached.exists():
-            owner = await db.read(store.storage_owner, p, handle, False)
+            owner = await db.read(store.storage_owner, p, handle, False, store.storage_path(path))
             async with board.storage_reservations.hold([(owner["id"], store.storage_path(path))]):
                 # A replacement may have completed while we waited. Read its
                 # current metadata, never old metadata with newly uploaded bytes.
@@ -1287,6 +1363,44 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
                             headers={"X-Checksum-Sha256": meta["sha256"], "X-Content-Type-Options": "nosniff",
                                      "X-Upload-Content-Type": meta["content_type"] or "application/octet-stream",
                                      "Content-Security-Policy": "sandbox", "Cache-Control": "private, no-cache"})
+
+    async def download_file(p, file_id: str):
+        if file_id.startswith("storage:"):
+            parts = file_id[8:].split("/", 1)
+            if len(parts) != 2 or not parts[1] or parts[1].endswith("/"):
+                raise bad_request("choose a file, not a storage folder")
+            return await storage_file(p, parts[0], parts[1])
+        return await attachment_file(p, file_id)
+
+    @app.post("/v1/downloads")
+    async def prepare_download(request: Request):
+        p = await authn(request)
+        body = body_dict(await _json_body(request, max_bytes=4096))
+        file_id = body.get("file_id")
+        if not isinstance(file_id, str) or not file_id or len(file_id) > 1024:
+            raise bad_request("file_id must name an attachment or storage file")
+        # Resolve permissions and fill/verify the storage cache before handing off. No file bytes in this JSON.
+        response = await download_file(p, file_id)
+        if not await anyio.to_thread.run_sync(Path(response.path).is_file):
+            raise ApiError(404, "not_found", "this file is no longer available")
+        key = download_links.issue(p.id, _bearer(request), file_id, response.headers["X-Checksum-Sha256"])
+        return JSONResponse({"url": f"v1/downloads/{key}", "filename": response.filename,
+                             "expires_in": DOWNLOAD_TTL_SECONDS}, headers={"Cache-Control": "no-store"})
+
+    @app.api_route("/v1/downloads/{key}", methods=["GET", "HEAD"])
+    async def browser_download(key: str):
+        link = download_links.get(key)
+        # A capability authorizes only its file/version. Recheck revocation, suspension, ownership and file ACLs.
+        p = await db.read(store.authenticate, link.token, time.time())
+        if p.id != link.principal_id:
+            raise ApiError(404, "download_expired", "download link expired; click Download again")
+        board.presence.seen(p, time.time())
+        response = await download_file(p, link.file_id)
+        if response.headers["X-Checksum-Sha256"] != link.sha256:
+            raise ApiError(409, "download_changed", "this file changed; click Download again")
+        response.headers.update({"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
+                                 "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"})
+        return response
 
     @app.delete("/v1/storage/{handle}/{path:path}")
     async def storage_delete(handle: str, path: str, request: Request):

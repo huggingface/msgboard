@@ -15,6 +15,11 @@ monkeypatched internals as stand-ins: they only have what the test author though
 keeps passing when the real code changes. Mock only what can't run in the test environment, such
 as a remote server. Test through the public API (`deploy()`, `Client`, the CLI), not private
 functions. Keep the suite small: one test per behaviour, not one per branch.
+Extend an existing behaviour test before adding another. For invalid inputs that must leave the
+board unchanged, loop over the cases on one real board and check rejection after each request;
+keep separate fixtures for distinct starting states, permissions, restart and concurrency cases.
+Avoid fixed sleeps when completion can be observed or explicitly triggered. Run affected tests
+while iterating, then the full suite once before review; cosmetic changes need only relevant checks.
 
 ### Hub and Space tests
 

@@ -1,7 +1,7 @@
 """msgboard.space.deploy(), `deploy-space` and Client.wait_ready().
 
 The Hub tests replay cassettes from tests/cassettes/, recorded once against private CPU Basic Spaces
-in NAMESPACE, which the tests delete again. To record them again, with a logged-in token that can
+in the namespaces below, which the tests delete again. To record them again, with a logged-in token that can
 write there: `python -m pytest tests/test_space_deploy.py --vcr-record=all`. Do that when the package
 gains or loses a file: the recorded preupload answers list the files uploaded then (a KeyError from
 huggingface_hub's commit code means they're stale). Changing what a file contains needs no new
@@ -35,7 +35,8 @@ from msgboard.space import DeployError, deploy  # noqa: E402
 from .conftest import free_port, init_board  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-NAMESPACE = "lewtun"  # where the cassettes were recorded
+NAMESPACE = "lvwerra"  # deployment-success cassettes
+FAILURE_NAMESPACE = "lewtun"  # CLI-failure and invalid-name cassettes
 # Tests that compare tokens assert a precomputed bool, so a failure never prints one.
 TOKEN = re.compile(r"\b(?:hf|fbt)_[A-Za-z0-9]{16,}(?:\.[A-Za-z0-9_-]+)?")  # an HF token or a board token
 
@@ -130,12 +131,12 @@ def _title(card: bytes) -> str:
 
 @pytest.mark.vcr
 def test_deploy_creates_a_private_board(hf_token, sent, delete_after):
-    space = f"{NAMESPACE}/msgboard-25-rec-1"
+    space = f"{NAMESPACE}/msgboard-tasks-rec-1"
     delete_after += [("space", space), ("bucket", f"{space}-bucket")]
     title = "Team 😀: run #1\x85 "     # YAML reads ': ' and ' #' as syntax, and U+0085/U+2028 as line breaks
     d = deploy(space, token=hf_token, private=True, title=title)
     assert (d.space_id, d.bucket_id, d.created, d.private) == (space, f"{space}-bucket", True, True)
-    assert d.url == "https://lewtun-msgboard-25-rec-1.hf.space" and d.commit
+    assert d.url == "https://lvwerra-msgboard-tasks-rec-1.hf.space" and d.commit
     hidden = d.operator_token.startswith("fbt_") and d.operator_token not in repr(d)
     assert hidden, "deploy() returns the operator token it made, and repr() leaves it out"
     assert _writes(sent) == [("POST", "/api/repos/create"), ("POST", f"/api/buckets/{space}-bucket"),
@@ -161,7 +162,7 @@ def test_deploy_creates_a_private_board(hf_token, sent, delete_after):
 
 @pytest.mark.vcr
 def test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket(hf_token, sent, delete_after):
-    space, bucket = f"{NAMESPACE}/msgboard-25-rec-2", f"{NAMESPACE}/msgboard-25-rec-2-bucket"
+    space, bucket = f"{NAMESPACE}/msgboard-tasks-redeploy-v31", f"{NAMESPACE}/msgboard-tasks-redeploy-v31-bucket"
     delete_after += [("space", space), ("bucket", bucket)]
     api = HfApi(token=hf_token)
     first_token = new_token()[1]
@@ -200,7 +201,7 @@ def test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket(hf_token, s
 
 @pytest.mark.vcr
 def test_deploy_leaves_other_spaces_and_public_buckets_alone(hf_token, sent, delete_after):
-    space, public = f"{NAMESPACE}/msgboard-25-rec-3", f"{NAMESPACE}/msgboard-25-rec-3-public"
+    space, public = f"{NAMESPACE}/msgboard-tasks-rec-3", f"{NAMESPACE}/msgboard-tasks-rec-3-public"
     delete_after += [("space", space), ("bucket", public), ("space", f"{space}-new")]
     api = HfApi(token=hf_token)
     # A MSGBOARD_REPLICA variable doesn't make a Space a board; only the tag deploy() puts in its card does
@@ -220,7 +221,7 @@ def test_deploy_leaves_other_spaces_and_public_buckets_alone(hf_token, sent, del
 @pytest.mark.vcr
 def test_deploy_space_cli_keeps_the_operator_token_in_a_private_file(hf_token, sent, delete_after, monkeypatch,
                                                                        tmp_path, capsys):
-    space = f"{NAMESPACE}/msgboard-25-rec-4"
+    space = f"{NAMESPACE}/msgboard-tasks-rec-4"
     delete_after += [("space", space), ("bucket", f"{space}-bucket")]
     monkeypatch.setenv("HF_TOKEN", hf_token)
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -265,15 +266,17 @@ def test_deploy_space_cli_keeps_a_new_token_when_the_upload_fails(hf_token, sent
     # #29 (review #5 #11): the CLI wrote a new token's file only after deploy() had made it the Space's
     # secret, so a deploy() that failed after that left no copy of it. #30 (review #5 #12): a network error
     # from huggingface_hub escaped as a traceback.
-    space = f"{NAMESPACE}/msgboard-27-rec-1"
+    space = f"{FAILURE_NAMESPACE}/msgboard-27-rec-1"
     delete_after += [("space", space), ("bucket", f"{space}-bucket")]
     monkeypatch.setenv("HF_TOKEN", hf_token)
     monkeypatch.setenv("HOME", str(tmp_path))
     path = tmp_path / ".config/msgboard/spaces" / space / "operator.token"
 
-    def connection_reset(request):  # the network fails at the upload, after the Space got its secrets
-        if request.url.path.endswith("/commit/main"):
-            raise _http().ConnectError("[Errno 104] Connection reset by peer", request=request)
+    def connection_reset(request):  # fail as upload starts, after the Space got its secrets
+        if request.url.path.endswith("/preupload/main"):
+            # Fail before the recorded package inventory, which changes when files are added.
+            # Unlike ConnectError, TransportError does not retry with a fresh session that loses this hook.
+            raise _http().TransportError("[Errno 104] Connection reset by peer", request=request)
 
     hooks = get_session().event_hooks["request"]
     hooks.append(connection_reset)
@@ -294,7 +297,7 @@ def test_deploy_space_cli_keeps_a_new_token_when_the_upload_fails(hf_token, sent
 def test_deploy_space_cli_drops_a_new_token_when_deploy_refuses(hf_token, delete_after, monkeypatch, tmp_path):
     # #29: the new token's file is written before deploy() asks the Hub anything, and removed when deploy()
     # refuses, which changes nothing.
-    space = f"{NAMESPACE}/msgboard-27-rec-2"
+    space = f"{FAILURE_NAMESPACE}/msgboard-27-rec-2"
     delete_after += [("space", space)]
     monkeypatch.setenv("HF_TOKEN", hf_token)
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -315,7 +318,7 @@ def test_deploy_space_cli_drops_a_new_token_when_deploy_refuses(hf_token, delete
 def test_deploy_refuses_a_space_name_too_long_for_its_bucket(hf_token, sent):
     # #30 (review #5 #12): a valid Space name of 90+ characters makes "<space>-bucket" too long for a repo
     # name, and the first bucket call failed with a raw HTTP 400.
-    space = f"{NAMESPACE}/msgboard-27-rec-3-{'x' * 75}"
+    space = f"{FAILURE_NAMESPACE}/msgboard-27-rec-3-{'x' * 75}"
     with pytest.raises(DeployError, match="--bucket"):
         deploy(space, token=hf_token, private=True)
     asked = [r.url.path for r in sent if r.url.path.startswith("/api/buckets/")]
