@@ -3594,27 +3594,46 @@ function emojiLiteralContext(text) {
     }
     return false;
   };
+  // Marked's list tokenizer admits lazy text after a body line, but not after
+  // a fence opener, blank line, indented code, heading or another block boundary.
+  const listBoundary = (line, indent, previous = false) => {
+    const padding = "^ {0," + Math.min(3, indent - 1) + "}";
+    return new RegExp(padding + "(?:`{3}|~{3}|#|(?:(?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})$)").test(line)
+      || (!previous && new RegExp(padding + "(?:[-+*]|\\d{1,9}[.)])(?: |$)").test(line));
+  };
   for (let n = 0; n < lines.length; n++) {
     let line = lines[n];
     const last = n === lines.length - 1;
+    // Inside a reference title every line is title content, even if it looks
+    // like a new definition, list or fence. Only its own delimiter ends it.
+    if (reference?.quote) {
+      if (titleEnd(line, reference.quote)) reference = null;
+      if (last) return true;
+      continue;
+    }
     if (fence) {
       // Remove only the containers that enclosed the opening fence. A list marker
       // or quote inside its code is content, never a new container or delimiter.
-      let sameContainer = true;
+      let sameContainer = true, canClose = true;
       for (const container of fence.containers) {
-        const prefix = container === ">" ? /^ {0,3}> ?/.exec(line) : new RegExp(`^ {${container}}`).exec(line);
-        if (!prefix) { sameContainer = false; break; }
-        line = line.slice(prefix[0].length);
+        if (container === ">") {
+          const prefix = /^ {0,3}> ?/.exec(line);
+          if (prefix) line = line.slice(prefix[0].length);
+          else if (line.trim() && lines[n - 1]?.trim() && !/^ {0,3}(`{3,}|~{3,})/.test(line)) canClose = false;
+          else { sameContainer = false; break; }
+        } else {
+          const { indent, previous, blank } = container;
+          if (listBoundary(line, indent)) { sameContainer = false; break; }
+          const prefix = new RegExp(`^ {${indent}}`).exec(line);
+          if (!prefix && line.trim() && (blank || /^ {4}/.test(previous) || listBoundary(previous, indent, true))) { sameContainer = false; break; }
+          container.blank ||= !line.trim();
+          container.previous = line.slice(indent);
+          if (prefix) line = line.slice(indent); else canClose = false;
+        }
       }
-      // Marked also accepts unprefixed lazy lines inside a quoted fence until a
-      // blank line. They remain code, but cannot close the enclosing container.
-      if (!sameContainer && fence.containers.includes(">") && lines[n].trim() && lines[n - 1]?.trim()) {
-        if (last) return true;
-        continue;
-      }
-      if (sameContainer || !lines[n].trim()) {
+      if (sameContainer) {
         const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
-        if (close && close[1][0] === fence.marker[0] && close[1].length >= fence.marker.length) fence = null;
+        if (canClose && close && close[1][0] === fence.marker[0] && close[1].length >= fence.marker.length) fence = null;
         else if (last) return true;
         continue;
       }
@@ -3623,8 +3642,8 @@ function emojiLiteralContext(text) {
     const containers = [];
     let prefix;
     while ((prefix = /^ {0,3}(> ?|(?:[-+*]|\d+[.)]) +)/.exec(line))) {
-      containers.push(prefix[1].startsWith(">") ? ">" : prefix[0].length);
       line = line.slice(prefix[0].length);
+      containers.push(prefix[1].startsWith(">") ? ">" : { indent: prefix[0].length, previous: line, blank: false });
     }
     // A reference title may start on the line after its destination and span lines.
     // Keep its delimiter independently of parentheses or backticks in the title.
@@ -3633,11 +3652,6 @@ function emojiLiteralContext(text) {
     if (definition && !ticks && !destination) reference = { quote: null, needsDestination: true };
     if (reference) {
       let rest = definition ? definition[1].trimStart() : line.trimStart();
-      if (reference.quote) {
-        if (titleEnd(rest, reference.quote)) reference = null;
-        if (last) return true;
-        continue;
-      }
       let destinationLine = false;
       if (reference.needsDestination) {
         const url = /^(?:<[^>]*>|(?:\\.|[^\s])+)/.exec(rest);
@@ -3670,14 +3684,24 @@ function emojiLiteralContext(text) {
       if (c === "\\") { i++; continue; }
       if (angle) { if (c === ">") angle = false; continue; }
       if (destination) {
-        if (destination.quote) { if (c === destination.quote) destination.quote = null; }
-        else if (destination.angle) { if (c === ">") destination.angle = false; }
-        else if (c === '"' || c === "'") destination.quote = c;
-        else if (c === "<") destination.angle = true;
-        else if (c === "(") destination.depth++;
-        else if (c === ")") { if (!--destination.depth) destination = null; }
-      } else if (c === "]" && line[i + 1] === "(") { destination = { depth: 1, quote: null, angle: false }; i++; }
+        if (destination.quote) {
+          if (c === destination.quote) { destination.quote = null; destination.phase = "afterTitle"; }
+        } else if (destination.angle) { if (c === ">") destination.angle = false; }
+        else if (/\s/.test(c) && destination.depth === 1) { destination.space = true; if (destination.phase === "url") destination.phase = "afterUrl"; }
+        else if ((destination.phase === "afterUrl" || (destination.phase === "leading" && destination.space)) && (c === '"' || c === "'" || c === "(")) {
+          destination.quote = c === "(" ? ")" : c;
+        } else if (c === ")") { if (!--destination.depth) destination = null; }
+        else {
+          if (c === "<" && destination.phase === "leading") destination.angle = true;
+          if (c === "(") destination.depth++;
+          destination.phase = "url";
+        }
+      } else if (c === "]" && line[i + 1] === "(") { destination = { depth: 1, phase: "leading", space: false, quote: null, angle: false }; i++; }
       else if (c === "<" && /^[a-z!?/]/i.test(line.slice(i + 1))) angle = true;
+    }
+    if (!last && destination && !destination.quote && !destination.angle && destination.depth === 1) {
+      destination.space = true;
+      if (destination.phase === "url") destination.phase = "afterUrl";
     }
   }
   return !!(fence || ticks || destination || angle || reference?.quote);

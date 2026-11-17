@@ -99,6 +99,15 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
         '[ref]: https://example.com\n  "title )\n:D "\n\n[link][ref]',
         "[ref]: <https://example.com/)path>\n  'title )\n:D '\n\n[link][ref]",
         '[ref]:\n https://example.com\n "title )\n:D "\n\n[link][ref]',
+        "- ~~~\n  code\n:D ",
+        "1. ~~~\n   code\n:D ",
+        "- ~~~\n  code\nlazy\n:D \n  ~~~",
+        "- ~~~\n  - ~~~\n:D \n  ~~~",
+        '[ref]: url "title\n[inner]: something\ntext :D "\n\n[link][ref]',
+        "[ref]: url 'title\n[inner]: something\ntext :D '\n\n[link][ref]",
+        "[book](url (O'Reilly :D ))",
+        '[book](url (title "quoted" :D ))',
+        '[book](url\n "title ) :D ")',
     ]:
         input.fill(body)
         caret = body.index(":D") + 2
@@ -110,6 +119,18 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
         "- > ~~~\n  > code\n  > ~~~\n:D", "> ~~~\n> code\n\n:D",
         '[link](url "title )") :D', "[link](<https://example.com/)path>) :D",
         '[ref]: url\n "title )"\n\n:D',
+        "- ~~~\n:D", "- ~~~\n  code\nlazy\n  ~~~\n:D",
+        "- ~~~\n  code\n\n:D", "- ~~~\n  code\n# heading\n:D",
+        "1. ~~~\n   code\n   ~~~\n:D",
+        '[ref]: url "title\n[inner]: something\nclosed"\n\n:D',
+        "[book](https://example.com/O'Reilly) :D",
+        "[book](url (title O'Reilly)) :D", '[book](url (title "quoted")) :D',
+        "[book](https://example.com/O'Reilly (title)) :D",
+        "[book](url 'title \"quoted\"') :D", '[book]( "empty URL title") :D',
+        '[book](https://example.com/path(foo) "title )") :D',
+        '[book](https://example.com/a"b) :D', '[book]("url") :D',
+        "O'Reilly :D", "[not a link](words with spaces) :D",
+        "[book](url\n (title O'Reilly)) :D",
     ]:
         space(input, before, before[:-2] + "😄 ")
 
