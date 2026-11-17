@@ -154,13 +154,13 @@
 <rect class="panel" x="1" y="4" width="48" height="69"/><text class="lbl-s" x="4" y="9">BROWSER - DASHBOARD.HTML</text>
 <rect class="panel" x="55" y="4" width="82" height="69"/><text class="lbl-s" x="58" y="9">SERVER.PY + STORE.PY</text>
 <rect class="mod" x="5" y="19" width="40" height="18"/><rect class="tag" x="5" y="15" width="10" height="4"/><text class="lbl-s wt" x="10" y="18" text-anchor="middle">MOD</text>
-<text class="lbl" x="25" y="25" text-anchor="middle">ATTACHASSIST()</text><text class="lbl-s" x="25" y="30" text-anchor="middle">MEMBERS FIRST</text><text class="lbl-s" x="25" y="34" text-anchor="middle">OTHER PEOPLE IF MATCHED</text>
+<text class="lbl" x="25" y="25" text-anchor="middle">ATTACHASSIST()</text><text class="lbl-s" x="25" y="30" text-anchor="middle">MEMBERS FIRST</text><text class="lbl-s" x="25" y="34" text-anchor="middle">RESET ON PROFILE CHANGES</text>
 <circle class="of" cx="42" cy="15" r="2"/><text class="lbl-s" x="42" y="15.8" text-anchor="middle">1</text>
 <rect class="mod" x="61" y="19" width="70" height="18"/><rect class="tag" x="61" y="15" width="10" height="4"/><text class="lbl-s wt" x="66" y="18" text-anchor="middle">NEW</text>
 <text class="lbl" x="96" y="25" text-anchor="middle">MENTION_CANDIDATES()</text><text class="lbl-s" x="96" y="30" text-anchor="middle">DIRECTORY + RECIPIENT VISIBILITY</text><text class="lbl-s" x="96" y="34" text-anchor="middle">DM: PARTICIPANTS ONLY</text>
 <path class="flow" d="M45 28 H61"/><text class="lbl-s" x="52" y="25" text-anchor="middle">GET</text>
 <rect class="mod" x="5" y="49" width="40" height="18"/><rect class="tag" x="5" y="45" width="10" height="4"/><text class="lbl-s wt" x="10" y="48" text-anchor="middle">MOD</text>
-<text class="lbl" x="25" y="55" text-anchor="middle">MOUNTCOMPOSER()</text><text class="lbl-s" x="25" y="60" text-anchor="middle">SEND MESSAGE / REPLY</text><text class="lbl-s" x="25" y="64" text-anchor="middle">UPDATE JOIN BUTTON</text>
+<text class="lbl" x="25" y="55" text-anchor="middle">MOUNTCOMPOSER()</text><text class="lbl-s" x="25" y="60" text-anchor="middle">SEND MESSAGE / REPLY</text><text class="lbl-s" x="25" y="64" text-anchor="middle">201: JOIN / REPLAY: READ MEMBERS</text>
 <rect class="mod" x="61" y="49" width="70" height="18"/><rect class="tag" x="61" y="45" width="10" height="4"/><text class="lbl-s wt" x="66" y="48" text-anchor="middle">MOD</text>
 <text class="lbl" x="96" y="55" text-anchor="middle">POST_MESSAGE()</text><text class="lbl-s" x="96" y="60" text-anchor="middle">PERMISSION / RETRY / PAYLOAD CHECKS</text><text class="lbl-s" x="96" y="64" text-anchor="middle">MESSAGE + AUTHOR MEMBERSHIP</text>
 <circle class="of" cx="128" cy="45" r="2"/><text class="lbl-s" x="128" y="45.8" text-anchor="middle">2</text>
@@ -173,7 +173,7 @@
 <rect class="old" x="3" y="78" width="5" height="2.5"/><text class="lbl-s" x="10" y="80">UNCHANGED</text><rect class="mod" x="3" y="84" width="5" height="2.5"/><text class="lbl-s" x="10" y="86">NEW / MOD TAGGED</text><path class="flow" d="M3 90 H8"/><text class="lbl-s" x="10" y="91">CHANGED CALL / DATA</text><path class="ev" d="M3 95 H8"/><text class="lbl-s" x="10" y="96">EVENT / SIGNAL</text><text class="code" x="178" y="97" text-anchor="end">CHN-501A</text>
 </svg><figcaption><span class="n">Figure 1.</span>Broader Discovery, Existing Delivery</figcaption></figure>
 <div class="opener">2 &nbsp; HOW IT WORKS.</div>
-<section class="para"><div class="num">2.1</div><div><p class="flush">(1) The channel-scoped endpoint supplies eligible identities with a member flag. The browser ranks members before matching non-member people. (2) A new post joins only its author inside the existing writer transaction. The recipient does not join merely by being mentioned.</p></div></section>
+<section class="para"><div class="num">2.1</div><div><p class="flush">(1) Channel members precede matching people elsewhere. Profile changes invalidate cached and pending candidates. (2) A new post joins its author atomically. A replay reads current membership; it never rejoins someone who left. Mentioning a recipient does not join them.</p></div></section>
 <figure><svg viewBox="0 0 180 62" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A new valid message joins its author atomically; failed posts and replayed requests do not join">
 <text class="lbl-b" x="3" y="6">POST_MESSAGE() - ONE SQLITE WRITER TRANSACTION</text>
 <rect class="old" x="3" y="14" width="44" height="14"/><text class="lbl" x="25" y="19" text-anchor="middle">ACCESS + IDEMPOTENCY</text><text class="lbl-s" x="25" y="24" text-anchor="middle">VALIDATE REPLY / FILES</text>
@@ -181,12 +181,12 @@
 <rect class="old" x="137" y="14" width="40" height="14"/><text class="lbl" x="157" y="19" text-anchor="middle">RECORD MENTIONS</text><text class="lbl-s" x="157" y="24" text-anchor="middle">COMMIT TOGETHER</text>
 <path class="flow" d="M47 21 H58"/><path class="flow" d="M126 21 H137"/>
 <path class="w" d="M3 31 V35 H177 V31"/><text class="lbl-s" x="90" y="39" text-anchor="middle">FAILURE: NO NEW MEMBERSHIP OR MESSAGE</text>
-<path class="ev" d="M3 47 H76"/><text class="lbl-s" x="79" y="48">REPLAY: RETURN ORIGINAL MESSAGE; DO NOT REJOIN</text>
+<path class="ev" d="M3 47 H76"/><text class="lbl-s" x="79" y="48">REPLAY: UI READS MEMBERSHIP; NO SERVER REJOIN</text>
 <text class="lbl-s" x="3" y="56">DM MEMBERSHIP IS UNCHANGED. A FRESH POST AFTER LEAVING JOINS AGAIN.</text><text class="code" x="178" y="61" text-anchor="end">CHN-502A</text>
 </svg><figcaption><span class="n">Figure 2.</span>Participation Follows a Successful New Post</figcaption></figure>
-<div class="lower"><div><section class="para"><div class="num">3</div><div><h2>DATA.</h2></div></section><div class="tcap">Table 1. Rules and Verification</div><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Candidate API</td><td>GET /channels/{id}/mention-candidates</td></tr><tr><td>Suggestion limit</td><td>7 rows, including group tags</td></tr><tr><td>Group mentions</td><td>Channel members only</td></tr><tr><td>Schema / backfill</td><td>31 / none</td></tr><tr><td>Full test suite</td><td>282 pass; 1 live deselected</td></tr><tr><td>Regression check on main</td><td>3 targeted tests fail as expected</td></tr></tbody></table></div>
+<div class="lower"><div><section class="para"><div class="num">3</div><div><h2>DATA.</h2></div></section><div class="tcap">Table 1. Rules and Verification</div><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>Candidate API</td><td>GET /channels/{id}/mention-candidates</td></tr><tr><td>Suggestion limit</td><td>7 rows, including group tags</td></tr><tr><td>Group mentions</td><td>Channel members only</td></tr><tr><td>Schema / backfill</td><td>31 / none</td></tr><tr><td>Full test suite</td><td>299 pass; 1 live deselected</td></tr><tr><td>Review regression checks</td><td>8 real-browser cases pass</td></tr></tbody></table></div>
 <div><div class="notice"><span class="tag">NOTE</span><p>A mention grants no access. System notifications still require an enabled browser with a board tab open.</p></div><div class="card"><div class="bar"><span>VERIFY PARTICIPATION</span></div><ol><li><span>1</span><span>TYPE - matching person</span></li><li><span>2</span><span>CHECK - not joined label</span></li><li><span>3</span><span>SEND - author joins</span></li><li><span>4</span><span>ACTIVITY - mention arrives</span></li><li><span>5</span><span>LEAVE / REPLAY - stays out</span></li></ol></div></div></div>
-<footer class="foot"><div class="rule"></div><div class="source">PR #39 - channel-mentions-autojoin - opened 16 Nov 2026 - last commit 16 Nov 2026<br>1 commit, +190 / −30 - PAGE 1 OF 1</div></footer></div>
+<footer class="foot"><div class="rule"></div><div class="source">PR #39 - channel-mentions-autojoin - opened 16 Nov 2026 - last commit 17 Nov 2026<br>2 commits, +207 / −32 - PAGE 1 OF 1</div></footer></div>
 <script>
   // Fit check: room left between the last content block and the footer.
   // .page hides overflow, so without this an overfull page fails silently.
