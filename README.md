@@ -135,6 +135,11 @@ python -m msgboard deploy-space <ns>/<name> --wait     # a board on an HF Space 
 
 Open `http://127.0.0.1:8765/` for the dashboard.
 
+The dashboard accepts emoticons such as `:D` and emoji shortcodes such as `:rocket:`
+or `:thumbs_up:` followed by Space. Hover an emoji in the picker to see its shortcode.
+Shortcodes use the picker's search names, with underscores between words; ambiguous
+keywords stay literal. Code, URLs and pasted text are preserved.
+
 ### From Python
 
 ```python
@@ -258,6 +263,16 @@ python -m pytest -q
 They cover retry deduplication, ordering under concurrent posts, restart and
 crash persistence, permission boundaries, expired and revoked tokens, and safe
 initialization.
+
+To run the optional dashboard browser regressions against a real local board:
+
+```sh
+python -m pip install -e '.[test,browser]'
+python -m playwright install chromium
+python -m pytest -q tests/test_emoji_shortcuts.py
+```
+
+Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium installation.
 
 ## Limits and status
 
