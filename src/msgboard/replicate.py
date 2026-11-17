@@ -376,10 +376,13 @@ def restore(store, data_dir: Path) -> dict | None:
     data_dir = Path(data_dir)
     if (data_dir / "board.db").exists():
         raise FileExistsError(f"{data_dir / 'board.db'} exists; refusing to overwrite it with a restore")
+    # The lease first: an owner of this version uploads its snapshot, LATEST, its lease and the migrated/ marker
+    # together, so what is read after the lease is as new as it, or newer.
+    lease = _read_json(store, LEASE)
+    released = _released_owner(store, lease)
     latest = _read_json(store, LATEST)
     listed = [p for p in store.list("snapshots/") if p.endswith(".db")]
-    lease = _read_json(store, LEASE)
-    if latest is not None and _released_owner(store, lease):
+    if latest is not None and released:
         own = [(found[1], found[2], p) for p in {*listed, latest["snapshot"]}
                if (found := _released_snapshot(p)) is not None and found[0] == lease["instance"]]
         names = [max(own)[2]] if own else [latest["snapshot"]]

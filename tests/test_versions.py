@@ -2,7 +2,7 @@
 
 The released version (RELEASED, from this repo's git history) names snapshots by UTC time and has no epochs,
 claims or hand-over requests: its new container opens its port at once, waits for the old one to release the
-lease after SIGTERM, and restores the snapshot LATEST.json names. The last two tests run the released version's
+lease after SIGTERM, and restores the snapshot LATEST.json names. The last three tests run the released version's
 replication code in this process, on boards of this version, to control what lands in the bucket and when.
 """
 
@@ -238,3 +238,60 @@ def test_an_upgrade_after_a_rollback_restores_the_rolled_back_board_whatever_the
         if one_second:
             return
     pytest.fail("no run of the schedule fitted in one second")
+
+
+class Landing(DirStore):
+    """Runs `land`, an upload of another instance landing, once: just before this store's `n`th call."""
+
+    def __init__(self, root, n: int, land):
+        super().__init__(root)
+        self.n, self.land = n, land
+
+    def _call(self):
+        self.n -= 1
+        if self.n == 0:
+            self.land()
+
+    def get(self, remote, local):
+        self._call()
+        return super().get(remote, local)
+
+    def list(self, prefix):
+        self._call()
+        return super().list(prefix)
+
+    def versions(self, paths):
+        self._call()
+        return super().versions(paths)
+
+
+def test_a_restore_takes_the_released_versions_board_wherever_a_publication_of_it_lands_meanwhile(
+        tmp_path, released_replication):
+    # A double restart after a rollback: B takes the bucket from the released version's instance, and C takes it
+    # from B (which has not served) while B's publication of that board (its snapshot, LATEST.json, lease and
+    # migrated/ marker, in one upload) is still on its way. restore() read LATEST.json and the snapshot list before
+    # the lease, so that upload landing in between made C restore the epoch snapshot from before the rollback.
+    for n in range(1, 5):   # before each of the store calls the restore makes until it picks a snapshot
+        case = tmp_path / str(n)
+        bucket, token = case / "bucket", init_board(case / "p")
+        with ThreadedServer(case / "p", replicator=Replicator(DirStore(bucket), case / "p", interval=3600)) as s, \
+                Client(s.url, token) as c:
+            channel = c.create_channel("restarts")["id"]
+            c.post(channel, "acknowledged before the rollback")
+        assert released_replication.wait_for_release(released_replication.DirStore(bucket)) == "released"
+        released_replication.restore(released_replication.DirStore(bucket), case / "a")
+        old = released_replication.Replicator(released_replication.DirStore(bucket), case / "a", interval=3600)
+        with ThreadedServer(case / "a", replicator=old) as s, Client(s.url, token) as c:
+            c.post(channel, "acknowledged by the released version")
+        slow = Replicator(DirStore(bucket), case / "b", interval=3600, poll=0.05)
+        assert slow.take_over(poll=0.05) == "released"
+        restore(DirStore(bucket), case / "b")
+        following = Replicator(DirStore(bucket), case / "c", interval=3600, poll=0.05)
+        assert following.take_over(poll=0.05) == "released"
+        restore(Landing(bucket, n, lambda: slow.start(lambda: 0)), case / "c")
+        slow.stop()
+        following.stop()
+        with ThreadedServer(case / "c") as s:
+            assert _bodies(s, token, channel) == ["acknowledged before the rollback",
+                                                  "acknowledged by the released version"]
+        assert slow.fenced and (bucket / "migrated" / f"{old.instance}.json").exists()   # it landed, then lost
