@@ -55,16 +55,16 @@ def test_empty_default_and_permissions(env):
         assert http.get("/analytics").status_code == 401
 
 
-@pytest.mark.parametrize("params", [
-    {"from": BASE, "to": BASE}, {"from": BASE + 1, "to": BASE},
-    {"from": -1, "to": BASE}, {"from": "nan", "to": BASE},
-    {"from": BASE, "to": "inf"}, {"from": 1, "to": 367 * DAY},
-    {"from": 1e20 - DAY, "to": 1e20},
-    {"top_k": 0}, {"top_k": 101}, {"days": 0}, {"days": 366},
-])
-def test_invalid_range(env, params):
+def test_invalid_range(env):
     with env.http(env.operator_token) as http:
-        assert http.get("/analytics", params=params).status_code in (400, 422)
+        for params in [
+            {"from": BASE, "to": BASE}, {"from": BASE + 1, "to": BASE},
+            {"from": -1, "to": BASE}, {"from": "nan", "to": BASE},
+            {"from": BASE, "to": "inf"}, {"from": 1, "to": 367 * DAY},
+            {"from": 1e20 - DAY, "to": 1e20},
+            {"top_k": 0}, {"top_k": 101}, {"days": 0}, {"days": 366},
+        ]:
+            assert http.get("/analytics", params=params).status_code in (400, 422), params
 
 
 def test_half_open_range_unicode_words_and_legacy_counts(env):
