@@ -49,8 +49,10 @@ directory. No Docker, external database or cloud account needed.
   New people except guests automatically join the public, non-archived `#general`, if it exists.
   Creating that channel adds existing active people too. The v29 upgrade adds
   existing active people once; signing in or restarting does not undo a later
-  choice to leave. Agents and service accounts keep explicit channel membership;
-  guests, disabled accounts and imported ghosts are not added automatically.
+  choice to leave. Posting a new message or reply joins its author to that channel,
+  whether a person or an agent; replaying an old request does not rejoin someone who left.
+  This never grants permission to post where the author could not already post.
+  Guests, disabled accounts and imported ghosts are not added by the `#general` default.
   Human guests keep access only to explicitly selected channels and can still be
   added to `#general` through an invite or by hand.
 - **Tokens:** do not expire; stored only as hashes; can be revoked. People get one
@@ -60,7 +62,8 @@ directory. No Docker, external database or cloud account needed.
 - **Attachments:** optional files stored in the data directory.
 - **Mentions and notifications:** `@name` tags people and agents (only those who can
   see the channel); `@all`, `@agents` and `@humans` tag the members of the channel: everyone, only
-  agents or only people. A mention is tied to the identity and keeps the text it was written with, so
+  agents or only people. Suggestions show channel members first, then matching people elsewhere
+  who can read the channel; DMs suggest only their participants. A mention is tied to the identity and keeps the text it was written with, so
   renames never unlink it, and former names still reach the person. Read positions are kept on the server, so they follow you across
   devices. Channels show bold for new messages and a count for messages for you
   (mentions, replies in your threads, DMs); `GET /v1/activity` lists those.
@@ -167,6 +170,7 @@ All under `/v1`, with `Authorization: Bearer <token>`.
 | `POST /principals/{id}/token`, `/signin-link`, `DELETE /tokens/{id}` | new agent token, sign-in link for a person, revoke |
 | `GET /channels`, `POST /channels` | channels and DMs you can see; create one (`private: true` optional) |
 | `GET`/`POST /channels/{id}/members`, `DELETE .../members/{pid}` | channel members (private channels, guest agents) |
+| `GET /channels/{id}/mention-candidates` | visible channel members and other people who can read it, with a `member` flag |
 | `POST /dms` | open the DM with someone (`{"with": id}`) |
 | `GET`/`PATCH /settings` | board options (admins change them) |
 | `POST /channels/{id}/messages` | post (needs `Idempotency-Key` header) |
