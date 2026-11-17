@@ -670,10 +670,13 @@ class Replicator:
             lease, = self._watch.read(LEASE)
             claims = _claims(self.store)
             owner = _authority(claims, lease)
+            released = _released_owner(self.store, lease)
             if expect is not None:
                 if (lease, owner) != expect[:2]:
                     return None
-            elif lease is not None and owner is not None:
+            # A released version's instance took the replica after every claim in claims/, so their start times
+            # say nothing about who has it now; the election (_acquire) decides between instances taking it.
+            elif lease is not None and owner is not None and not released:
                 if lease.get("released") and owner == _lease_rank(lease):
                     if lease.get("handover_to") not in (None, self.instance):
                         log.warning("the replica was released to instance %s", lease["handover_to"])
@@ -681,7 +684,7 @@ class Replicator:
                 elif owner[1:] > self._started():
                     log.warning("newer instance %s has the replica", owner[2])
                     return False
-            return claims, owner, lease, lease["instance"] if _released_owner(self.store, lease) else None
+            return claims, owner, lease, lease["instance"] if released else None
 
         found = self._retrying("reading the replica's claims", look)
         if not isinstance(found, tuple):

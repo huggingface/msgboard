@@ -359,3 +359,33 @@ def test_a_rollback_after_a_final_push_that_lands_in_part_restores_the_final_sna
     with ThreadedServer(tmp_path / "a") as s:
         assert _bodies(s, token, channel) == ["in an earlier snapshot", "only in the final one"]
 
+
+def test_an_instance_waiting_since_before_an_upgrade_and_a_rollback_takes_the_rolled_back_board(
+        tmp_path, released_replication):
+    # Review #5 (Codex) #10: E started while the released version's instance A served, and waited for it. Meanwhile
+    # C, which started after E, took the bucket, served and stopped, and a rollback, D, served and released it.
+    # E saw D's release, but claim() refused for good: C's old claim, from an instance that started after E,
+    # counted as the owner.
+    bucket, token = tmp_path / "bucket", init_board(tmp_path / "a")
+    old = released_replication.Replicator(released_replication.DirStore(bucket), tmp_path / "a", interval=3600)
+    waiting = Replicator(DirStore(bucket), tmp_path / "e", interval=3600, poll=0.05)
+    with ThreadedServer(tmp_path / "a", replicator=old) as s, Client(s.url, token) as c:
+        channel = c.create_channel("restarts")["id"]
+        c.post(channel, "acknowledged by released A")
+        assert waiting.take_over(poll=0.05) == "legacy"   # A hands over when it stops
+    upgraded = Replicator(DirStore(bucket), tmp_path / "c", interval=3600, poll=0.05)
+    assert upgraded.since > waiting.since and upgraded.take_over(poll=0.05) == "released"
+    restore(DirStore(bucket), tmp_path / "c")
+    with ThreadedServer(tmp_path / "c", replicator=upgraded) as s, Client(s.url, token) as c:
+        c.post(channel, "acknowledged by C")
+    assert released_replication.wait_for_release(released_replication.DirStore(bucket)) == "released"
+    released_replication.restore(released_replication.DirStore(bucket), tmp_path / "d")
+    rolled_back = released_replication.Replicator(released_replication.DirStore(bucket), tmp_path / "d", interval=3600)
+    with ThreadedServer(tmp_path / "d", replicator=rolled_back) as s, Client(s.url, token) as c:
+        c.post(channel, "acknowledged by released D")
+    # as the Space app does after "legacy": wait for the release, then claim
+    assert wait_for_release(DirStore(bucket), poll=0.05) == "released" and waiting.claim()
+    restore(DirStore(bucket), tmp_path / "e")
+    with ThreadedServer(tmp_path / "e", replicator=waiting) as s:
+        assert _bodies(s, token, channel) == ["acknowledged by released A", "acknowledged by C",
+                                              "acknowledged by released D"]
