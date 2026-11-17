@@ -1815,9 +1815,21 @@ function notifyFor(m) {
 }
 
 // ------------------------------------------------------------------ channels and DMs
+function setChannelMembership(c, member) {
+  c.member = member; c.localMemberRevision = (c.localMemberRevision || 0) + 1;
+}
 async function refreshChannels() {
+  const active = state.current, memberAtStart = active && active.member;
+  const revisionAtStart = active && active.localMemberRevision;
   try { state.channels = (await api("GET", "/channels")).channels; }
   catch (e) { if (e.status === 401) return showLogin(signinError(e)); return; }
+  const fresh = active && state.channels.find((c) => c.id === active.id);
+  // Reconcile the header too, without overwriting a newer local join/send while this read was in flight.
+  if (fresh && state.current === active && active.localMemberRevision === revisionAtStart &&
+      active.member === memberAtStart && active.member !== fresh.member) {
+    active.member = fresh.member; mentionCandidates.delete(active.id);
+    if (state.view === "chat") updateMeta(true);
+  }
   const linkable = state.channels.filter((c) => c.kind !== "dm");
   state.chanIndex = new Map(linkable.map((c) => [c.name.toLowerCase(), c]));
   const key = linkable.map((c) => `${c.id}:${c.name}:${c.kind}`).join(",");
@@ -1843,7 +1855,7 @@ const joinable = (c) => c.member === false && c.kind !== "dm" && !c.archived && 
 async function joinChannel(c) {
   try {
     await api("POST", `/channels/${c.id}/members`, { body: { principal_id: state.me.id } });
-    mentionCandidates.delete(c.id); c.member = true; renderChannels(); updateMeta(true);
+    mentionCandidates.delete(c.id); setChannelMembership(c, true); renderChannels(); updateMeta(true);
   } catch (e) { alert("Could not join: " + e.message); }
 }
 const showPrivate = () => !!(state.me && state.me.prefs && state.me.prefs.show_private);
@@ -3046,10 +3058,10 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
           const m = sendMessage ? await sendMessage(payload, key) : await response.json();
           if (!sendMessage && c.kind !== "dm") {
             mentionCandidates.delete(c.id);
-            c.member = response.status === 201;   // a replay must not undo a later choice to leave
-            if (!c.member) {
-              try { c.member = (await api("GET", `/channels/${c.id}/members`)).members.some((p) => p.id === state.me.id); }
-              catch {}   // the post is acknowledged; a failed membership read must never resend it
+            if (response.status === 201) setChannelMembership(c, true);
+            else {   // a replay must not undo a later choice to leave
+              try { setChannelMembership(c, (await api("GET", `/channels/${c.id}/members`)).members.some((p) => p.id === state.me.id)); }
+              catch {}   // keep last known membership; refreshChannels reconciles it without resending the post
             }
             if (state.current === c) { renderChannels(); updateMeta(true); }
           }
