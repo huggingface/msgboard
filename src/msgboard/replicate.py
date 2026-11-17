@@ -39,18 +39,19 @@ Writes acknowledged since the last completed snapshot are lost if the machine
 disappears; a graceful shutdown (SIGTERM) pushes a final snapshot first.
 
 Released versions from before epochs hand over only when they stop, write no
-claims, and name snapshots by UTC time. Upgrading from one, rolling back to one
-and upgrading again are supported: while such a version's lease is in the
-bucket, it is the owner, whatever claims/ holds from before it, and its board
-is the one LATEST.json names (restore()). The first instance of this version to
-take the replica from it publishes that board as its epoch's first snapshot
-before it serves. Intermediate development versions of this protocol are not
-supported.
+claims, and name snapshots by UTC time, instance and generation. Upgrading from
+one, rolling back to one and upgrading again are supported: while such a
+version's lease is in the bucket, it is the owner, whatever claims/ holds from
+before it, and its board is its own newest snapshot, or the one it restored
+(restore()). The first instance of this version to take the replica from it
+publishes that board as its epoch's first snapshot before it serves, and with it
+migrated/<instance>.json: from then on a lease from that instance, landing late,
+is a late write like any other, never the owner's. Intermediate development
+versions of this protocol are not supported.
 """
 
 from __future__ import annotations
 
-import calendar
 import contextlib
 import hashlib
 import json
@@ -71,6 +72,7 @@ LEASE = "LEASE.json"
 HANDOVER = "HANDOVER.json"
 CLAIMS = "claims/"   # claims/<epoch>-<since>-<instance>.json, one per owner
 BEATS = "beats/"     # beats/<instance>.json, uploaded while an upload is slow
+MIGRATED = "migrated/"  # migrated/<instance>.json: a released version's instance whose board an owner published
 KEEP_CLAIMS = 20    # epochs of claims kept below the owner's
 # Lease protocol. 2: owners answer HANDOVER.json requests. 1 (leases without "protocol"): an owner
 # hands over only when it stops, so its successor must let the platform send it SIGTERM.
@@ -308,17 +310,27 @@ def _authority(claims: dict, lease: dict | None) -> tuple[int, float, str] | Non
 def _released_version(lease: dict | None) -> bool:
     """A lease written by a released version from before claims and epochs (it has no "protocol"). Such an owner
     writes no claims, so it took the replica after every claim in claims/: the lease says who owns the replica,
-    and LATEST.json which board it has (restore())."""
+    unless an instance of this version has taken it from that one since (_released_owner)."""
     return lease is not None and bool(lease.get("instance")) and lease.get("protocol", 1) < PROTOCOL
 
 
-def _released_snapshot_time(name: str) -> float | None:
-    # snapshots/<UTC time, to the second>-<instance>-<generation>.db, as a released version names them
-    stamp = name.rsplit("/", 1)[-1].split("-", 1)[0]
-    try:
-        return calendar.timegm(time.strptime(stamp, "%Y%m%dT%H%M%S"))
-    except ValueError:
+def _released_owner(store, lease: dict | None) -> bool:
+    """A released version's lease that says who owns the replica: from an instance whose board no instance of
+    this version has published yet (migrated/, see Replicator.start). Once one has, a lease from that instance is
+    a late write, released or not: that instance hands over only when it stops, and never takes the replica back.
+    A rollback starts a new instance, with a new id."""
+    return _released_version(lease) and not store.versions([f"{MIGRATED}{lease['instance']}.json"])
+
+
+def _released_snapshot(name: str) -> tuple[str, int, str] | None:
+    """(instance, generation, UTC time) of snapshots/<UTC time>-<instance>-<generation>.db, as a released version
+    names them. The generation counts that instance's writes since it started, so it orders that instance's
+    snapshots, but not those of different instances, and neither does the time: each instance's own clock, to the
+    second."""
+    parts = name.rsplit("/", 1)[-1].removesuffix(".db").split("-")
+    if len(parts) != 3 or not parts[2].isdigit():
         return None
+    return parts[1], int(parts[2]), parts[0]
 
 
 def _served_after(claims: dict, lease: dict | None, rank: tuple) -> tuple | None:
@@ -352,24 +364,25 @@ def restore(store, data_dir: Path) -> dict | None:
     """Restore board.db and attachment files from the newest snapshot. Returns its manifest or None.
 
     The newest is the latest by owner and generation among the stored snapshots and the one LATEST names.
-    A released version (no epochs) writes LATEST after its snapshot, and one killed in between leaves it behind.
-    While such a version owns the replica (its lease, see _released_version), as after an upgrade from it or a
-    rollback to it, its board is the snapshot LATEST names, which it pushed or restored and never pushed again,
-    or a later one of its own: its snapshots carry no epoch, so they would rank below every epoch snapshot,
-    including the older ones it restored from.
+    While a released version owns the replica (its lease, see _released_owner), as after an upgrade from it or a
+    rollback to it, the newest is its board instead: its snapshots carry no epoch, so they would rank below every
+    epoch snapshot, including the older ones it restored from. That board is the snapshot of that instance (its id
+    is in the name) with the highest generation, or, if it has stored none, the one LATEST names, which it
+    restored. Snapshots of other instances from before epochs are never compared with it: their names carry
+    only each instance's own clock and count. A released version writes LATEST after its snapshot, and one
+    killed in between leaves LATEST behind, naming its previous snapshot or the one it restored; its newer
+    snapshot still counts.
     """
     data_dir = Path(data_dir)
     if (data_dir / "board.db").exists():
         raise FileExistsError(f"{data_dir / 'board.db'} exists; refusing to overwrite it with a restore")
     latest = _read_json(store, LATEST)
     listed = [p for p in store.list("snapshots/") if p.endswith(".db")]
-    if latest is not None and _released_version(_read_json(store, LEASE)):
-        current = _snapshot_order(latest["snapshot"])
-        if current[0] == 0:   # LATEST names one of its snapshots: a later one is its too
-            later = [p for p in listed if _snapshot_order(p)[0] == 0 and _snapshot_order(p) > current]
-        else:   # LATEST names the epoch snapshot it restored: its own are those written after that one
-            later = [p for p in listed if (_released_snapshot_time(p) or 0) > latest.get("created_at", float("inf"))]
-        names = later or [latest["snapshot"]]
+    lease = _read_json(store, LEASE)
+    if latest is not None and _released_owner(store, lease):
+        own = [(found[1], found[2], p) for p in {*listed, latest["snapshot"]}
+               if (found := _released_snapshot(p)) is not None and found[0] == lease["instance"]]
+        names = [max(own)[2]] if own else [latest["snapshot"]]
     else:
         names = listed + ([latest["snapshot"]] if latest else [])
     if not names:
@@ -415,7 +428,7 @@ def _await_owner(store, instance: str, since: float, stale_after: float, poll: f
     while stop is None or not stop.is_set():
         try:
             lease, request = watch.read(LEASE, HANDOVER)
-            if _released_version(lease):  # it hands over when it stops, whatever claims/ holds from before it
+            if _released_owner(store, lease):  # it hands over when it stops, whatever claims/ holds from before it
                 return ("released" if lease.get("released") else "legacy"), None
             claims = _claims(store)
             owner = _authority(claims, lease)
@@ -532,7 +545,7 @@ class Replicator:
         self._beats: threading.Thread | None = None
         self._beats_stop = threading.Event()
         self._acquiring = False
-        self._after_released_version = False  # it claimed the replica from a released version (start())
+        self._released_from: str | None = None  # the released version's instance it claimed the replica from
         self._tidied = False
         self._serving = False                 # started serving; until then its writes are nobody's
         self.fenced = False
@@ -660,13 +673,12 @@ class Replicator:
                 elif owner[1:] > self._started():
                     log.warning("newer instance %s has the replica", owner[2])
                     return False
-            return claims, owner, lease
+            return claims, owner, lease, lease["instance"] if _released_owner(self.store, lease) else None
 
         found = self._retrying("reading the replica's claims", look)
         if not isinstance(found, tuple):
             return found
-        claims, owner, lease = found
-        self._after_released_version = _released_version(lease)
+        claims, owner, lease, self._released_from = found
         return self._acquire(owner[0] if owner else 0, claims, lease, stale_after or self.stale_after,
                              silent=expect[2] if expect is not None else ())
 
@@ -789,10 +801,10 @@ class Replicator:
             self._put_lease(serving=True)
             return self._replaced_by(self._watch.read(LEASE)[0]) is None
 
-        if owner and self._after_released_version and self._pushed_generation is None:
+        if owner and self._released_from and self._pushed_generation is None:
             # Taken from a released version: publish the board restored from it as this epoch's first snapshot,
-            # with this version's lease, before serving. Until that lands, restore() takes that version's board
-            # from LATEST.json rather than the epoch snapshots from before it.
+            # with this version's lease and migrated/<its instance>.json (_push), before serving. Until that lands,
+            # restore() takes that version's board rather than the epoch snapshots from before it.
             self._retrying("publishing the board taken from a released version",
                            lambda: self._push(self.generation_fn()))
         if owner:
@@ -948,7 +960,7 @@ class Replicator:
                         self._fence(replaced)
                     elif self._serving and self.generation_fn() != self._pushed_generation:
                         self._push(self.generation_fn(), released=True)  # the next instance may restore now
-                    elif self._after_released_version and self._pushed_generation is None:
+                    elif self._released_from and self._pushed_generation is None:
                         # claimed from a released version, stopped before publishing its board: leave that
                         # version's lease, so that the next instance restores its board too (restore())
                         log.info("stopped before publishing the board taken from a released version")
@@ -1000,8 +1012,13 @@ class Replicator:
                         "created_at": time.time(), "instance": self.instance, "epoch": self.epoch,
                         "generation": generation}
             events, n = self._events()
+            # the first snapshot of a board taken from a released version: a lease from that version's instance
+            # is a late write from now on (_released_owner)
+            migrated = [(json.dumps({"instance": self._released_from, "by": self.instance, "epoch": self.epoch,
+                                     "snapshot": name}).encode(), f"{MIGRATED}{self._released_from}.json")
+                        ] if self._released_from and self._pushed_generation is None else []
             self._upload([(snap, name), (json.dumps(manifest).encode(), LATEST),
-                          self._lease(released, handover_to, snapshot=name)] + events)
+                          self._lease(released, handover_to, snapshot=name)] + migrated + events)
             self._last_heartbeat = time.time()
             self._events_sent = n
         self._pushed_generation = generation

@@ -217,18 +217,24 @@ writes during the switch are delayed, not lost or doubled. The SDK keeps retryin
     then restores the snapshot `LATEST.json` names, which this version writes with
     every snapshot. Restarts then behave as in that version again (#26).
   - *Upgrading again:* the released version writes no claims and names its snapshots
-    by UTC time, with no epoch. While its lease is in the bucket, it is the owner,
-    whatever `claims/` still holds from before the rollback, and its board is the
-    snapshot `LATEST.json` names. The first container of this version to take the
-    bucket from it publishes that board as its epoch's first snapshot before serving.
+    by UTC time to the second, its container and a count of that container's writes,
+    with no epoch. While its lease is in the bucket, it is the owner, whatever
+    `claims/` still holds from before the rollback, and its board is its own snapshot
+    with the highest count, or, if it stored none, the one `LATEST.json` names, which
+    it restored. Snapshots of other containers from before epochs never count against
+    it: their times and counts are each container's own. The first container of this
+    version to take the bucket from it publishes that board as its epoch's first
+    snapshot before serving, together with `migrated/<container>.json`. A lease from
+    that container landing later (a slow upload) is then a late write like any other,
+    and the next container asks the current owner for the bucket. A rollback starts a
+    new container, which has no such marker.
 
-  **Known blockers:** these transitions are not yet safe to deploy. The
-  [open review findings #4 and #5](https://github.com/huggingface/msgboard/pull/27#issuecomment-6765271995)
-  describe acknowledged-data loss from delayed released-owner leases and legacy
-  snapshot ordering. Also, the Tasks migrations on current `main` bring this version
-  to schema 31: historical release `563911d` (schema 29) refuses its snapshots on
-  rollback. The four historical-version regressions remain in `tests/test_versions.py`
-  and currently fail; their supported-transition requirement has not been removed.
+  **Known issue, rollback to `563911d`:** the Tasks migrations on current `main`
+  bring this version to schema 31, and historical release `563911d` (schema 29)
+  refuses its snapshots on rollback. The four historical-version regressions remain in
+  `tests/test_versions.py` and currently fail; their supported-transition requirement
+  has not been removed. With current `main` (schema 31) as the released version they
+  pass.
 
   Development versions of this change between those two are not supported: their
   snapshot and claim names differ, and mixing them with this version can lose data.
