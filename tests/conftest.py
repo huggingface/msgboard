@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import socket
 from argparse import Namespace
 from pathlib import Path
@@ -11,6 +12,30 @@ from msgboard.cli import cmd_init
 from msgboard.client import Client
 from msgboard.config import OPERATOR_TOKEN_FILE
 from msgboard.local import ThreadedServer
+from msgboard.replicate import DirStore
+
+
+class PartlyApplied(DirStore):
+    """A bucket upload is not transactional: some of its files can land and the others not. The first upload for
+    which `when(items)` holds applies only the files whose names start with one of `applies`, then fails, and
+    `then()` runs (say, stopping the instance before it tries again)."""
+
+    def __init__(self, root, applies: tuple[str, ...], when, then=lambda: None):
+        super().__init__(root)
+        self.applies, self.when, self.then, self.failed = applies, when, then, False
+
+    def put(self, items):
+        if self.failed or not self.when(items):
+            return super().put(items)
+        self.failed = True
+        super().put([item for item in items if item[1].startswith(self.applies)])
+        self.then()
+        raise ConnectionError("the bucket applied part of the upload")
+
+
+def releases(items) -> bool:
+    """An upload that carries a released lease."""
+    return any(dest == "LEASE.json" and json.loads(source)["released"] for source, dest in items)
 
 
 def init_board(data_dir: Path) -> str:

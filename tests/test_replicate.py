@@ -12,7 +12,7 @@ from msgboard.client import Client
 from msgboard.local import ThreadedServer
 from msgboard.replicate import DirStore, Replicator, request_handover, restore
 
-from .conftest import init_board
+from .conftest import PartlyApplied, init_board, releases
 
 
 def wait_for(cond, timeout=10):
@@ -270,7 +270,7 @@ def _bodies(data_dir, channel_id, token):
         return [m["body"] for m in c.read(channel_id, limit=500)["messages"]]
 
 
-def test_restore_takes_the_newest_snapshot_when_latest_lags(tmp_path):
+def test_restore_takes_the_newest_snapshot_there_whatever_latest_names(tmp_path):
     # An instance killed between a snapshot and its pointer left LATEST behind; restoring LATEST lost
     # the newer snapshot's writes (the rollback in #26's B2).
     data, replica = tmp_path / "a", DirStore(tmp_path / "bucket")
@@ -283,10 +283,35 @@ def test_restore_takes_the_newest_snapshot_when_latest_lags(tmp_path):
         lagging = (tmp_path / "bucket" / "LATEST.json").read_bytes()
         c.post(ch["id"], "only in the newer one")
         assert rep.push_if_changed()
+    leading = (tmp_path / "bucket" / "LATEST.json").read_bytes()
     (tmp_path / "bucket" / "LATEST.json").write_bytes(lagging)
     restore(replica, tmp_path / "b")
     with ThreadedServer(tmp_path / "b") as s, Client(s.url, token) as c:
         assert [m["body"] for m in c.read(ch["id"])["messages"]] == ["in both snapshots", "only in the newer one"]
+    # A bucket upload is not transactional: LATEST can land without the snapshot it names (here the final one,
+    # pushed when the board stopped). Restoring that snapshot failed, and so did every restore after it.
+    (tmp_path / "bucket" / "LATEST.json").write_bytes(leading)
+    (tmp_path / "bucket" / json.loads(leading)["snapshot"]).unlink()
+    restore(replica, tmp_path / "c")
+    with ThreadedServer(tmp_path / "c") as s, Client(s.url, token) as c:
+        assert [m["body"] for m in c.read(ch["id"])["messages"]] == ["in both snapshots", "only in the newer one"]
+
+
+def test_a_hand_over_whose_last_upload_lands_in_part_keeps_every_acknowledged_write(tmp_path):
+    # As in review #5 (Codex) #9, in a hand-over: a bucket upload is not transactional, and of the owner's final
+    # upload only its lease, released to the instance asking, landed; the owner was stopped before it tried again.
+    # The instance asking took the replica and restored without the owner's last writes (here: no snapshot at all).
+    data, bucket, stopped = tmp_path / "a", tmp_path / "bucket", threading.Event()
+    token = init_board(data)
+    owner = Replicator(PartlyApplied(bucket, ("LEASE.json",), releases, stopped.set), data, interval=3600,
+                       poll=0.05, stop=stopped)
+    with ThreadedServer(data, replicator=owner) as s, Client(s.url, token, max_retries=0) as c:
+        ch = c.create_channel("x")["id"]
+        c.post(ch, "acknowledged before the hand-over")
+        new = Replicator(DirStore(bucket), tmp_path / "b", interval=3600, poll=0.05)
+        assert new.take_over(poll=0.05) == "released"
+    assert restore(DirStore(bucket), tmp_path / "b")
+    assert _bodies(tmp_path / "b", ch, token) == ["acknowledged before the hand-over"]
 
 
 def test_a_push_is_one_upload(tmp_path):

@@ -2,8 +2,8 @@
 
 The released version (RELEASED, from this repo's git history) names snapshots by UTC time and has no epochs,
 claims or hand-over requests: its new container opens its port at once, waits for the old one to release the
-lease after SIGTERM, and restores the snapshot LATEST.json names. The last three tests run the released version's
-replication code in this process, on boards of this version, to control what lands in the bucket and when.
+lease after SIGTERM, and restores the snapshot LATEST.json names. The tests after the first run the released
+version's replication code in this process, on boards of this version, to control what lands in the bucket and when.
 """
 
 import importlib.util
@@ -24,7 +24,7 @@ from msgboard.client import Client
 from msgboard.local import ThreadedServer
 from msgboard.replicate import DirStore, Replicator, restore, wait_for_release
 
-from .conftest import free_port, init_board
+from .conftest import PartlyApplied, free_port, init_board, releases
 
 RELEASED = "563911d"  # main when this version was written; the live demo runs the same replication code
 CURRENT = Path(msgboard.__file__).resolve().parents[1]
@@ -295,3 +295,67 @@ def test_a_restore_takes_the_released_versions_board_wherever_a_publication_of_i
             assert _bodies(s, token, channel) == ["acknowledged before the rollback",
                                                   "acknowledged by the released version"]
         assert slow.fenced and (bucket / "migrated" / f"{old.instance}.json").exists()   # it landed, then lost
+
+
+def _rolled_back(tmp_path, released_replication) -> tuple[Path, str, int]:
+    """A board of this version, then rolled back to the released version, which acknowledged a post."""
+    bucket, token = tmp_path / "bucket", init_board(tmp_path / "p")
+    with ThreadedServer(tmp_path / "p", replicator=Replicator(DirStore(bucket), tmp_path / "p", interval=3600)) as s, \
+            Client(s.url, token) as c:
+        channel = c.create_channel("restarts")["id"]
+        c.post(channel, "acknowledged before the rollback")
+    assert released_replication.wait_for_release(released_replication.DirStore(bucket)) == "released"
+    released_replication.restore(released_replication.DirStore(bucket), tmp_path / "a")
+    old = released_replication.Replicator(released_replication.DirStore(bucket), tmp_path / "a", interval=3600)
+    with ThreadedServer(tmp_path / "a", replicator=old) as s, Client(s.url, token) as c:
+        c.post(channel, "acknowledged by the released version")
+    return bucket, token, channel
+
+
+@pytest.mark.parametrize("landed", ["the marker", "the lease", "the lease and the marker"])
+def test_a_migration_upload_that_lands_in_part_keeps_the_released_versions_board(tmp_path, released_replication,
+                                                                                  landed):
+    # Review #5 (Codex) #9: B took the bucket from the released version's instance and published that board as its
+    # first snapshot, with its lease and migrated/<instance>.json, in one upload. A bucket upload is not
+    # transactional: only the marker, or the lease, landed, and B was stopped before it tried again. The released
+    # version's lease then no longer counted, and the next instance restored the epoch snapshot from before the
+    # rollback, without the released version's post, for good.
+    bucket, token, channel = _rolled_back(tmp_path, released_replication)
+    applies = tuple(path for word, path in (("lease", "LEASE.json"), ("marker", "migrated/")) if word in landed)
+    stopped = threading.Event()
+    publishes = PartlyApplied(bucket, applies, lambda items: any(dest == "LEASE.json" for _, dest in items),
+                              stopped.set)
+    cut_short = Replicator(publishes, tmp_path / "b", interval=3600, poll=0.05, stop=stopped)
+    assert cut_short.take_over(poll=0.05) == "released"
+    restore(DirStore(bucket), tmp_path / "b")
+    with pytest.raises(RuntimeError, match="stopped before publishing"):
+        cut_short.start(lambda: 0)
+    cut_short.stop()
+    following = Replicator(DirStore(bucket), tmp_path / "c", interval=3600, poll=0.05)
+    assert following.take_over(stale_after=0.5, poll=0.05) == "stale"   # B never served
+    restore(DirStore(bucket), tmp_path / "c")
+    posted = ["acknowledged before the rollback", "acknowledged by the released version"]
+    with ThreadedServer(tmp_path / "c", replicator=following) as s:
+        assert _bodies(s, token, channel) == posted
+    restore(DirStore(bucket), tmp_path / "cold")
+    with ThreadedServer(tmp_path / "cold") as s:
+        assert _bodies(s, token, channel) == posted
+
+
+def test_a_rollback_after_a_final_push_that_lands_in_part_restores_the_final_snapshot(tmp_path,
+                                                                                       released_replication):
+    # As in review #5 (Codex) #9, on a rollback: a bucket upload is not transactional, and of this version's final
+    # upload only the released lease landed. The released version restores what LATEST.json names once the lease is
+    # released, so it restored the snapshot before, without the last post.
+    bucket, token = tmp_path / "bucket", init_board(tmp_path / "b")
+    owner = Replicator(PartlyApplied(bucket, ("LEASE.json",), releases), tmp_path / "b", interval=3600)
+    with ThreadedServer(tmp_path / "b", replicator=owner) as s, Client(s.url, token) as c:
+        channel = c.create_channel("restarts")["id"]
+        c.post(channel, "in an earlier snapshot")
+        assert owner.push_if_changed()
+        c.post(channel, "only in the final one")
+    assert released_replication.wait_for_release(released_replication.DirStore(bucket)) == "released"
+    released_replication.restore(released_replication.DirStore(bucket), tmp_path / "a")
+    with ThreadedServer(tmp_path / "a") as s:
+        assert _bodies(s, token, channel) == ["in an earlier snapshot", "only in the final one"]
+

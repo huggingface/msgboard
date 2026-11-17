@@ -4,8 +4,11 @@ The live database stays on local disk. A background thread periodically takes a
 consistent SQLite snapshot (backup API) and uploads it, together with any new
 attachment files. The snapshot, the LATEST pointer to it and the lease go up in
 one batch, so a push is one upload: a bucket rate-limits uploads, and a
-rate-limited one can take minutes. On startup an empty data directory is
-restored from the newest snapshot.
+rate-limited one can take minutes. A batch is not transactional, though: any of
+its files can land without the others. So a push that hands the replica on (a
+released lease, or a migrated/ marker, below) uploads the snapshot, LATEST and
+then the lease, each once the one before has landed. On startup an empty data
+directory is restored from the newest snapshot.
 
 One instance owns the replica at a time. Owners are numbered: an instance that
 takes the replica wins the next epoch in an election in claims/ ("Ownership"
@@ -371,7 +374,8 @@ def restore(store, data_dir: Path) -> dict | None:
     restored. Snapshots of other instances from before epochs are never compared with it: their names carry
     only each instance's own clock and count. A released version writes LATEST after its snapshot, and one
     killed in between leaves LATEST behind, naming its previous snapshot or the one it restored; its newer
-    snapshot still counts.
+    snapshot still counts. A LATEST of this version that names a snapshot which is not there (it landed and the
+    snapshot did not, see Replicator._push) counts for nothing.
     """
     data_dir = Path(data_dir)
     if (data_dir / "board.db").exists():
@@ -387,13 +391,14 @@ def restore(store, data_dir: Path) -> dict | None:
                if (found := _released_snapshot(p)) is not None and found[0] == lease["instance"]]
         names = [max(own)[2]] if own else [latest["snapshot"]]
     else:
-        names = listed + ([latest["snapshot"]] if latest else [])
+        names = listed or ([latest["snapshot"]] if latest else [])
     if not names:
         return None
     name = max(names, key=_snapshot_order)
     manifest = latest if latest is not None and latest["snapshot"] == name else {"snapshot": name}
     if manifest is not latest:
-        log.warning("LATEST.json names %s, but %s is newer; restoring that", latest and latest["snapshot"], name)
+        log.warning("LATEST.json names %s, but %s is newer or the only one there; restoring that",
+                    latest and latest["snapshot"], name)
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     tmp = data_dir / "board.db.restoring"
     tmp.unlink(missing_ok=True)
@@ -1009,7 +1014,7 @@ class Replicator:
                 if batch:
                     self._upload(batch)
                 self._uploaded_blobs.update(new[i:i + 50])
-            # 2. the snapshot, the pointer to it and the lease, in one upload
+            # 2. the snapshot, the pointer to it and the lease
             name = f"snapshots/{_rank_name(self._rank())}-{generation}.db"
             manifest = {"snapshot": name, "sha256": _sha256(snap), "size": snap.stat().st_size,
                         "created_at": time.time(), "instance": self.instance, "epoch": self.epoch,
@@ -1020,8 +1025,18 @@ class Replicator:
             migrated = [(json.dumps({"instance": self._released_from, "by": self.instance, "epoch": self.epoch,
                                      "snapshot": name}).encode(), f"{MIGRATED}{self._released_from}.json")
                         ] if self._released_from and self._pushed_generation is None else []
-            self._upload([(snap, name), (json.dumps(manifest).encode(), LATEST),
-                          self._lease(released, handover_to, snapshot=name)] + migrated + events)
+            latest, lease = (json.dumps(manifest).encode(), LATEST), self._lease(released, handover_to, snapshot=name)
+            if released or migrated:
+                # Once the release or the marker lands, the next instance restores this snapshot instead of the
+                # board it replaces (a released version: the one LATEST.json names), and a batch is not
+                # transactional: each upload only once the one before it has landed.
+                self._upload([(snap, name)])
+                self._upload([latest])
+                self._upload([lease] + migrated + events)
+            else:
+                # alone, the snapshot or this owner's lease replaces nothing, and restore() ignores a LATEST
+                # that names a snapshot which is not there: one upload
+                self._upload([(snap, name), latest, lease] + events)
             self._last_heartbeat = time.time()
             self._events_sent = n
         self._pushed_generation = generation

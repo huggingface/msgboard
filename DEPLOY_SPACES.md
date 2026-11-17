@@ -123,7 +123,11 @@ backups). It is the wrong place for a live database.
 - Uploads go through the Hub API (`huggingface_hub.batch_bucket_files`), not the
   mount, so the server knows when an upload has finished. The snapshot, `LATEST.json`
   and the lease go up together, after the snapshot's attachment files: one upload per
-  push, because bucket uploads are rate-limited (below).
+  push, because bucket uploads are rate-limited (below). An upload is not
+  transactional, though: some of its files can land and others not. So a push that
+  hands the bucket on (a released lease, or the `migrated/` marker below) uploads the
+  snapshot, `LATEST.json` and then the lease, each once the one before has landed; and
+  a `LATEST.json` naming a snapshot that is not there is ignored.
 - A snapshot is one file made with SQLite's backup API, so it is always
   internally consistent.
 - On boot the newest snapshot is restored, by name, even if `LATEST.json` names an
@@ -223,11 +227,11 @@ writes during the switch are delayed, not lost or doubled. The SDK keeps retryin
     with the highest count, or, if it stored none, the one `LATEST.json` names, which
     it restored. Snapshots of other containers from before epochs never count against
     it: their times and counts are each container's own. The first container of this
-    version to take the bucket from it publishes that board as its epoch's first
-    snapshot before serving, together with `migrated/<container>.json`. A lease from
-    that container landing later (a slow upload) is then a late write like any other,
-    and the next container asks the current owner for the bucket. A rollback starts a
-    new container, which has no such marker.
+    version to take the bucket from it uploads that board as its epoch's first
+    snapshot before serving, then, once that has landed, `migrated/<container>.json`
+    with its lease. A lease from that container landing later (a slow upload) is then
+    a late write like any other, and the next container asks the current owner for
+    the bucket. A rollback starts a new container, which has no such marker.
 
   **Known issue, rollback to `563911d`:** the Tasks migrations on current `main`
   bring this version to schema 31, and historical release `563911d` (schema 29)
