@@ -60,15 +60,15 @@ def test_periodic_push_only_when_changed(tmp_path):
 def test_old_snapshots_are_pruned(tmp_path):
     data, replica = tmp_path / "a", DirStore(tmp_path / "bucket")
     token = init_board(data)
-    rep = Replicator(replica, data, interval=0.05, keep=3)
+    rep = Replicator(replica, data, interval=3600, keep=3)
     with ThreadedServer(data, replicator=rep) as s, Client(s.url, token) as c:
         ch = c.create_channel("x")
-        for i in range(8):
+        for i in range(4):
             c.post(ch["id"], str(i))
-            n = rep.status["pushes"]
-            wait_for(lambda: rep.status["pushes"] > n)
-            time.sleep(1.05)  # snapshot names have one-second resolution
-    assert len([p for p in replica.list("snapshots/") if p.endswith(".db")]) == 3
+            assert rep.push_if_changed()
+    snapshots = [p for p in replica.list("snapshots/") if p.endswith(".db")]
+    assert len(snapshots) == 3
+    assert rep.status["last_snapshot"] in snapshots
 
 
 def test_newer_instance_fences_older_one(tmp_path):

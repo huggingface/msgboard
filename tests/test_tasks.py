@@ -362,16 +362,16 @@ def test_quote_blocks_cannot_bypass_proposer_owner_or_reader_permissions(env):
     assert ids(owner.tasks()) == [item["id"]]
 
 
-@pytest.mark.parametrize("blocks", [
-    "not a list", ["not a block"], [{"type": "html", "text": "<b>unsupported</b>"}],
-    [{"type": "text", "text": 4}], [{"type": "text", "text": "valid", "extra": True}],
-    [{"type": "quote", "message_id": True}], [{"type": "quote"}],
-    [{"type": "text", "text": "a"}] * 41,
-])
-def test_malformed_blocks_do_not_create_tasks(env, blocks):
+def test_malformed_blocks_do_not_create_tasks(env):
     _, _, writer = env.agent("writer")
-    fails(400, writer.put_task, "invalid-blocks", "Invalid", blocks=blocks)
-    assert env.op.tasks()["items"] == []
+    for blocks in [
+        "not a list", ["not a block"], [{"type": "html", "text": "<b>unsupported</b>"}],
+        [{"type": "text", "text": 4}], [{"type": "text", "text": "valid", "extra": True}],
+        [{"type": "quote", "message_id": True}], [{"type": "quote"}],
+        [{"type": "text", "text": "a"}] * 41,
+    ]:
+        fails(400, writer.put_task, "invalid-blocks", "Invalid", blocks=blocks)
+        assert env.op.tasks()["items"] == [], blocks
 
 
 def test_block_text_and_description_share_the_size_limit(env):

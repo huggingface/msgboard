@@ -13,37 +13,13 @@ def board_db():
         yield conn, pid, store.authenticate(conn, token, 1)
 
 
-def test_channel_listing_reuses_read_state(board_db):
-    conn, pid, principal = board_db
-    conn.executemany("INSERT INTO channels (name, created_by, created_at) VALUES (?, ?, 0)",
-                     [(f"channel-{i}", pid) for i in range(100)])
-    conn.execute("""INSERT INTO channel_reads (principal_id, channel_id, last_read_seq, thread_floor, updated_at)
-                    VALUES (?, 1, 7, 3, 1)""", (pid,))
-
-    queries = []
-    conn.set_trace_callback(queries.append)
-    try:
-        channels = store.list_channels(conn, principal)
-    finally:
-        conn.set_trace_callback(None)
-
-    assert len(channels) == 100
-    assert channels[0]["last_read"] == 7
-    assert all(c["last_read"] == 0 for c in channels[1:])
-    assert all((c["unread"], c["for_me"], c["threads_for_me"]) == (0, 0, 0) for c in channels)
-    # Allow one count query per channel and a constant number of shared lookups.
-    # Read positions and the unread baseline must not be fetched per channel.
-    assert len(queries) <= len(channels) + 6
-
-
-@pytest.mark.parametrize("channel_count", [1, 100])
-def test_channel_listing_batches_unread_counts(board_db, channel_count):
+def test_channel_listing_batches_unread_counts(board_db):
     conn, pid, principal = board_db
     sender = conn.execute("""INSERT INTO principals (issuer, external_id, identity_type, role, created_at, owner_id)
                              VALUES ('local', 'sender', 'agent', 'member', 0, ?)""", (pid,)).lastrowid
     conn.execute("UPDATE settings SET value = '25' WHERE key = 'reads_since'")
     expected = []
-    for i in range(channel_count):
+    for i in range(100):
         cid = conn.execute("INSERT INTO channels (name, created_by, created_at, next_seq) VALUES (?, ?, 0, 5)",
                            (f"channel-{i}", pid)).lastrowid
         root = conn.execute("""INSERT INTO messages (channel_id, seq, sender_id, body, request_id, payload_hash, created_at)

@@ -129,27 +129,27 @@ def test_link_removal_deletion_and_membership_revoke_download_capabilities(env):
     assert guest.storage_get("data.txt", handle="owner") == b"data"
 
 
-@pytest.mark.parametrize("body", [
-    "`[example](/v1/storage/owner/private.txt)`",
-    "```\n![example](/v1/storage/owner/private.txt)\n```",
-    "~~~\n![example](/v1/storage/owner/private.txt)\n~~~",
-    "[external](https://elsewhere.example/v1/storage/owner/private.txt)",
-    "[external](https://elsewhere.example/?next=(/v1/storage/owner/private.txt))",
-    "```\n![example](/v1/storage/owner/private.txt)",
-    "    [example](/v1/storage/owner/private.txt)",
-    "[external](//elsewhere.example/v1/storage/owner/private.txt)",
-    "[external](ftp://elsewhere.example/v1/storage/owner/private.txt)",
-    "[other path](/archive/v1/storage/owner/private.txt)",
-    "[other file](/v1/storage/owner/private.txt.bak)",
-    "[bad path](/v1/storage/owner/../private.txt)",
-])
-def test_nonsharing_references_do_not_grant_file_access(env, body):
+def test_nonsharing_references_do_not_grant_file_access(env):
     channel = env.op.create_channel("files")["id"]
     identity, token, _ = env.agent("guest", role="guest")
     env.op.add_member(channel, identity["id"])
     env.op.storage_put("private.txt", b"private", handle="operator")
-    # Keep the same target handle as the fixture, without adding a real author account per case.
-    body = body.replace("/owner/", "/operator/")
-    env.op.post(channel, body)
-    response = request(env, token, "GET", "/storage/operator/private.txt")
-    assert response.status_code == 404
+    for body in [
+        "`[example](/v1/storage/owner/private.txt)`",
+        "```\n![example](/v1/storage/owner/private.txt)\n```",
+        "~~~\n![example](/v1/storage/owner/private.txt)\n~~~",
+        "[external](https://elsewhere.example/v1/storage/owner/private.txt)",
+        "[external](https://elsewhere.example/?next=(/v1/storage/owner/private.txt))",
+        "```\n![example](/v1/storage/owner/private.txt)",
+        "    [example](/v1/storage/owner/private.txt)",
+        "[external](//elsewhere.example/v1/storage/owner/private.txt)",
+        "[external](ftp://elsewhere.example/v1/storage/owner/private.txt)",
+        "[other path](/archive/v1/storage/owner/private.txt)",
+        "[other file](/v1/storage/owner/private.txt.bak)",
+        "[bad path](/v1/storage/owner/../private.txt)",
+    ]:
+        # Keep the same target handle as the fixture, without adding a real author account per case.
+        body = body.replace("/owner/", "/operator/")
+        env.op.post(channel, body)
+        response = request(env, token, "GET", "/storage/operator/private.txt")
+        assert response.status_code == 404, body

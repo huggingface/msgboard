@@ -1,4 +1,5 @@
 import concurrent.futures
+from copy import deepcopy
 import io
 import json
 import os
@@ -258,43 +259,45 @@ def test_admin_public_only_and_restart_remains_quiet(pair):
     conn.close()
 
 
-@pytest.mark.parametrize("change", ["checksum", "length", "missing_blob", "extra_path", "duplicate_member", "cycle", "missing_parent", "nan", "author", "version"])
-def test_invalid_bundle_has_no_effect(pair, change):
+def test_invalid_bundle_has_no_effect(pair):
     source, target = pair
     ch = source.op.create_channel("history")["id"]
     att = source.op.upload(ch, b"file bytes", filename="file.txt")
     source.op.post(ch, "body", attachments=[att["id"]])
-    manifest, blobs = unpack(export(source, ch).content)
-    if change == "checksum":
-        blobs[next(iter(blobs))] = b"wrongbytes"
-    elif change == "length":
-        manifest["attachments"][0]["size"] += 1
-    elif change == "missing_blob":
-        blobs.clear()
-    elif change == "extra_path":
-        blobs["../escape"] = b"not extracted"
-    elif change == "cycle":
-        manifest["messages"][0]["reply_to"] = manifest["messages"][0]["id"]
-    elif change == "missing_parent":
-        manifest["messages"][0]["reply_to"] = 99999
-    elif change == "nan":
-        manifest["messages"][0]["created_at"] = float("nan")
-    elif change == "author":
-        manifest["messages"][0]["sender_id"] = 987
-    elif change == "version":
-        manifest["version"] = 99
-    data = pack(manifest, blobs)
-    if change == "duplicate_member":
-        out = io.BytesIO(data)
-        with zipfile.ZipFile(out, "a") as z, pytest.warns(UserWarning):
-            z.writestr("manifest.json", json.dumps(manifest))
-        data = out.getvalue()
+    original_manifest, original_blobs = unpack(export(source, ch).content)
     dest = target.op.create_channel("target")["id"]
     before = target.op.people()
-    result = load(target, dest, data)
-    assert result.status_code == 400, result.text
-    assert target.op.read(dest)["messages"] == []
-    assert target.op.people() == before
+    for change in ["checksum", "length", "missing_blob", "extra_path", "duplicate_member",
+                   "cycle", "missing_parent", "nan", "author", "version"]:
+        manifest, blobs = deepcopy(original_manifest), original_blobs.copy()
+        if change == "checksum":
+            blobs[next(iter(blobs))] = b"wrongbytes"
+        elif change == "length":
+            manifest["attachments"][0]["size"] += 1
+        elif change == "missing_blob":
+            blobs.clear()
+        elif change == "extra_path":
+            blobs["../escape"] = b"not extracted"
+        elif change == "cycle":
+            manifest["messages"][0]["reply_to"] = manifest["messages"][0]["id"]
+        elif change == "missing_parent":
+            manifest["messages"][0]["reply_to"] = 99999
+        elif change == "nan":
+            manifest["messages"][0]["created_at"] = float("nan")
+        elif change == "author":
+            manifest["messages"][0]["sender_id"] = 987
+        elif change == "version":
+            manifest["version"] = 99
+        data = pack(manifest, blobs)
+        if change == "duplicate_member":
+            out = io.BytesIO(data)
+            with zipfile.ZipFile(out, "a") as z, pytest.warns(UserWarning):
+                z.writestr("manifest.json", json.dumps(manifest))
+            data = out.getvalue()
+        result = load(target, dest, data)
+        assert result.status_code == 400, (change, result.text)
+        assert target.op.read(dest)["messages"] == [], change
+        assert target.op.people() == before, change
 
 
 def test_copy_failure_rolls_back_and_retry_is_safe(pair, monkeypatch):
