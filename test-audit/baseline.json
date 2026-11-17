@@ -1,0 +1,4496 @@
+{
+  "wall_s": 197.45482970797457,
+  "exit_code": 0,
+  "phase_s": {
+    "setup": 59.59000000000033,
+    "call": 89.36999999999995,
+    "teardown": 46.23999999999997
+  },
+  "timings": [
+    {
+      "seconds": 10.0,
+      "phase": "call",
+      "test": "tests/test_load_shedding.py::test_a_runaway_read_is_cut_off"
+    },
+    {
+      "seconds": 9.31,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_old_snapshots_are_pruned"
+    },
+    {
+      "seconds": 5.39,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_tasks_changes_send_one_coalesced_durable_agent_dm"
+    },
+    {
+      "seconds": 2.01,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_held_poll_visible_and_new_messages_update_waiting"
+    },
+    {
+      "seconds": 1.94,
+      "phase": "call",
+      "test": "tests/test_load_shedding.py::test_activity_long_poll_still_wakes_promptly"
+    },
+    {
+      "seconds": 1.89,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_long_poll_wakes_only_for_me"
+    },
+    {
+      "seconds": 1.58,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_import_does_not_wake_activity_notifier"
+    },
+    {
+      "seconds": 1.47,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_v30_migration_preserves_items_receipts_order_and_pending_notice"
+    },
+    {
+      "seconds": 1.33,
+      "phase": "call",
+      "test": "tests/test_load_shedding.py::test_word_search_in_a_big_channel_stays_fast"
+    },
+    {
+      "seconds": 1.2,
+      "phase": "call",
+      "test": "tests/test_space_deploy.py::test_wait_ready_waits_for_the_board_to_accept_its_token"
+    },
+    {
+      "seconds": 1.08,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_periodic_push_only_when_changed"
+    },
+    {
+      "seconds": 1.02,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_concurrent_source_changes_never_expose_private_card_content"
+    },
+    {
+      "seconds": 1.01,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_sigterm_pushes_final_snapshot"
+    },
+    {
+      "seconds": 1.0,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_acknowledged_posts_survive_sigkill"
+    },
+    {
+      "seconds": 0.98,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_handover_waits_for_release_then_restores_everything"
+    },
+    {
+      "seconds": 0.94,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_invites_limits_and_listing"
+    },
+    {
+      "seconds": 0.87,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_long_poll_wakes_on_post_and_times_out"
+    },
+    {
+      "seconds": 0.77,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_concurrent_posts_get_contiguous_ordered_sequences"
+    },
+    {
+      "seconds": 0.75,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_snapshot_round_trip_with_attachments"
+    },
+    {
+      "seconds": 0.72,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_presence_flush_failure_does_not_skip_final_messages"
+    },
+    {
+      "seconds": 0.68,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_migrate_v24_preserves_presence"
+    },
+    {
+      "seconds": 0.64,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_final_presence_in_replication_snapshot"
+    },
+    {
+      "seconds": 0.64,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_admin_public_only_and_restart_remains_quiet"
+    },
+    {
+      "seconds": 0.63,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_history_survives_final_replication"
+    },
+    {
+      "seconds": 0.61,
+      "phase": "call",
+      "test": "tests/test_init.py::test_repeated_init_preserves_state_and_credentials"
+    },
+    {
+      "seconds": 0.53,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_directory_visibility_and_private_listening_scope"
+    },
+    {
+      "seconds": 0.52,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_clean_shutdown_with_open_long_poll"
+    },
+    {
+      "seconds": 0.52,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_transfer_roundtrip_quiet_search_files_ghosts_and_replay"
+    },
+    {
+      "seconds": 0.49,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_storage_links_copy_ghost_owner_doc_absolute_and_encoded_paths"
+    },
+    {
+      "seconds": 0.49,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_slow_import_bucket_io_leaves_writer_and_other_files_free[put]"
+    },
+    {
+      "seconds": 0.47,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_periodic_flush_retries_overload"
+    },
+    {
+      "seconds": 0.44,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_migrate_existing_board_to_presence"
+    },
+    {
+      "seconds": 0.43,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_chord_dms_replies_mentions_and_other_totals"
+    },
+    {
+      "seconds": 0.43,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_leaving_survives_signin_and_restart"
+    },
+    {
+      "seconds": 0.43,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_history_is_read_for_new_people_even_with_future_source_clock"
+    },
+    {
+      "seconds": 0.43,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[version]"
+    },
+    {
+      "seconds": 0.42,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_blocked_nonempty_doc_changed_bundle_and_handle_conflict"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[nan]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[identical]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[different]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_upgrade_does_not_resurface_old_thread_notifications"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_guest_downloads_shared_files_cold_cached_metadata_and_ranges[agent]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_guest_downloads_shared_files_cold_cached_metadata_and_ranges[human]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_keep_target_doc_preserves_versions_and_replay[False]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_copy_failure_rolls_back_and_retry_is_safe"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[corrupt]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[missing_blob]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[duplicate_member]"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_storage_missing_source_and_changed_source_bytes_fail_export"
+    },
+    {
+      "seconds": 0.41,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_target_post_during_upload_aborts_import_and_cleans_new_files_ghosts"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_keep_target_doc_preserves_versions_and_replay[False]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[.]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_slow_import_bucket_io_leaves_writer_and_other_files_free[get]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_large_ordinary_upload_does_not_block_other_paths_or_agent_attachments"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_storage_aggregate_quota_blocks_import_and_parallel_uploads"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[length]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[,]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_import_does_not_wake_activity_notifier"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_copy_script_defaults_to_dry_run[False]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_blocked_nonempty_doc_changed_bundle_and_handle_conflict"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_uncached_read_waits_only_for_its_replacement_path"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_parentheses_storage_links_copy_and_rewrite"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_storage_missing_source_and_changed_source_bytes_fail_export"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[:]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_keep_target_doc_preserves_versions_and_replay[True]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[cycle]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_import_does_not_wake_activity_notifier"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_storage_links_follow_mapped_handle_case"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_keep_target_doc_keeps_concurrent_summary_edit"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer_concurrency.py::test_late_quota_failure_restores_replaced_bucket_bytes"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[checksum]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_writes_rejected_once_shutdown_begins"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[extra_path]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[author]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_copy_script_defaults_to_dry_run[True]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_slow_import_bucket_io_leaves_writer_and_other_files_free[get]"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_concurrent_imports_publish_once"
+    },
+    {
+      "seconds": 0.4,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[missing_parent]"
+    },
+    {
+      "seconds": 0.39,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_transfer_roundtrip_quiet_search_files_ghosts_and_replay"
+    },
+    {
+      "seconds": 0.39,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_bundle_cannot_omit_linked_storage_data"
+    },
+    {
+      "seconds": 0.39,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_late_quota_failure_restores_replaced_bucket_bytes"
+    },
+    {
+      "seconds": 0.39,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_admin_public_only_and_restart_remains_quiet"
+    },
+    {
+      "seconds": 0.39,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_bundle_cannot_omit_linked_storage_data"
+    },
+    {
+      "seconds": 0.39,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_large_ordinary_upload_does_not_block_other_paths_or_agent_attachments"
+    },
+    {
+      "seconds": 0.39,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[author]"
+    },
+    {
+      "seconds": 0.39,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_keep_target_doc_preserves_versions_and_replay[True]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "call",
+      "test": "tests/test_init.py::test_rotate_operator_token"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[length]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[version]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_copy_failure_rolls_back_and_retry_is_safe"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[message-True]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[checksum]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_storage_aggregate_quota_blocks_import_and_parallel_uploads"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "call",
+      "test": "tests/test_channel_participation.py::test_candidates_include_readable_nonmember_people_and_mentions_notify"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[missing_blob]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_revocation_applies_to_held_long_poll"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_storage_links_follow_mapped_handle_case"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[channel-True]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[thread-True]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_restart_preserves_item_order_and_answer_receipts"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[missing_parent]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[cycle]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "call",
+      "test": "tests/test_channel_participation.py::test_candidates_preserve_private_dm_and_guest_directory_boundaries"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[extra_path]"
+    },
+    {
+      "seconds": 0.38,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[duplicate_member]"
+    },
+    {
+      "seconds": 0.37,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_parentheses_storage_links_copy_and_rewrite"
+    },
+    {
+      "seconds": 0.37,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[.]"
+    },
+    {
+      "seconds": 0.37,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[nan]"
+    },
+    {
+      "seconds": 0.37,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[:]"
+    },
+    {
+      "seconds": 0.37,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_concurrent_imports_publish_once"
+    },
+    {
+      "seconds": 0.36,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_keep_target_doc_keeps_concurrent_summary_edit"
+    },
+    {
+      "seconds": 0.36,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_link_removal_deletion_and_membership_revoke_download_capabilities"
+    },
+    {
+      "seconds": 0.36,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_older_messages_get_mentions_after_upgrade"
+    },
+    {
+      "seconds": 0.36,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_modes_contract_and_no_human_presence"
+    },
+    {
+      "seconds": 0.35,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_blocked_nonempty_doc_changed_bundle_and_handle_conflict"
+    },
+    {
+      "seconds": 0.35,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_reader_and_admin_agents"
+    },
+    {
+      "seconds": 0.35,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_transfer_roundtrip_quiet_search_files_ghosts_and_replay"
+    },
+    {
+      "seconds": 0.35,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_copy_script_defaults_to_dry_run[True]"
+    },
+    {
+      "seconds": 0.34,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[different]"
+    },
+    {
+      "seconds": 0.34,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[corrupt]"
+    },
+    {
+      "seconds": 0.34,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[identical]"
+    },
+    {
+      "seconds": 0.34,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_copy_script_defaults_to_dry_run[False]"
+    },
+    {
+      "seconds": 0.34,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_tasks_is_personal_and_only_writable_agents_propose"
+    },
+    {
+      "seconds": 0.33,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_copy_script_defaults_to_dry_run[False]"
+    },
+    {
+      "seconds": 0.33,
+      "phase": "call",
+      "test": "tests/test_channel_participation.py::test_failed_posts_do_not_join_or_grant_access"
+    },
+    {
+      "seconds": 0.33,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_storage_links_copy_ghost_owner_doc_absolute_and_encoded_paths"
+    },
+    {
+      "seconds": 0.32,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_target_post_during_upload_aborts_import_and_cleans_new_files_ghosts"
+    },
+    {
+      "seconds": 0.32,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_copy_script_defaults_to_dry_run[True]"
+    },
+    {
+      "seconds": 0.32,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_uncached_read_waits_only_for_its_replacement_path"
+    },
+    {
+      "seconds": 0.32,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_cached_auth_and_failed_polls"
+    },
+    {
+      "seconds": 0.31,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_slow_import_bucket_io_leaves_writer_and_other_files_free[put]"
+    },
+    {
+      "seconds": 0.31,
+      "phase": "teardown",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[,]"
+    },
+    {
+      "seconds": 0.3,
+      "phase": "call",
+      "test": "tests/test_downloads.py::test_download_links_preserve_attachment_and_storage_permissions"
+    },
+    {
+      "seconds": 0.3,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_history_is_read_for_new_people_even_with_future_source_clock"
+    },
+    {
+      "seconds": 0.3,
+      "phase": "call",
+      "test": "tests/test_docs.py::test_doc_versions_and_conflicts"
+    },
+    {
+      "seconds": 0.29,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_new_people_do_not_inherit_old_unread"
+    },
+    {
+      "seconds": 0.29,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_empty_default_and_permissions"
+    },
+    {
+      "seconds": 0.29,
+      "phase": "call",
+      "test": "tests/test_attachments.py::test_upload_publish_download"
+    },
+    {
+      "seconds": 0.29,
+      "phase": "call",
+      "test": "tests/test_storage.py::test_storage_folders"
+    },
+    {
+      "seconds": 0.29,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_sharing_requires_readable_message_and_cannot_be_forged_by_guest"
+    },
+    {
+      "seconds": 0.28,
+      "phase": "setup",
+      "test": "tests/test_edits.py::test_edits_keep_every_version"
+    },
+    {
+      "seconds": 0.28,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_long_poll_wakes_only_for_me"
+    },
+    {
+      "seconds": 0.28,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_direct_messages"
+    },
+    {
+      "seconds": 0.28,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_history_is_read_for_new_people_even_with_future_source_clock"
+    },
+    {
+      "seconds": 0.28,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_response_lookup_remains_bounded_for_many_threads"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_cursor_pagination"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_held_poll_visible_and_new_messages_update_waiting"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "setup",
+      "test": "tests/test_threads_profiles.py::test_threads_summaries_and_filters"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_admin_only_operations"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_header_token_and_dashboard"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "setup",
+      "test": "tests/test_suspend.py::test_suspend_person_takes_their_agents_and_lifting_restores_them"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_invite_channels"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "setup",
+      "test": "tests/test_channel_info.py::test_channel_order_preference"
+    },
+    {
+      "seconds": 0.27,
+      "phase": "call",
+      "test": "tests/test_threads_profiles.py::test_profile_counts_only_readable_channels"
+    },
+    {
+      "seconds": 0.26,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_resumes_and_follows_channels"
+    },
+    {
+      "seconds": 0.26,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_sender_identity_comes_from_token"
+    },
+    {
+      "seconds": 0.26,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_admin_public_only_and_restart_remains_quiet"
+    },
+    {
+      "seconds": 0.26,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_history_survives_restart"
+    },
+    {
+      "seconds": 0.26,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_storage_links_copy_ghost_owner_doc_absolute_and_encoded_paths"
+    },
+    {
+      "seconds": 0.25,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params6]"
+    },
+    {
+      "seconds": 0.25,
+      "phase": "call",
+      "test": "tests/test_ownership.py::test_migration_moves_agent_owned_agents_to_their_person"
+    },
+    {
+      "seconds": 0.25,
+      "phase": "call",
+      "test": "tests/test_reactions.py::test_reactions_to_my_messages_show_in_activity"
+    },
+    {
+      "seconds": 0.25,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_published_attachments_counts_bytes_and_people_agents"
+    },
+    {
+      "seconds": 0.24,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_agents_follow_their_owner"
+    },
+    {
+      "seconds": 0.24,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_sampled_history_zero_gaps_pending_flush_and_restart"
+    },
+    {
+      "seconds": 0.24,
+      "phase": "setup",
+      "test": "tests/test_ownership.py::test_agent_invited_by_an_agent_is_owned_by_its_person"
+    },
+    {
+      "seconds": 0.24,
+      "phase": "call",
+      "test": "tests/test_space.py::test_space_bootstrap_keeps_history_across_process_restarts"
+    },
+    {
+      "seconds": 0.24,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_linking_hf_adopts_the_hf_picture_but_never_replaces_an_upload"
+    },
+    {
+      "seconds": 0.24,
+      "phase": "call",
+      "test": "tests/test_search.py::test_search_text_filters_and_visibility"
+    },
+    {
+      "seconds": 0.23,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_group_mentions"
+    },
+    {
+      "seconds": 0.23,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](//elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.23,
+      "phase": "teardown",
+      "test": "tests/test_edits.py::test_edits_keep_every_version"
+    },
+    {
+      "seconds": 0.23,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_response_lookup_remains_bounded_for_many_threads"
+    },
+    {
+      "seconds": 0.23,
+      "phase": "call",
+      "test": "tests/test_suspend.py::test_suspend_person_takes_their_agents_and_lifting_restores_them"
+    },
+    {
+      "seconds": 0.23,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_admins_delete_messages_with_their_threads"
+    },
+    {
+      "seconds": 0.22,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[message-False]"
+    },
+    {
+      "seconds": 0.22,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[channel-True]"
+    },
+    {
+      "seconds": 0.22,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_unread_and_for_me_counts"
+    },
+    {
+      "seconds": 0.22,
+      "phase": "call",
+      "test": "tests/test_guests.py::test_guest_person_sees_only_their_channels_and_their_agents_inherit_them"
+    },
+    {
+      "seconds": 0.22,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_source_permissions_cover_proposer_owner_and_current_reader"
+    },
+    {
+      "seconds": 0.22,
+      "phase": "teardown",
+      "test": "tests/test_channel_info.py::test_hide_archived_preference"
+    },
+    {
+      "seconds": 0.22,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](ftp://elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_agent_rejoin_returns_same_identity"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks6]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_failed_answers_leave_the_item_open_and_post_nothing"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_display_names_with_spaces"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params0]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks7]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_ownership.py::test_owner_check_uses_the_person_at_the_top"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "call",
+      "test": "tests/test_downloads.py::test_download_link_expiration_and_capacity_are_bounded"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_analytics_for_admins_only"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_reactions.py::test_reactions_roundtrip"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_concurrent_posts_get_contiguous_ordered_sequences"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "teardown",
+      "test": "tests/test_ownership.py::test_owner_check_uses_the_person_at_the_top"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks1]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_load_shedding.py::test_auth_cache_does_not_outlive_a_suspension"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_mentions_survive_renames"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params2]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_load_shedding.py::test_word_search_in_a_big_channel_stays_fast"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_sharing_requires_readable_message_and_cannot_be_forged_by_guest"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_last_admin_cannot_be_removed"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_polls_are_batched_and_flush_preserves_auth_cache"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_docs.py::test_docs_can_be_switched_off"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_response_distribution_pairing_and_unanswered_as_of_end"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "call",
+      "test": "tests/test_reactions.py::test_reactions_roundtrip"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[channel-False]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_docs.py::test_message_by_id_respects_visibility"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_downloads.py::test_download_links_preserve_attachment_and_storage_permissions"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_source_permissions_cover_proposer_owner_and_current_reader"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "call",
+      "test": "tests/test_channel_info.py::test_creators_archive_and_admins_delete"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_mentions_are_recorded_only_for_people_who_can_see"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[```\\n![example](/v1/storage/owner/private.txt)\\n```]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[archived]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_guide_and_guidelines"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_channel_participation.py::test_candidates_include_readable_nonmember_people_and_mentions_notify"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params7]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_concurrent_posts_get_contiguous_ordered_sequences"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_channel_info.py::test_member_flag_and_show_private_preference"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_invite_validation[bad5]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_guests.py::test_member_who_becomes_guest_takes_member_agents_along"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_concurrent_source_changes_never_expose_private_card_content"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_group_mentions_reach_only_channel_members"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_agents_register_their_runtime"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks5]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_rejects_hidden_channels"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_upgrade_does_not_resurface_old_thread_notifications"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_matching_backlog_and_cursor_progress"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_quote_blocks_cannot_bypass_proposer_owner_or_reader_permissions"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_load_shedding.py::test_activity_long_poll_still_wakes_promptly"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_guest_shares_own_file_but_reference_does_not_expose_siblings"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_edits.py::test_edit_own_message"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_analytics_for_admins_only"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[message-True]"
+    },
+    {
+      "seconds": 0.21,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](https://elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_ownership.py::test_agent_invited_by_an_agent_is_owned_by_its_person"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_block_text_and_description_share_the_size_limit"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_attachments.py::test_checksum_mismatch_is_rejected"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_guest_downloads_shared_files_cold_cached_metadata_and_ranges[agent]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_direct_messages"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_deleted_messages_and_channels_leave_items_and_receipts_stable"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_suspend.py::test_admin_agent_suspends_an_agent_and_owner_cannot_lift_it"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_downloads.py::test_download_links_recheck_credentials_and_storage_version"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_avatars.py::test_upload_show_replace_remove"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_chord_dms_replies_mentions_and_other_totals"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_directory_visibility_and_private_listening_scope"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_channel_participation.py::test_posting_joins_author_but_replay_does_not_rejoin[agent]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_clean_shutdown_with_open_long_poll"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_tasks_is_personal_and_only_writable_agents_propose"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_threads_profiles.py::test_profile_counts_only_readable_channels"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_link_removal_deletion_and_membership_revoke_download_capabilities"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[`[example](/v1/storage/owner/private.txt)`]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_channel_participation.py::test_posting_joins_author_but_replay_does_not_rejoin[human]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_search.py::test_join_says_what_to_do_next"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[other file](/v1/storage/owner/private.txt.bak)]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[~~~\\n![example](/v1/storage/owner/private.txt)\\n~~~]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_storage.py::test_storage_never_serves_bytes_that_disagree_with_the_checksum"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_attachments.py::test_upload_publish_download"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_named_agent_invite"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[member]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params4]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[absent]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_empty_activity_advances_past_unrelated_messages"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_read_position_follows_you_across_devices"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_avatars.py::test_choosing_a_pattern"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_downloads.py::test_download_link_stops_working_when_an_agents_owner_is_suspended"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_threads_profiles.py::test_profile_counts_only_readable_channels"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_long_poll_wakes_on_post_and_times_out"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_half_open_range_unicode_words_and_legacy_counts"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params3]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_channel_info.py::test_creators_archive_and_admins_delete"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks2]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[viewer]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_follows_joined_channels"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_guests_keep_only_explicit_channels_and_can_be_added_to_general[True]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_guest_downloads_shared_files_cold_cached_metadata_and_ranges[human]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_preserves_pagination"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_attachments.py::test_unready_or_foreign_attachment_cannot_be_referenced"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks4]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params10]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_upserts_are_versioned_and_closed_items_require_explicit_restore"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_invite_channels"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[archived]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_unflushed_samples_visible_without_request_writes"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_edits.py::test_agents_cannot_edit"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_docs.py::test_doc_versions_and_conflicts"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_tasks_changes_send_one_coalesced_durable_agent_dm"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params5]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_restart_preserves_item_order_and_answer_receipts"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_group_words_are_not_personal_names"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_load_shedding.py::test_a_runaway_read_is_cut_off"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_revocation_applies_to_held_long_poll"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_sampled_history_zero_gaps_pending_flush_and_restart"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_leaving_survives_signin_and_restart"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params1]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_invite_validation[bad2]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_invite_channels"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[private]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_avatars.py::test_avatar_rules"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_invite_validation[bad4]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_thread_answer_posts_exact_options_and_has_durable_idempotence"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guests.py::test_guest_person_sees_only_their_channels_and_their_agents_inherit_them"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_owners_manage_their_agents_only"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_invites_limits_and_listing"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_upgrade_does_not_resurface_old_thread_notifications"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_modes_contract_and_no_human_presence"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_threads_profiles.py::test_threads_summaries_and_filters"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "call",
+      "test": "tests/test_space.py::test_space_header_auth_and_benchmark_permissions"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_load_shedding.py::test_overloaded_reads_get_503_with_retry_after"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_search.py::test_search_text_filters_and_visibility"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_concurrent_posts[None]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_agents_follow_their_owner"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[```\\n![example](/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_channel_info.py::test_hide_archived_preference"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_answer_uses_owner_agent_dm_only_without_an_explicit_destination"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_empty_default_and_permissions"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_storage.py::test_storage_limits_are_admin_settings"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_channel_participation.py::test_candidates_preserve_private_dm_and_guest_directory_boundaries"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_blocks_keep_text_and_quotes_in_order_and_register_sources"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_group_mentions"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_suspend.py::test_admin_agent_suspends_an_agent_and_owner_cannot_lift_it"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_suspend.py::test_profile_shows_suspension_to_admins_only"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_cached_auth_and_failed_polls"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_replies_stay_in_channel_and_archive_blocks_posts"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_display_names_with_spaces"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_invite_can_join_all_open_channels"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_members_see_only_their_invites"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_agent_tokens_rotate_and_revoke"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_reactions.py::test_reactions_to_my_messages_show_in_activity"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[not a list]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_private_channels_can_be_switched_off"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_each_prior_dm_request_uses_first_later_message_and_replies_outside_cohort"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_long_poll_wakes_on_post_and_times_out"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_last_admin_cannot_be_removed"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_reader_and_admin_agents"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_downloads.py::test_native_download_streams_and_supports_ranges_without_a_board_token_in_the_url"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_channel_info.py::test_mark_all_read_clears_channels_dms_and_threads"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_invite_validation[bad3]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[thread-False]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[    [example](/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_invite_validation[bad1]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_load_shedding.py::test_auth_cache_does_not_outlive_a_suspension"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_edits.py::test_only_the_sender_can_edit"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_reactions.py::test_reactions_need_write_access_and_reach_followers"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_invite_validation[bad0]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_attachments.py::test_attachment_order_is_kept"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_search.py::test_search_follows_edits"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_edits.py::test_long_poll_wakes_on_edit"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_history_survives_restart"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_downloads.py::test_download_link_stops_working_when_an_agents_owner_is_suspended"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_unread_and_for_me_counts"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_manual_order_has_its_own_conflict_version_and_alternate_sorts"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_message_size_limits"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_guest_channels_and_membership"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_general_created_after_people_adds_them_once"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_mentions.py::test_older_messages_get_mentions_after_upgrade"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_guests_keep_only_explicit_channels_and_can_be_added_to_general[False]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_attachments.py::test_attachment_order_is_kept"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_channel_participation.py::test_candidates_preserve_private_dm_and_guest_directory_boundaries"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_invite_can_join_all_open_channels"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_attachment_info_and_encoded_filename"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_admin_sees_everything_others_see_their_part"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_downloads.py::test_download_preparation_preserves_checksum_validation"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_block_text_and_description_share_the_size_limit"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_channel_info.py::test_channel_info_and_rename"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_tokens_do_not_expire_and_people_get_one_per_device"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_quote_blocks_cannot_bypass_proposer_owner_or_reader_permissions"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_header_token_and_dashboard"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_channel_participation.py::test_failed_posts_do_not_join_or_grant_access"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[admin]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_parentheses_storage_links_copy_and_rewrite"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[other path](/archive/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_response_distribution_pairing_and_unanswered_as_of_end"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_load_shedding.py::test_overloaded_reads_get_503_with_retry_after"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_threads_profiles.py::test_profile_says_who_invited_and_who_owns"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[admin]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](https://elsewhere.example/?next=(/v1/storage/owner/private.txt))]"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_sdk_retry_after_lost_response_posts_once"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_messages_have_no_metadata"
+    },
+    {
+      "seconds": 0.2,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[thread-True]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_agent_rejoin_returns_same_identity"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_concurrent_posts[0]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[bad path](/v1/storage/owner/../private.txt)]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params8]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_retry_with_same_key_is_deduplicated"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_storage_links_follow_mapped_handle_case"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_search.py::test_search_follows_edits"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_concurrent_answers_create_exactly_one_human_message"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_storage.py::test_storage_folders"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_avatars.py::test_upload_show_replace_remove"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_people_roles"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_load_shedding.py::test_a_runaway_read_is_cut_off"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_direct_messages"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_storage_aggregate_quota_blocks_import_and_parallel_uploads"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_invalid_range[params9]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[viewer]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_resumes_and_follows_channels"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_long_poll_wakes_only_for_me"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_revocation_applies_to_held_long_poll"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_guest_shares_own_file_but_reference_does_not_expose_siblings"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks3]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_concurrent_posts[None]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "setup",
+      "test": "tests/test_auth.py::test_bad_tokens_are_rejected"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_new_people_do_not_inherit_old_unread"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[member]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_empty_activity_advances_past_unrelated_messages"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_ownership.py::test_long_chains_reach_the_person_and_loops_are_refused"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_channel_participation.py::test_candidates_include_readable_nonmember_people_and_mentions_notify"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_storage.py::test_storage_folders"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](ftp://elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_edits.py::test_agents_cannot_edit"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_clean_shutdown_with_open_long_poll"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_owners_manage_their_agents_only"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_guide_and_guidelines"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_named_agent_invite"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_copy_failure_rolls_back_and_retry_is_safe"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_keep_target_doc_preserves_versions_and_replay[True]"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_sharing_requires_readable_message_and_cannot_be_forged_by_guest"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_group_mentions_reach_only_channel_members"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_matching_backlog_and_cursor_progress"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_group_words_are_not_personal_names"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_storage.py::test_storage_never_serves_bytes_that_disagree_with_the_checksum"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_group_mentions_reach_only_channel_members"
+    },
+    {
+      "seconds": 0.19,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[nan]"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_each_prior_dm_request_uses_first_later_message_and_replies_outside_cohort"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_preserves_pagination"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](ftp://elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_attachments.py::test_upload_publish_download"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_matching_backlog_and_cursor_progress"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_owners_manage_their_agents_only"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_group_words_are_not_personal_names"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_guest_shares_own_file_but_reference_does_not_expose_siblings"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_agent_tokens_rotate_and_revoke"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_private_channels_can_be_switched_off"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_docs.py::test_docs_can_be_switched_off"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_empty_default_and_permissions"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_sender_identity_comes_from_token"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_named_agent_invite"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[member]"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_half_open_range_unicode_words_and_legacy_counts"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_downloads.py::test_download_preparation_preserves_checksum_validation"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_polls_are_batched_and_flush_preserves_auth_cache"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_deleted_messages_and_channels_leave_items_and_receipts_stable"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[viewer]"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_blocks_keep_text_and_quotes_in_order_and_register_sources"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_response_distribution_pairing_and_unanswered_as_of_end"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_docs.py::test_doc_versions_and_conflicts"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_agent_rejoin_returns_same_identity"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_new_people_join_general_but_agents_stay_opt_in[admin]"
+    },
+    {
+      "seconds": 0.18,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_retry_with_same_key_is_deduplicated"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_slow_import_bucket_io_leaves_writer_and_other_files_free[get]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_channel_info.py::test_channel_order_preference"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_admins_delete_messages_with_their_threads"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_downloads.py::test_download_links_preserve_attachment_and_storage_permissions"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[,]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[thread-False]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_unread_and_for_me_counts"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_downloads.py::test_download_link_stops_working_when_an_agents_owner_is_suspended"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_invite_can_join_all_open_channels"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](https://elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](https://elsewhere.example/?next=(/v1/storage/owner/private.txt))]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_held_poll_visible_and_new_messages_update_waiting"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_threads_profiles.py::test_threads_summaries_and_filters"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[channel-False]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_upserts_are_versioned_and_closed_items_require_explicit_restore"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[`[example](/v1/storage/owner/private.txt)`]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_quote_blocks_cannot_bypass_proposer_owner_or_reader_permissions"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[private]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_admin_only_operations"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_guests_keep_only_explicit_channels_and_can_be_added_to_general[False]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[message-False]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[bad path](/v1/storage/owner/../private.txt)]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[    [example](/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_suspend.py::test_admin_agent_suspends_an_agent_and_owner_cannot_lift_it"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[archived]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_hf_signin_does_not_rejoin_general_after_leaving"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_ownership.py::test_agent_invited_by_an_agent_is_owned_by_its_person"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_keep_target_doc_preserves_versions_and_replay[False]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_guests_keep_only_explicit_channels_and_can_be_added_to_general[True]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[~~~\\n![example](/v1/storage/owner/private.txt)\\n~~~]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_guest_downloads_shared_files_cold_cached_metadata_and_ranges[human]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_avatars.py::test_upload_show_replace_remove"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "teardown",
+      "test": "tests/test_channel_participation.py::test_posting_joins_author_but_replay_does_not_rejoin[human]"
+    },
+    {
+      "seconds": 0.17,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[public]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_channel_info.py::test_creators_archive_and_admins_delete"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_threads_profiles.py::test_profile_says_who_invited_and_who_owns"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[```\\n![example](/v1/storage/owner/private.txt)\\n```]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_manual_order_has_its_own_conflict_version_and_alternate_sorts"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[other file](/v1/storage/owner/private.txt.bak)]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_guest_downloads_shared_files_cold_cached_metadata_and_ranges[agent]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_needs_a_valid_people_invite"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_analytics_for_admins_only"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_channel_participation.py::test_posting_joins_author_but_replay_does_not_rejoin[agent]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_sampled_history_zero_gaps_pending_flush_and_restart"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_state_is_single_use_and_agents_cannot_link"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_rejects_hidden_channels"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_reactions.py::test_reactions_roundtrip"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_when_the_name_is_taken_asks_for_another"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_sdk_retry_after_lost_response_posts_once"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_shared_invite_code_is_imported"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "call",
+      "test": "tests/test_ownership.py::test_owner_check_uses_the_person_at_the_top"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[other path](/archive/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_concurrent_source_changes_never_expose_private_card_content"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_resumes_and_follows_channels"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_older_messages_get_mentions_after_upgrade"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_hf_sign_in_needs_a_linked_account"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_one_hf_account_per_person_and_unlink"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[```\\n![example](/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_slow_import_bucket_io_leaves_writer_and_other_files_free[put]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_display_names_with_spaces"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "call",
+      "test": "tests/test_docs.py::test_message_by_id_respects_visibility"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_cursor_pagination"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_bad_tokens_are_rejected"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_concurrent_answers_create_exactly_one_human_message"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_guests.py::test_member_who_becomes_guest_takes_member_agents_along"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_response_lookup_remains_bounded_for_many_threads"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](//elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_when_already_linked_signs_in_and_keeps_the_invite"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_message_size_limits"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_cached_auth_and_failed_polls"
+    },
+    {
+      "seconds": 0.16,
+      "phase": "call",
+      "test": "tests/test_storage.py::test_storage_limits_are_admin_settings"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_edits.py::test_long_poll_wakes_on_edit"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[absent]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_channel_info.py::test_member_flag_and_show_private_preference"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_chord_dms_replies_mentions_and_other_totals"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_source_permissions_cover_proposer_owner_and_current_reader"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_unflushed_samples_visible_without_request_writes"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_channel_info.py::test_mark_all_read_clears_channels_dms_and_threads"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_guests.py::test_guest_person_sees_only_their_channels_and_their_agents_inherit_them"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_general_created_after_people_adds_them_once"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_members_see_only_their_invites"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "setup",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_from_the_invite_link"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_history_survives_restart"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_downloads.py::test_download_links_recheck_credentials_and_storage_version"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_target_post_during_upload_aborts_import_and_cleans_new_files_ghosts"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_thread_answer_posts_exact_options_and_has_durable_idempotence"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_suspend.py::test_profile_shows_suspension_to_admins_only"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_read_position_follows_you_across_devices"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params0]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params1]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_channel_info.py::test_channel_info_and_rename"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params10]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params8]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_downloads.py::test_native_download_streams_and_supports_ranges_without_a_board_token_in_the_url"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params9]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params5]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params7]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_edits.py::test_only_the_sender_can_edit"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_invite_validation[bad2]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params4]"
+    },
+    {
+      "seconds": 0.15,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_v28_migrates_real_v27_and_preserves_messages_and_board_id"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_reactions.py::test_reactions_need_write_access_and_reach_followers"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_directory_visibility_and_private_listening_scope"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_follows_joined_channels"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_edits.py::test_edit_own_message"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_invite_validation[bad0]"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_admin_sees_everything_others_see_their_part"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_invite_validation[bad3]"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params6]"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_avatars.py::test_choosing_a_pattern"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_people_roles"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_avatars.py::test_avatar_rules"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params3]"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_failed_answers_leave_the_item_open_and_post_nothing"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_invite_validation[bad5]"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_load_shedding.py::test_word_search_in_a_big_channel_stays_fast"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_invite_validation[bad1]"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_suspend.py::test_suspend_person_takes_their_agents_and_lifting_restores_them"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_invalid_range[params2]"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_published_attachments_counts_bytes_and_people_agents"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_init.py::test_backup_snapshot"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_invite_validation[bad4]"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_channel_participation.py::test_failed_posts_do_not_join_or_grant_access"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_leaving_survives_signin_and_restart"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_agents_register_their_runtime"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_restore_safety"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_guest_channels_and_membership"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_tokens_do_not_expire_and_people_get_one_per_device"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_mentions_survive_renames"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_answer_uses_owner_agent_dm_only_without_an_explicit_destination"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_group_mentions"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_attachments.py::test_unready_or_foreign_attachment_cannot_be_referenced"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_search.py::test_join_says_what_to_do_next"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_tasks_is_personal_and_only_writable_agents_propose"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_mentions_are_recorded_only_for_people_who_can_see"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_init.py::test_serve_requires_init_and_refuses_second_instance"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_init.py::test_unknown_schema_version_is_refused"
+    },
+    {
+      "seconds": 0.14,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_newer_instance_fences_older_one"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_load_shedding.py::test_activity_long_poll_still_wakes_promptly"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_restart_preserves_item_order_and_answer_receipts"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_tasks_changes_send_one_coalesced_durable_agent_dm"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_messages_have_no_metadata"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_search.py::test_search_text_filters_and_visibility"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[message-True]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[thread-True]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_answer_uses_owner_agent_dm_only_without_an_explicit_destination"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_invites_limits_and_listing"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_attachments.py::test_unready_or_foreign_attachment_cannot_be_referenced"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_message_ids.py::test_message_id_migration_preserves_history_and_deleted_ids[True]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[identical]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_guest_channels_and_membership"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_mentions.py::test_mentions_survive_renames"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[channel-True]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[corrupt]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_tokens_do_not_expire_and_people_get_one_per_device"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_published_attachments_counts_bytes_and_people_agents"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_storage_collision_reuse_and_corrupt_target[different]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_concurrent_posts[0]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_agents_register_their_runtime"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_edits.py::test_edits_keep_every_version"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_concurrent_posts[0]"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_mentions_are_recorded_only_for_people_who_can_see"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_people_roles"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_failed_answers_leave_the_item_open_and_post_nothing"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_avatars.py::test_choosing_a_pattern"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_avatars.py::test_avatar_rules"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_agents_follow_their_owner"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_channel_info.py::test_channel_info_and_rename"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_admin_sees_everything_others_see_their_part"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "teardown",
+      "test": "tests/test_reactions.py::test_reactions_need_write_access_and_reach_followers"
+    },
+    {
+      "seconds": 0.13,
+      "phase": "call",
+      "test": "tests/test_edits.py::test_edit_own_message"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_attachment_info_and_encoded_filename"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_agent_loop.py::test_activity_follows_joined_channels"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_edits.py::test_only_the_sender_can_edit"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_thread_answer_posts_exact_options_and_has_durable_idempotence"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_attachments.py::test_checksum_mismatch_is_rejected"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_init.py::test_init_creates_restricted_token_file_and_never_prints_it"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_read_position_follows_you_across_devices"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_downloads.py::test_native_download_streams_and_supports_ranges_without_a_board_token_in_the_url"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_suspend.py::test_profile_shows_suspension_to_admins_only"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_init.py::test_init_refuses_stray_token_file"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_retry_of_message_stored_before_metadata_removal_still_replays"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_reactions.py::test_reactions_to_my_messages_show_in_activity"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_channel_info.py::test_mark_all_read_clears_channels_dms_and_threads"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_downloads.py::test_download_links_recheck_credentials_and_storage_version"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_general_created_after_people_adds_them_once"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_members.py::test_migration_from_v1_keeps_data"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_members_see_only_their_invites"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_message_ids.py::test_message_id_migration_preserves_history_and_deleted_ids[False]"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_replies_stay_in_channel_and_archive_blocks_posts"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_threads_profiles.py::test_v3_migration_backfills_threads_and_creators"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_auth.py::test_reader_and_admin_agents"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "call",
+      "test": "tests/test_members.py::test_v7_maps_old_roles_and_grants"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks5]"
+    },
+    {
+      "seconds": 0.12,
+      "phase": "teardown",
+      "test": "tests/test_edits.py::test_long_poll_wakes_on_edit"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_modes_contract_and_no_human_presence"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_cursor_pagination"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_storage.py::test_storage_limits_are_admin_settings"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_guest_storage_links.py::test_link_removal_deletion_and_membership_revoke_download_capabilities"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_channel_info.py::test_member_flag_and_show_private_preference"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](//elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_concurrent_answers_create_exactly_one_human_message"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_bad_tokens_are_rejected"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[private]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[absent]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks6]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_guests.py::test_member_who_becomes_guest_takes_member_agents_along"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_docs.py::test_message_by_id_respects_visibility"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks3]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks4]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks7]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[not a list]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks1]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[other path](/archive/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks2]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[```\\n![example](/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_rejects_hidden_channels"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_channel_participation.py::test_posting_joins_author_but_replay_does_not_rejoin[agent]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_keep_target_doc_keeps_concurrent_summary_edit"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_sdk_retry_after_lost_response_posts_once"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[```\\n![example](/v1/storage/owner/private.txt)\\n```]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_manual_order_has_its_own_conflict_version_and_alternate_sorts"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[    [example](/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.11,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[other file](/v1/storage/owner/private.txt.bak)]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_threads_profiles.py::test_profile_says_who_invited_and_who_owns"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[~~~\\n![example](/v1/storage/owner/private.txt)\\n~~~]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_channel_participation.py::test_posting_joins_author_but_replay_does_not_rejoin[human]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_concurrent_imports_publish_once"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](https://elsewhere.example/?next=(/v1/storage/owner/private.txt))]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[channel-False]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[message-False]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_admins_delete_messages_with_their_threads"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_guests_keep_only_explicit_channels_and_can_be_added_to_general[True]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[bad path](/v1/storage/owner/../private.txt)]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_guests_keep_only_explicit_channels_and_can_be_added_to_general[False]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[`[example](/v1/storage/owner/private.txt)`]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[:]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_upserts_are_versioned_and_closed_items_require_explicit_restore"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_admin_only_operations"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_guest_storage_links.py::test_nonsharing_references_do_not_grant_file_access[[external](https://elsewhere.example/v1/storage/owner/private.txt)]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_storage_link_markdown_boundary_and_code_examples[.]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_posts_after_deletion[thread-False]"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_channel_info.py::test_channel_order_preference"
+    },
+    {
+      "seconds": 0.1,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_retry_with_same_key_is_deduplicated"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[extra_path]"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[duplicate_member]"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[cycle]"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_blocks_keep_text_and_quotes_in_order_and_register_sources"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_deleted_messages_and_channels_leave_items_and_receipts_stable"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[missing_parent]"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_half_open_range_unicode_words_and_legacy_counts"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[author]"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_downloads.py::test_download_preparation_preserves_checksum_validation"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "setup",
+      "test": "tests/test_message_ids.py::test_message_id_migration_preserves_history_and_deleted_ids[True]"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[missing_blob]"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_each_prior_dm_request_uses_first_later_message_and_replies_outside_cohort"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_private_channels_can_be_switched_off"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[checksum]"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_empty_activity_advances_past_unrelated_messages"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_agent_tokens_rotate_and_revoke"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_preserves_pagination"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_polls_are_batched_and_flush_preserves_auth_cache"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_sender_identity_comes_from_token"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_docs.py::test_docs_can_be_switched_off"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_large_ordinary_upload_does_not_block_other_paths_or_agent_attachments"
+    },
+    {
+      "seconds": 0.09,
+      "phase": "setup",
+      "test": "tests/test_message_ids.py::test_message_id_migration_preserves_history_and_deleted_ids[False]"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[length]"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_invalid_bundle_has_no_effect[version]"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_storage.py::test_storage_never_serves_bytes_that_disagree_with_the_checksum"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_guide_and_guidelines"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_bundle_cannot_omit_linked_storage_data"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_mentions.py::test_new_people_do_not_inherit_old_unread"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_agent_loop.py::test_activity_cursor_does_not_skip_concurrent_posts[None]"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_late_quota_failure_restores_replaced_bucket_bytes"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_edits.py::test_agents_cannot_edit"
+    },
+    {
+      "seconds": 0.08,
+      "phase": "call",
+      "test": "tests/test_load_shedding.py::test_overloaded_reads_get_503_with_retry_after"
+    },
+    {
+      "seconds": 0.07,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_header_token_and_dashboard"
+    },
+    {
+      "seconds": 0.07,
+      "phase": "call",
+      "test": "tests/test_search.py::test_search_follows_edits"
+    },
+    {
+      "seconds": 0.07,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_linking_hf_adopts_the_hf_picture_but_never_replaces_an_upload"
+    },
+    {
+      "seconds": 0.07,
+      "phase": "call",
+      "test": "tests/test_attachments.py::test_attachment_order_is_kept"
+    },
+    {
+      "seconds": 0.07,
+      "phase": "call",
+      "test": "tests/test_load_shedding.py::test_auth_cache_does_not_outlive_a_suspension"
+    },
+    {
+      "seconds": 0.07,
+      "phase": "call",
+      "test": "tests/test_transfer.py::test_storage_missing_source_and_changed_source_bytes_fail_export"
+    },
+    {
+      "seconds": 0.07,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_last_admin_cannot_be_removed"
+    },
+    {
+      "seconds": 0.07,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_block_text_and_description_share_the_size_limit"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[archived]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks6]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[private]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks1]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks2]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks3]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks4]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[not a list]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks7]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_default_general.py::test_default_general_does_not_create_or_join_unavailable_channel[absent]"
+    },
+    {
+      "seconds": 0.06,
+      "phase": "call",
+      "test": "tests/test_tasks.py::test_malformed_blocks_do_not_create_tasks[blocks5]"
+    },
+    {
+      "seconds": 0.05,
+      "phase": "call",
+      "test": "tests/test_space_deploy.py::test_deploy_creates_a_private_board"
+    },
+    {
+      "seconds": 0.05,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_replies_stay_in_channel_and_archive_blocks_posts"
+    },
+    {
+      "seconds": 0.05,
+      "phase": "call",
+      "test": "tests/test_transfer_concurrency.py::test_uncached_read_waits_only_for_its_replacement_path"
+    },
+    {
+      "seconds": 0.05,
+      "phase": "call",
+      "test": "tests/test_space_deploy.py::test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket"
+    },
+    {
+      "seconds": 0.05,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_hf_signin_does_not_rejoin_general_after_leaving"
+    },
+    {
+      "seconds": 0.05,
+      "phase": "call",
+      "test": "tests/test_channel_info.py::test_hide_archived_preference"
+    },
+    {
+      "seconds": 0.05,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_one_hf_account_per_person_and_unlink"
+    },
+    {
+      "seconds": 0.05,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_attachment_info_and_encoded_filename"
+    },
+    {
+      "seconds": 0.04,
+      "phase": "call",
+      "test": "tests/test_attachments.py::test_checksum_mismatch_is_rejected"
+    },
+    {
+      "seconds": 0.04,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_hf_sign_in_needs_a_linked_account"
+    },
+    {
+      "seconds": 0.04,
+      "phase": "call",
+      "test": "tests/test_space_deploy.py::test_deploy_space_cli_keeps_the_operator_token_in_a_private_file"
+    },
+    {
+      "seconds": 0.04,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_when_already_linked_signs_in_and_keeps_the_invite"
+    },
+    {
+      "seconds": 0.04,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_when_the_name_is_taken_asks_for_another"
+    },
+    {
+      "seconds": 0.04,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_state_is_single_use_and_agents_cannot_link"
+    },
+    {
+      "seconds": 0.04,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_messages_have_no_metadata"
+    },
+    {
+      "seconds": 0.04,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_from_the_invite_link"
+    },
+    {
+      "seconds": 0.03,
+      "phase": "setup",
+      "test": "tests/test_space_deploy.py::test_deploy_creates_a_private_board"
+    },
+    {
+      "seconds": 0.03,
+      "phase": "call",
+      "test": "tests/test_search.py::test_join_says_what_to_do_next"
+    },
+    {
+      "seconds": 0.03,
+      "phase": "setup",
+      "test": "tests/test_channel_queries.py::test_channel_listing_batches_unread_counts[1]"
+    },
+    {
+      "seconds": 0.03,
+      "phase": "setup",
+      "test": "tests/test_channel_queries.py::test_channel_listing_reuses_read_state"
+    },
+    {
+      "seconds": 0.03,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_invite_validation[bad4]"
+    },
+    {
+      "seconds": 0.03,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params2]"
+    },
+    {
+      "seconds": 0.03,
+      "phase": "setup",
+      "test": "tests/test_channel_queries.py::test_channel_listing_batches_unread_counts[100]"
+    },
+    {
+      "seconds": 0.03,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params6]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params3]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_invite_validation[bad5]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params1]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_invite_validation[bad0]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_invite_validation[bad3]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params5]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_invite_validation[bad1]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_auth.py::test_invite_validation[bad2]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params0]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params4]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_needs_a_valid_people_invite"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params8]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params9]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params7]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_invalid_range[params10]"
+    },
+    {
+      "seconds": 0.02,
+      "phase": "call",
+      "test": "tests/test_channel_queries.py::test_channel_listing_batches_unread_counts[100]"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "setup",
+      "test": "tests/test_space_deploy.py::test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_unflushed_samples_visible_without_request_writes"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "call",
+      "test": "tests/test_messages.py::test_message_size_limits"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "call",
+      "test": "tests/test_space_accounts.py::test_shared_invite_code_is_imported"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "setup",
+      "test": "tests/test_space_deploy.py::test_deploy_space_cli_keeps_the_operator_token_in_a_private_file"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_when_the_name_is_taken_asks_for_another"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_one_hf_account_per_person_and_unlink"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_from_the_invite_link"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_hf_sign_in_needs_a_linked_account"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_hf_signin_does_not_rejoin_general_after_leaving"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_linking_hf_adopts_the_hf_picture_but_never_replaces_an_upload"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_when_already_linked_signs_in_and_keeps_the_invite"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_state_is_single_use_and_agents_cannot_link"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_message_ids.py::test_message_id_migration_preserves_history_and_deleted_ids[True]"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_message_ids.py::test_message_id_migration_preserves_history_and_deleted_ids[False]"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_shared_invite_code_is_imported"
+    },
+    {
+      "seconds": 0.01,
+      "phase": "teardown",
+      "test": "tests/test_space_accounts.py::test_join_with_hf_needs_a_valid_people_invite"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_space_deploy.py::test_deploy_leaves_other_spaces_and_public_buckets_alone"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "call",
+      "test": "tests/test_space_deploy.py::test_deploy_leaves_other_spaces_and_public_buckets_alone"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_space_deploy.py::test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "call",
+      "test": "tests/test_analytics.py::test_long_history_is_bounded_and_partial_coverage_is_explicit"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_space_deploy.py::test_deploy_space_cli_keeps_the_operator_token_in_a_private_file"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_space_deploy.py::test_deploy_leaves_other_spaces_and_public_buckets_alone"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_space_deploy.py::test_deploy_creates_a_private_board"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "call",
+      "test": "tests/test_channel_queries.py::test_channel_listing_reuses_read_state"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_init.py::test_init_creates_restricted_token_file_and_never_prints_it"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_migrate_existing_board_to_presence"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "call",
+      "test": "tests/test_replicate.py::test_handover_gives_up_on_a_dead_owner"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_presence_flush_failure_does_not_skip_final_messages"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "call",
+      "test": "tests/test_channel_queries.py::test_channel_listing_batches_unread_counts[1]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[public]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[archived]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_transfer.py::test_v28_migrates_real_v27_and_preserves_messages_and_board_id"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_periodic_flush_retries_overload"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[absent]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_tasks.py::test_v30_migration_preserves_items_receipts_order_and_pending_notice"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_presence_flush_failure_does_not_skip_final_messages"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_members.py::test_migration_from_v1_keeps_data"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_handover_gives_up_on_a_dead_owner"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_migrate_v24_preserves_presence"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_space.py::test_space_header_auth_and_benchmark_permissions"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_retry_of_message_stored_before_metadata_removal_still_replays"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_threads_profiles.py::test_v3_migration_backfills_threads_and_creators"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_messages.py::test_acknowledged_posts_survive_sigkill"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_sigterm_pushes_final_snapshot"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_snapshot_round_trip_with_attachments"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_init.py::test_repeated_init_preserves_state_and_credentials"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_init.py::test_serve_requires_init_and_refuses_second_instance"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_init.py::test_init_refuses_stray_token_file"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_periodic_push_only_when_changed"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[private]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_handover_waits_for_release_then_restores_everything"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_final_presence_in_replication_snapshot"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_old_snapshots_are_pruned"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_space.py::test_space_bootstrap_keeps_history_across_process_restarts"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_init.py::test_unknown_schema_version_is_refused"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_members.py::test_v7_maps_old_roles_and_grants"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_init.py::test_backup_snapshot"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_init.py::test_rotate_operator_token"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_newer_instance_fences_older_one"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_history_survives_final_replication"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_writes_rejected_once_shutdown_begins"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_space_deploy.py::test_wait_ready_waits_for_the_board_to_accept_its_token"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_replicate.py::test_restore_safety"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_channel_queries.py::test_channel_listing_batches_unread_counts[100]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_channel_queries.py::test_channel_listing_reuses_read_state"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_downloads.py::test_download_link_expiration_and_capacity_are_bounded"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_init.py::test_repeated_init_preserves_state_and_credentials"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_channel_queries.py::test_channel_listing_batches_unread_counts[1]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_ownership.py::test_long_chains_reach_the_person_and_loops_are_refused"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_analytics.py::test_long_history_is_bounded_and_partial_coverage_is_explicit"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[private]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_history_survives_final_replication"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_presence.py::test_cursor_timers_concurrency_and_dirty_versions"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "setup",
+      "test": "tests/test_ownership.py::test_migration_moves_agent_owned_agents_to_their_person"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_init.py::test_rotate_operator_token"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_downloads.py::test_download_link_expiration_and_capacity_are_bounded"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_migrate_existing_board_to_presence"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_init.py::test_serve_requires_init_and_refuses_second_instance"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[archived]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_periodic_flush_retries_overload"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_space_deploy.py::test_wait_ready_waits_for_the_board_to_accept_its_token"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_init.py::test_unknown_schema_version_is_refused"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_periodic_push_only_when_changed"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_members.py::test_v7_maps_old_roles_and_grants"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "call",
+      "test": "tests/test_presence.py::test_cursor_timers_concurrency_and_dirty_versions"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_final_presence_in_replication_snapshot"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_handover_waits_for_release_then_restores_everything"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_transfer.py::test_v28_migrates_real_v27_and_preserves_messages_and_board_id"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_init.py::test_init_creates_restricted_token_file_and_never_prints_it"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_ownership.py::test_long_chains_reach_the_person_and_loops_are_refused"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_snapshot_round_trip_with_attachments"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_writes_rejected_once_shutdown_begins"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_space.py::test_space_header_auth_and_benchmark_permissions"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_init.py::test_backup_snapshot"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_acknowledged_posts_survive_sigkill"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_sigterm_pushes_final_snapshot"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[public]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_members.py::test_migration_from_v1_keeps_data"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_tasks.py::test_v30_migration_preserves_items_receipts_order_and_pending_notice"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_messages.py::test_retry_of_message_stored_before_metadata_removal_still_replays"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_init.py::test_init_refuses_stray_token_file"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_old_snapshots_are_pruned"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_default_general.py::test_v29_adds_existing_people_once_without_touching_other_memberships[absent]"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_ownership.py::test_migration_moves_agent_owned_agents_to_their_person"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_space.py::test_space_bootstrap_keeps_history_across_process_restarts"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_migrate_v24_preserves_presence"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_restore_safety"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_threads_profiles.py::test_v3_migration_backfills_threads_and_creators"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_newer_instance_fences_older_one"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_replicate.py::test_handover_gives_up_on_a_dead_owner"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_presence.py::test_cursor_timers_concurrency_and_dirty_versions"
+    },
+    {
+      "seconds": 0.0,
+      "phase": "teardown",
+      "test": "tests/test_analytics.py::test_long_history_is_bounded_and_partial_coverage_is_explicit"
+    }
+  ]
+}

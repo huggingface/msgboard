@@ -1,0 +1,414 @@
+{
+  "Core messages, mentions, membership and identity": [
+    {
+      "file": "tests/test_auth.py",
+      "functions": [
+        "test_bad_tokens_are_rejected",
+        "test_sender_identity_comes_from_token",
+        "test_tokens_do_not_expire_and_people_get_one_per_device",
+        "test_agent_tokens_rotate_and_revoke",
+        "test_people_roles",
+        "test_admin_sees_everything_others_see_their_part",
+        "test_agents_follow_their_owner",
+        "test_owners_manage_their_agents_only",
+        "test_guest_channels_and_membership",
+        "test_last_admin_cannot_be_removed",
+        "test_invites_limits_and_listing",
+        "test_agent_rejoin_returns_same_identity",
+        "test_members_see_only_their_invites",
+        "test_direct_messages",
+        "test_private_channels_can_be_switched_off",
+        "test_revocation_applies_to_held_long_poll",
+        "test_admin_only_operations",
+        "test_invite_validation",
+        "test_reader_and_admin_agents",
+        "test_invite_channels",
+        "test_named_agent_invite",
+        "test_agents_register_their_runtime"
+      ]
+    },
+    {
+      "file": "tests/test_channel_info.py",
+      "functions": [
+        "test_channel_info_and_rename",
+        "test_creators_archive_and_admins_delete",
+        "test_channel_order_preference",
+        "test_member_flag_and_show_private_preference",
+        "test_mark_all_read_clears_channels_dms_and_threads",
+        "test_hide_archived_preference"
+      ]
+    },
+    {
+      "file": "tests/test_channel_participation.py",
+      "functions": [
+        "test_posting_joins_author_but_replay_does_not_rejoin",
+        "test_failed_posts_do_not_join_or_grant_access",
+        "test_candidates_include_readable_nonmember_people_and_mentions_notify",
+        "test_candidates_preserve_private_dm_and_guest_directory_boundaries"
+      ]
+    },
+    {
+      "file": "tests/test_channel_queries.py",
+      "functions": [
+        "test_channel_listing_batches_unread_counts"
+      ]
+    },
+    {
+      "file": "tests/test_default_general.py",
+      "functions": [
+        "test_new_people_join_general_but_agents_stay_opt_in",
+        "test_guests_keep_only_explicit_channels_and_can_be_added_to_general",
+        "test_leaving_survives_signin_and_restart",
+        "test_default_general_does_not_create_or_join_unavailable_channel",
+        "test_general_created_after_people_adds_them_once",
+        "test_v29_adds_existing_people_once_without_touching_other_memberships"
+      ]
+    },
+    {
+      "file": "tests/test_edits.py",
+      "functions": [
+        "test_edit_own_message",
+        "test_only_the_sender_can_edit",
+        "test_long_poll_wakes_on_edit",
+        "test_edits_keep_every_version",
+        "test_agents_cannot_edit"
+      ]
+    },
+    {
+      "file": "tests/test_guests.py",
+      "functions": [
+        "test_guest_person_sees_only_their_channels_and_their_agents_inherit_them",
+        "test_member_who_becomes_guest_takes_member_agents_along"
+      ]
+    },
+    {
+      "file": "tests/test_members.py",
+      "functions": [
+        "test_migration_from_v1_keeps_data",
+        "test_v7_maps_old_roles_and_grants"
+      ]
+    },
+    {
+      "file": "tests/test_mentions.py",
+      "functions": [
+        "test_mentions_are_recorded_only_for_people_who_can_see",
+        "test_unread_and_for_me_counts",
+        "test_read_position_follows_you_across_devices",
+        "test_new_people_do_not_inherit_old_unread",
+        "test_display_names_with_spaces",
+        "test_older_messages_get_mentions_after_upgrade",
+        "test_group_mentions",
+        "test_group_mentions_reach_only_channel_members",
+        "test_group_words_are_not_personal_names",
+        "test_invite_can_join_all_open_channels",
+        "test_mentions_survive_renames",
+        "test_upgrade_does_not_resurface_old_thread_notifications"
+      ]
+    },
+    {
+      "file": "tests/test_message_ids.py",
+      "functions": [
+        "test_message_id_migration_preserves_history_and_deleted_ids"
+      ]
+    },
+    {
+      "file": "tests/test_messages.py",
+      "functions": [
+        "test_retry_with_same_key_is_deduplicated",
+        "test_sdk_retry_after_lost_response_posts_once",
+        "test_concurrent_posts_get_contiguous_ordered_sequences",
+        "test_cursor_pagination",
+        "test_long_poll_wakes_on_post_and_times_out",
+        "test_replies_stay_in_channel_and_archive_blocks_posts",
+        "test_message_size_limits",
+        "test_history_survives_restart",
+        "test_acknowledged_posts_survive_sigkill",
+        "test_clean_shutdown_with_open_long_poll",
+        "test_messages_have_no_metadata",
+        "test_retry_of_message_stored_before_metadata_removal_still_replays",
+        "test_admins_delete_messages_with_their_threads"
+      ]
+    },
+    {
+      "file": "tests/test_ownership.py",
+      "functions": [
+        "test_agent_invited_by_an_agent_is_owned_by_its_person",
+        "test_owner_check_uses_the_person_at_the_top",
+        "test_long_chains_reach_the_person_and_loops_are_refused",
+        "test_migration_moves_agent_owned_agents_to_their_person"
+      ]
+    },
+    {
+      "file": "tests/test_reactions.py",
+      "functions": [
+        "test_reactions_roundtrip",
+        "test_reactions_need_write_access_and_reach_followers",
+        "test_reactions_to_my_messages_show_in_activity"
+      ]
+    },
+    {
+      "file": "tests/test_suspend.py",
+      "functions": [
+        "test_suspend_person_takes_their_agents_and_lifting_restores_them",
+        "test_admin_agent_suspends_an_agent_and_owner_cannot_lift_it",
+        "test_profile_shows_suspension_to_admins_only"
+      ]
+    },
+    {
+      "file": "tests/test_threads_profiles.py",
+      "functions": [
+        "test_threads_summaries_and_filters",
+        "test_profile_counts_only_readable_channels",
+        "test_profile_says_who_invited_and_who_owns",
+        "test_v3_migration_backfills_threads_and_creators"
+      ]
+    }
+  ],
+  "Tasks, activity, presence and analytics": [
+    {
+      "file": "tests/test_agent_loop.py",
+      "functions": [
+        "test_activity_cursor_resumes_and_follows_channels",
+        "test_empty_activity_advances_past_unrelated_messages",
+        "test_activity_cursor_does_not_skip_posts_after_deletion",
+        "test_activity_cursor_preserves_pagination",
+        "test_activity_cursor_does_not_skip_concurrent_posts",
+        "test_activity_long_poll_wakes_only_for_me",
+        "test_activity_rejects_hidden_channels",
+        "test_guide_and_guidelines",
+        "test_analytics_for_admins_only",
+        "test_activity_follows_joined_channels"
+      ]
+    },
+    {
+      "file": "tests/test_analytics.py",
+      "functions": [
+        "test_empty_default_and_permissions",
+        "test_invalid_range",
+        "test_half_open_range_unicode_words_and_legacy_counts",
+        "test_response_distribution_pairing_and_unanswered_as_of_end",
+        "test_each_prior_dm_request_uses_first_later_message_and_replies_outside_cohort",
+        "test_chord_dms_replies_mentions_and_other_totals",
+        "test_published_attachments_counts_bytes_and_people_agents",
+        "test_sampled_history_zero_gaps_pending_flush_and_restart",
+        "test_unflushed_samples_visible_without_request_writes",
+        "test_long_history_is_bounded_and_partial_coverage_is_explicit",
+        "test_history_survives_final_replication",
+        "test_migrate_v24_preserves_presence",
+        "test_response_lookup_remains_bounded_for_many_threads"
+      ]
+    },
+    {
+      "file": "tests/test_presence.py",
+      "functions": [
+        "test_modes_contract_and_no_human_presence",
+        "test_cached_auth_and_failed_polls",
+        "test_matching_backlog_and_cursor_progress",
+        "test_held_poll_visible_and_new_messages_update_waiting",
+        "test_directory_visibility_and_private_listening_scope",
+        "test_polls_are_batched_and_flush_preserves_auth_cache",
+        "test_periodic_flush_retries_overload",
+        "test_final_presence_in_replication_snapshot",
+        "test_migrate_existing_board_to_presence",
+        "test_presence_flush_failure_does_not_skip_final_messages",
+        "test_cursor_timers_concurrency_and_dirty_versions"
+      ]
+    },
+    {
+      "file": "tests/test_tasks.py",
+      "functions": [
+        "test_tasks_is_personal_and_only_writable_agents_propose",
+        "test_source_permissions_cover_proposer_owner_and_current_reader",
+        "test_thread_answer_posts_exact_options_and_has_durable_idempotence",
+        "test_answer_uses_owner_agent_dm_only_without_an_explicit_destination",
+        "test_failed_answers_leave_the_item_open_and_post_nothing",
+        "test_upserts_are_versioned_and_closed_items_require_explicit_restore",
+        "test_manual_order_has_its_own_conflict_version_and_alternate_sorts",
+        "test_concurrent_answers_create_exactly_one_human_message",
+        "test_deleted_messages_and_channels_leave_items_and_receipts_stable",
+        "test_restart_preserves_item_order_and_answer_receipts",
+        "test_tasks_changes_send_one_coalesced_durable_agent_dm",
+        "test_concurrent_source_changes_never_expose_private_card_content",
+        "test_blocks_keep_text_and_quotes_in_order_and_register_sources",
+        "test_quote_blocks_cannot_bypass_proposer_owner_or_reader_permissions",
+        "test_malformed_blocks_do_not_create_tasks",
+        "test_block_text_and_description_share_the_size_limit",
+        "test_v30_migration_preserves_items_receipts_order_and_pending_notice"
+      ]
+    }
+  ],
+  "Files, search and transfers": [
+    {
+      "file": "tests/test_attachments.py",
+      "functions": [
+        "test_upload_publish_download",
+        "test_checksum_mismatch_is_rejected",
+        "test_unready_or_foreign_attachment_cannot_be_referenced",
+        "test_attachment_order_is_kept"
+      ]
+    },
+    {
+      "file": "tests/test_avatars.py",
+      "functions": [
+        "test_upload_show_replace_remove",
+        "test_avatar_rules",
+        "test_choosing_a_pattern"
+      ]
+    },
+    {
+      "file": "tests/test_downloads.py",
+      "functions": [
+        "test_native_download_streams_and_supports_ranges_without_a_board_token_in_the_url",
+        "test_download_links_preserve_attachment_and_storage_permissions",
+        "test_download_links_recheck_credentials_and_storage_version",
+        "test_download_link_stops_working_when_an_agents_owner_is_suspended",
+        "test_download_preparation_preserves_checksum_validation",
+        "test_download_link_expiration_and_capacity_are_bounded"
+      ]
+    },
+    {
+      "file": "tests/test_guest_storage_links.py",
+      "functions": [
+        "test_guest_downloads_shared_files_cold_cached_metadata_and_ranges",
+        "test_sharing_requires_readable_message_and_cannot_be_forged_by_guest",
+        "test_guest_shares_own_file_but_reference_does_not_expose_siblings",
+        "test_link_removal_deletion_and_membership_revoke_download_capabilities",
+        "test_nonsharing_references_do_not_grant_file_access"
+      ]
+    },
+    {
+      "file": "tests/test_search.py",
+      "functions": [
+        "test_search_text_filters_and_visibility",
+        "test_search_follows_edits",
+        "test_join_says_what_to_do_next"
+      ]
+    },
+    {
+      "file": "tests/test_storage.py",
+      "functions": [
+        "test_storage_folders",
+        "test_storage_limits_are_admin_settings",
+        "test_storage_never_serves_bytes_that_disagree_with_the_checksum"
+      ]
+    },
+    {
+      "file": "tests/test_transfer.py",
+      "functions": [
+        "test_transfer_roundtrip_quiet_search_files_ghosts_and_replay",
+        "test_import_does_not_wake_activity_notifier",
+        "test_blocked_nonempty_doc_changed_bundle_and_handle_conflict",
+        "test_keep_target_doc_preserves_versions_and_replay",
+        "test_admin_public_only_and_restart_remains_quiet",
+        "test_invalid_bundle_has_no_effect",
+        "test_copy_failure_rolls_back_and_retry_is_safe",
+        "test_concurrent_imports_publish_once",
+        "test_copy_script_defaults_to_dry_run",
+        "test_history_is_read_for_new_people_even_with_future_source_clock",
+        "test_v28_migrates_real_v27_and_preserves_messages_and_board_id",
+        "test_storage_links_copy_ghost_owner_doc_absolute_and_encoded_paths",
+        "test_storage_collision_reuse_and_corrupt_target",
+        "test_storage_missing_source_and_changed_source_bytes_fail_export",
+        "test_storage_aggregate_quota_blocks_import_and_parallel_uploads",
+        "test_storage_links_follow_mapped_handle_case",
+        "test_bundle_cannot_omit_linked_storage_data"
+      ]
+    },
+    {
+      "file": "tests/test_transfer_concurrency.py",
+      "functions": [
+        "test_slow_import_bucket_io_leaves_writer_and_other_files_free",
+        "test_target_post_during_upload_aborts_import_and_cleans_new_files_ghosts",
+        "test_large_ordinary_upload_does_not_block_other_paths_or_agent_attachments",
+        "test_late_quota_failure_restores_replaced_bucket_bytes",
+        "test_parentheses_storage_links_copy_and_rewrite",
+        "test_uncached_read_waits_only_for_its_replacement_path",
+        "test_storage_link_markdown_boundary_and_code_examples",
+        "test_keep_target_doc_keeps_concurrent_summary_edit"
+      ]
+    }
+  ],
+  "Replication, deployment and overload protection": [
+    {
+      "file": "tests/test_load_shedding.py",
+      "functions": [
+        "test_overloaded_reads_get_503_with_retry_after",
+        "test_auth_cache_does_not_outlive_a_suspension",
+        "test_activity_long_poll_still_wakes_promptly",
+        "test_a_runaway_read_is_cut_off",
+        "test_word_search_in_a_big_channel_stays_fast"
+      ]
+    },
+    {
+      "file": "tests/test_replicate.py",
+      "functions": [
+        "test_snapshot_round_trip_with_attachments",
+        "test_periodic_push_only_when_changed",
+        "test_old_snapshots_are_pruned",
+        "test_newer_instance_fences_older_one",
+        "test_restore_safety",
+        "test_header_token_and_dashboard",
+        "test_attachment_info_and_encoded_filename",
+        "test_sigterm_pushes_final_snapshot",
+        "test_handover_waits_for_release_then_restores_everything",
+        "test_handover_gives_up_on_a_dead_owner",
+        "test_writes_rejected_once_shutdown_begins"
+      ]
+    },
+    {
+      "file": "tests/test_space.py",
+      "functions": [
+        "test_space_header_auth_and_benchmark_permissions",
+        "test_space_bootstrap_keeps_history_across_process_restarts"
+      ]
+    },
+    {
+      "file": "tests/test_space_accounts.py",
+      "functions": [
+        "test_hf_sign_in_needs_a_linked_account",
+        "test_one_hf_account_per_person_and_unlink",
+        "test_state_is_single_use_and_agents_cannot_link",
+        "test_shared_invite_code_is_imported",
+        "test_linking_hf_adopts_the_hf_picture_but_never_replaces_an_upload",
+        "test_hf_signin_does_not_rejoin_general_after_leaving",
+        "test_join_with_hf_from_the_invite_link",
+        "test_join_with_hf_when_already_linked_signs_in_and_keeps_the_invite",
+        "test_join_with_hf_when_the_name_is_taken_asks_for_another",
+        "test_join_with_hf_needs_a_valid_people_invite"
+      ]
+    },
+    {
+      "file": "tests/test_space_deploy.py",
+      "functions": [
+        "test_deploy_creates_a_private_board",
+        "test_redeploy_reuses_the_board_and_never_moves_it_off_its_bucket",
+        "test_deploy_leaves_other_spaces_and_public_buckets_alone",
+        "test_deploy_space_cli_keeps_the_operator_token_in_a_private_file",
+        "test_wait_ready_waits_for_the_board_to_accept_its_token",
+        "test_deploy_live"
+      ]
+    }
+  ],
+  "CLI and documentation": [
+    {
+      "file": "tests/test_docs.py",
+      "functions": [
+        "test_doc_versions_and_conflicts",
+        "test_message_by_id_respects_visibility",
+        "test_docs_can_be_switched_off"
+      ]
+    },
+    {
+      "file": "tests/test_init.py",
+      "functions": [
+        "test_init_creates_restricted_token_file_and_never_prints_it",
+        "test_repeated_init_preserves_state_and_credentials",
+        "test_init_refuses_stray_token_file",
+        "test_rotate_operator_token",
+        "test_serve_requires_init_and_refuses_second_instance",
+        "test_unknown_schema_version_is_refused",
+        "test_backup_snapshot"
+      ]
+    }
+  ]
+}
