@@ -2215,12 +2215,12 @@ function openReactPicker(anchor, mid) {
   document.body.appendChild(pop);
   const grid = pop.querySelector(".emoji-grid"), input = pop.querySelector("input");
   const render = (q) => {
-    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const words = q.trim().toLowerCase().replace(/[:_]/g, " ").split(/\s+/).filter(Boolean);
     let html = "";
     if (!words.length && recentEmoji().length) html += `<span class="label">Recent</span>` + recentEmoji().map((e) => `<button type="button" data-e="${e}">${e}</button>`).join("");
     for (const [cat, list] of EMOJI) {
       const shown = words.length ? list.filter((e) => words.every((w) => e[1].includes(w))) : list;
-      if (shown.length) html += `<span class="label">${cat}</span>` + shown.map(([e, n]) => `<button type="button" data-e="${e}" title="${n.split(" ")[0]}">${e}</button>`).join("");
+      if (shown.length) html += `<span class="label">${cat}</span>` + shown.map(([e, n]) => `<button type="button" data-e="${e}" title="${esc(emojiTitle(e, n))}">${e}</button>`).join("");
     }
     grid.innerHTML = html || `<div class="small" style="padding:10px">No emoji found.</div>`;
   };
@@ -2283,6 +2283,7 @@ function wireEditor(container) {
   const keep = () => { ed.draft = ta.value; ed.caret = ta.selectionStart; };
   ta.addEventListener("input", () => { keep(); size(); });
   ta.addEventListener("keyup", keep); ta.addEventListener("click", keep);
+  attachEmojiShortcuts(ta);
   ta.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && mobileTextInput()) return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); saveEdit(); }
@@ -3020,6 +3021,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
   host.addFiles = (files) => { addFiles(files); input.focus(); };   // drops anywhere over the channel or thread land here
   input.addEventListener("input", autosize);
   const assist = attachAssist(host, input, autosize, channel);
+  attachEmojiShortcuts(input);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && mobileTextInput()) return;
     if (assist.handleKey(e)) return;               // mention suggestions take Enter, Tab and arrows while open
@@ -3561,6 +3563,93 @@ const EMOJI = [
   ["Food", "☕ coffee|🍵 tea|🍕 pizza|🍔 burger|🌮 taco|🍣 sushi|🍪 cookie|🍰 cake|🍎 apple|🍌 banana|🥑 avocado|🍿 popcorn|🍺 beer|🥂 cheers toast|🧁 cupcake"],
 ].map(([cat, list]) => [cat, list.split("|").map((x) => { const i = x.indexOf(" "); return [x.slice(0, i), x.slice(i + 1)]; })]);
 
+// Every picker entry has a shortcode. Reuse its search words (including phrases such as
+// thumbs_up); an exact name wins over a keyword, and ambiguous keywords stay literal.
+const EMOJI_SHORTCODES = new Map(), EMOJI_NAMES = new Map();
+for (const [, list] of EMOJI) for (const [emoji, label] of list) {
+  const words = label.split(" ");
+  for (let a = 0; a < words.length; a++) for (let b = a + 1; b <= words.length; b++) {
+    const name = words.slice(a, b).join("_");
+    EMOJI_SHORTCODES.set(name, EMOJI_SHORTCODES.has(name) && EMOJI_SHORTCODES.get(name) !== emoji ? null : emoji);
+  }
+}
+for (const [, list] of EMOJI) for (const [emoji, label] of list) EMOJI_SHORTCODES.set(label.replaceAll(" ", "_"), emoji);
+for (const [, list] of EMOJI) for (const [emoji, label] of list) {
+  const words = label.split(" ");
+  EMOJI_NAMES.set(emoji, words.map((_, i) => words.slice(0, i + 1).join("_")).find((name) => EMOJI_SHORTCODES.get(name) === emoji));
+}
+const EMOTICONS = new Map([[":D", "😄"], [":-D", "😄"], [":)", "🙂"], [":-)", "🙂"],
+  [";)", "😉"], [";-)", "😉"], [":(", "🙁"], [":-(", "🙁"], ["<3", "❤️"]]);
+const emojiTitle = (emoji, label) => `${label} · :${EMOJI_NAMES.get(emoji)}: + Space`;
+
+// Inspect unfinished Markdown too: a renderer's completed tokens cannot tell us that
+// the caret is inside an unclosed code span, fence or link destination. No CDN needed.
+function emojiLiteralContext(text) {
+  let fence = null, ticks = 0, destination = 0, angle = false;
+  const lines = text.split("\n");
+  for (let n = 0; n < lines.length; n++) {
+    const line = lines[n].replace(/^(?: {0,3}> ?)+/, ""), last = n === lines.length - 1;
+    const mark = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line.replace(/^ {0,3}(?:[-+*]|\d+[.)])\s+/, ""));
+    if (fence) {
+      if (mark && mark[1][0] === fence[0] && mark[1].length >= fence.length && !mark[2].trim()) fence = null;
+      else if (last) return true;
+      continue;
+    }
+    if (mark && !ticks) { fence = mark[1]; if (last) return true; continue; }
+    if (/^(?: {4}|\t| {0,3}\[[^\]]+\]:)/.test(line)) { if (last) return true; continue; }
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === "`" && !destination && !angle) {
+        const run = /^`+/.exec(line.slice(i))[0].length;
+        if (!ticks) ticks = run; else if (ticks === run) ticks = 0;
+        i += run - 1; continue;
+      }
+      if (ticks) continue;
+      if (c === "\\") { i++; continue; }
+      if (angle) { if (c === ">") angle = false; continue; }
+      if (destination) {
+        if (c === "(") destination++;
+        if (c === ")") destination--;
+      } else if (c === "]" && line[i + 1] === "(") { destination = 1; i++; }
+      else if (c === "<" && /^[a-z!?/]/i.test(line.slice(i + 1))) angle = true;
+    }
+  }
+  return !!(fence || ticks || destination || angle);
+}
+
+function attachEmojiShortcuts(input) {
+  let composing = false, modifiedSpace = false, pending = null;
+  input.addEventListener("compositionstart", () => { composing = true; });
+  input.addEventListener("compositionend", () => { composing = false; });
+  input.addEventListener("keydown", (e) => { modifiedSpace = e.key === " " && (e.ctrlKey || e.metaKey || e.altKey); });
+  input.addEventListener("keyup", () => { modifiedSpace = false; });
+  input.addEventListener("blur", () => { composing = false; modifiedSpace = false; });
+  input.addEventListener("beforeinput", (e) => {
+    pending = null;
+    if (e.defaultPrevented || e.inputType !== "insertText" || e.data !== " " || e.isComposing || composing || modifiedSpace) return;
+    const end = input.selectionStart, value = input.value;
+    if (end !== input.selectionEnd || (end < value.length && !/\s/.test(value[end]))) return;
+    const match = /(?:^|\s)(:[a-z0-9_+\-]+:|:-?D|:-?\)|;-?\)|:-?\(|<3)$/.exec(value.slice(0, end));
+    if (!match) return;
+    const shortcut = match[1], emoji = EMOTICONS.get(shortcut) || EMOJI_SHORTCODES.get(shortcut.slice(1, -1));
+    if (!emoji || emojiLiteralContext(value.slice(0, end))) return;
+    pending = { start: end - shortcut.length, end, emoji, value };
+  });
+  input.addEventListener("input", (e) => {
+    const edit = pending; pending = null;
+    if (!edit || e.inputType !== "insertText" || e.data !== " " || e.isComposing) return;
+    const { start, end, emoji, value } = edit;
+    if (input.value !== value.slice(0, end) + " " + value.slice(end)) return;
+    input.setSelectionRange(start, end + 1);
+    // Let the browser insert Space first, then record the substitution as a native
+    // edit. Undo restores the literal shortcut; setRangeText alone loses that history.
+    if (!document.execCommand || !document.execCommand("insertText", false, emoji + " ")) {
+      input.setRangeText(emoji + " ", start, end + 1, "end");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+}
+
 function attachAssist(host, input, autosize, channel = state.current) {
   const insertAt = (text, from, to) => {
     const start = from ?? input.selectionStart, end = to ?? input.selectionEnd;
@@ -3580,13 +3669,13 @@ function attachAssist(host, input, autosize, channel = state.current) {
     closePicker();
   }
   function renderGrid(q) {
-    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const words = q.trim().toLowerCase().replace(/[:_]/g, " ").split(/\s+/).filter(Boolean);
     const match = (e) => words.every((w) => e[1].includes(w));
     let html = "";
     if (!words.length && recent().length) html += `<span class="label">Recent</span>` + recent().map((e) => `<button type="button" data-e="${e}">${e}</button>`).join("");
     for (const [cat, list] of EMOJI) {
       const shown = words.length ? list.filter(match) : list;
-      if (shown.length) html += `<span class="label">${cat}</span>` + shown.map(([e, n]) => `<button type="button" data-e="${e}" title="${n.split(" ")[0]}">${e}</button>`).join("");
+      if (shown.length) html += `<span class="label">${cat}</span>` + shown.map(([e, n]) => `<button type="button" data-e="${e}" title="${esc(emojiTitle(e, n))}">${e}</button>`).join("");
     }
     picker.querySelector(".emoji-grid").innerHTML = html || `<div class="small" style="padding:10px">No emoji found.</div>`;
   }
