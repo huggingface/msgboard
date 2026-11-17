@@ -1059,6 +1059,8 @@ async function api(method, path, { body, headers = {}, raw = false, signal, auth
     try { const e = (await res.json()).error; code = e.code; msg = e.message; details = e.details; } catch {}
     throw new ApiError(res.status, code, msg, details);
   }
+  // Profile/role/status changes also affect channel-scoped mention eligibility and pictures.
+  if (method !== "GET" && /^\/principals\/\d+(?:\/(?:avatar|pattern|suspend|unsuspend))?$/.test(path)) invalidateMentionCandidates();
   return raw ? res : res.json();
 }
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/-/g, "");
@@ -1556,9 +1558,16 @@ async function loadPeople(force = false) {
 }
 // The server checks directory visibility and whether each suggested person can read this channel.
 const mentionCandidates = new Map();
+let mentionCandidatesVersion = 0;
+function invalidateMentionCandidates() { mentionCandidatesVersion++; mentionCandidates.clear(); }
 async function loadMentionCandidates(c) {
-  if (!mentionCandidates.has(c.id)) mentionCandidates.set(c.id, api("GET", `/channels/${c.id}/mention-candidates`)
-    .then((r) => r.candidates, () => { mentionCandidates.delete(c.id); return []; }));
+  if (!mentionCandidates.has(c.id)) {
+    const version = mentionCandidatesVersion;
+    const pending = api("GET", `/channels/${c.id}/mention-candidates`).then(
+      (r) => version === mentionCandidatesVersion ? r.candidates : loadMentionCandidates(c),
+      () => { if (mentionCandidates.get(c.id) === pending) mentionCandidates.delete(c.id); return []; });
+    mentionCandidates.set(c.id, pending);
+  }
   return mentionCandidates.get(c.id);
 }
 async function pick(title, filterFn, onPick) {
@@ -3032,10 +3041,16 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
       payload = prepareSend(payload);
       for (let attempt = 0; ; attempt++) {
         try {
-          const m = sendMessage ? await sendMessage(payload, key)
-            : await api("POST", `/channels/${c.id}/messages`, { body: payload, headers: { "Idempotency-Key": key } });
+          const response = !sendMessage && await api("POST", `/channels/${c.id}/messages`,
+            { body: payload, headers: { "Idempotency-Key": key }, raw: true });
+          const m = sendMessage ? await sendMessage(payload, key) : await response.json();
           if (!sendMessage && c.kind !== "dm") {
-            c.member = true; mentionCandidates.delete(c.id);
+            mentionCandidates.delete(c.id);
+            c.member = response.status === 201;   // a replay must not undo a later choice to leave
+            if (!c.member) {
+              try { c.member = (await api("GET", `/channels/${c.id}/members`)).members.some((p) => p.id === state.me.id); }
+              catch {}   // the post is acknowledged; a failed membership read must never resend it
+            }
             if (state.current === c) { renderChannels(); updateMeta(true); }
           }
           if (!sendMessage && state.current === c && ingest(m)) renderFeed(!parent);
