@@ -34,6 +34,12 @@ def space(input, before, after):
     pw.expect(input).to_have_value(after)
 
 
+def complete(input, before, after, key="Tab"):
+    input.fill(before)
+    input.press(key)
+    pw.expect(input).to_have_value(after)
+
+
 def test_every_picker_entry_has_a_working_shortcode_and_saves_its_draft(dashboard, tmp_path):
     page, owner, _, channel, _ = dashboard
     input = page.locator("#composer textarea")
@@ -45,12 +51,28 @@ def test_every_picker_entry_has_a_working_shortcode_and_saves_its_draft(dashboar
     for emoji, title in entries:
         shortcode = re.search(r"(:[a-z0-9_+\-]+:) \+ Space$", title)[1]
         space(input, shortcode, emoji + " ")
+        complete(input, shortcode[:-1], emoji + " ")
     for shortcut, emoji in [(":D", "😄"), (":-D", "😄"), (":)", "🙂"), (":-)", "🙂"),
                             (";)", "😉"), (";-)", "😉"), (":(", "🙁"), (":-(", "🙁"),
                             ("<3", "❤️"), (":thumbs_up:", "👍"), (":rocket_ship_launch:", "🚀")]:
         space(input, shortcut, emoji + " ")
+    input.fill(":")
+    pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
+    input.fill(":r")
+    suggestions = page.get_by_role("listbox", name="Emoji suggestions")
+    pw.expect(suggestions).to_be_visible()
+    assert 1 <= suggestions.get_by_role("option").count() <= 7
+    assert len(set(suggestions.locator(".glyph").all_text_contents())) == suggestions.get_by_role("option").count()
+    input.fill("Choose :ro")
+    assert all(name.startswith(":ro") for name in suggestions.locator(".opt > span:nth-child(2)").all_text_contents())
+    input.press("ArrowDown")
+    choice = suggestions.locator('[aria-selected="true"] .glyph').inner_text()
+    input.press("Enter")
+    pw.expect(input).to_have_value("Choose " + choice + " ")
+    assert owner.read(channel["id"])["messages"] == []
     input.fill("")
-    input.press_sequentially("Looks good :D ")
+    input.press_sequentially("Looks good :D")
+    input.press("Tab")
     pw.expect(input).to_have_value("Looks good 😄 ")
     page.wait_for_function("key => JSON.parse(localStorage.getItem('msgboard:drafts') || '{}')[key]?.text === 'Looks good 😄 '", arg=f'c:{channel["id"]}')
     page.reload()
@@ -82,7 +104,10 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
         "[link]( :rocket:", "[link](url \"title :D", "[ref]: :rocket:",
         ":unknown:", ":smile:",
     ]:
-        space(input, before, before + " ")
+        input.fill(before)
+        pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
+        input.press("Space")
+        pw.expect(input).to_have_value(before + " ")
     for before in ["`literal` :D", "```\ncode\n```\n:D", "~~~\ncode\n~~~\n:D", "[link](url) :D"]:
         space(input, before, before[:-2] + "😄 ")
 
@@ -112,6 +137,8 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
         input.fill(body)
         caret = body.index(":D") + 2
         input.evaluate("(el, pos) => el.setSelectionRange(pos, pos)", caret)
+        input.dispatch_event("click")
+        pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
         input.press("Space")
         pw.expect(input).to_have_value(body[:caret] + " " + body[caret:])
     for before in [
@@ -139,6 +166,15 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
     input.press("Space")
     pw.expect(input).to_have_value("hello 🚀  tail")
     assert input.evaluate("el => el.selectionStart === 9 && el.selectionEnd === 9")
+    input.fill("hello :rocket tail")
+    input.evaluate("el => el.setSelectionRange(13, 13)")
+    input.dispatch_event("click")
+    input.press("Tab")
+    pw.expect(input).to_have_value("hello 🚀  tail")
+    assert input.evaluate("el => el.selectionStart === 9 && el.selectionEnd === 9")
+    input.fill(":ro")
+    input.press("Home")
+    pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
     input.fill(":Dtail")
     input.evaluate("el => el.setSelectionRange(2, 2)")
     input.press("Space")
@@ -172,6 +208,18 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
     pw.expect(input).to_have_value(":D ")
     input.press("Control+y")
     pw.expect(input).to_have_value("😄 ")
+    input.fill("")
+    input.press_sequentially(":rocket")
+    input.press("Tab")
+    pw.expect(input).to_have_value("🚀 ")
+    input.press("Control+z")
+    pw.expect(input).to_have_value(":rocket")
+    input.press("Control+y")
+    pw.expect(input).to_have_value("🚀 ")
+    input.fill(":ro")
+    input.press("Escape")
+    pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
+    pw.expect(input).to_have_value(":ro")
 
 
 def test_thread_edit_dm_and_tasks_composers(dashboard, tmp_path):
@@ -182,7 +230,8 @@ def test_thread_edit_dm_and_tasks_composers(dashboard, tmp_path):
     message.hover()
     message.locator("[data-thread]").click()
     thread = page.locator("#panel-composer textarea")
-    space(thread, "Ready :rocket:", "Ready 🚀 ")
+    complete(thread, "Ready :rocket", "Ready 🚀 ", key="Enter")
+    assert len(owner.read(channel["id"])["messages"]) == 1
     with page.expect_response(lambda r: r.request.method == "POST" and "/messages" in r.url):
         thread.press("Enter")
     assert owner.read(channel["id"])["messages"][-1]["reply_to"] == root["id"]
@@ -190,7 +239,8 @@ def test_thread_edit_dm_and_tasks_composers(dashboard, tmp_path):
     message.hover()
     message.locator("[data-edit]").click()
     edit = page.get_by_role("textbox", name="Edit message")
-    space(edit, "Edited :D", "Edited 😄 ")
+    complete(edit, "Edited :D", "Edited 😄 ", key="Enter")
+    assert owner.read(channel["id"])["messages"][0]["body"] == "Review this change"
     with page.expect_response(lambda r: r.request.method == "PATCH" and "/messages/" in r.url):
         edit.press("Enter")
     assert owner.read(channel["id"])["messages"][0]["body"] == "Edited 😄"
@@ -199,18 +249,18 @@ def test_thread_edit_dm_and_tasks_composers(dashboard, tmp_path):
     helper.post(dm["id"], "Hello")
     page.reload()
     page.locator("#dms button").filter(has_text="helper").click()
-    space(page.locator("#composer textarea"), ":coffee:", "☕ ")
+    complete(page.locator("#composer textarea"), ":coffee", "☕ ")
 
     item = helper.put_task("emoji-answer", "Emoji answer check", channel_id=channel["id"])
     page.goto(page.url.split("#")[0] + "#tasks/" + str(item["id"]))
     answer = page.locator("#tasks-answer-composer textarea")
-    space(answer, "Approved :thumbs_up:", "Approved 👍 ")
+    complete(answer, "Approved :thumbs_up", "Approved 👍 ")
     with page.expect_response(lambda r: r.request.method == "POST" and "/actions" in r.url):
         page.locator("#tasks-answer-composer .btn").click()
     assert owner.task(item["id"])["state"] == "closed"
     assert owner.read(channel["id"])["messages"][-1]["body"] == "Approved 👍"
     tasks_dm = page.locator("#tasks-dm-composer textarea")
-    space(tasks_dm, ":wave_hello:", "👋 ")
+    complete(tasks_dm, ":wave_hello", "👋 ")
     page.screenshot(path=str(tmp_path / "emoji-tasks.png"))
 
     # The same beforeinput path works without a physical Space key on a touch layout.
@@ -218,3 +268,16 @@ def test_thread_edit_dm_and_tasks_composers(dashboard, tmp_path):
     tasks_dm.fill(":rocket:")
     page.keyboard.insert_text(" ")
     pw.expect(tasks_dm).to_have_value("🚀 ")
+
+    touch = page.context.browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+    touch.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(owner.token) + ")")
+    touch.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+    phone = touch.new_page()
+    phone.goto(page.url.split("#")[0] + "#emoji-checks")
+    field = phone.locator("#composer textarea")
+    field.fill(":rocket")
+    phone.get_by_role("option").filter(has_text=":rocket:").tap()
+    pw.expect(field).to_have_value("🚀 ")
+    field.press("Enter")
+    pw.expect(field).to_have_value("🚀 \n")
+    touch.close()

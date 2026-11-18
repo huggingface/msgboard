@@ -469,7 +469,7 @@ button.fchip:hover { border-color: var(--ink); }
 .body .edited:hover { color: var(--ink); text-decoration: underline; }
 .version { border-left: 2px solid var(--rule-2); padding: 2px 0 2px 12px; margin-bottom: 16px; }
 .version:first-of-type { border-left-color: var(--ink); }
-.edit-box { margin: 4px 0 2px; border: 1px solid var(--ink); background: var(--bg); }
+.edit-box { position: relative; margin: 4px 0 2px; border: 1px solid var(--ink); background: var(--bg); }
 .edit-box textarea { display: block; width: 100%; border: 0; outline: 0; resize: none; padding: 8px 10px; font: inherit; color: var(--ink); background: transparent; }
 .edit-bar { display: flex; align-items: center; gap: 8px; padding: 4px 6px 6px 10px; }
 .edit-bar .hint { flex: 1; font: 11px var(--mono); color: var(--ink-2); }
@@ -546,6 +546,8 @@ button.fchip:hover { border-color: var(--ink); }
 .mention-pop .opt small { font: 11px var(--mono); opacity: .7; }
 .mention-pop .opt .glyph { width: 18px; text-align: center; font: 13px var(--mono); }
 .mention-pop .opt .glyph .lock { width: 9px; height: 10px; }
+.emoji-suggest { max-height: min(260px, 50vh); overflow-y: auto; }
+.emoji-suggest .opt .glyph { font-size: 18px; flex: 0 0 22px; }
 .body .mention { font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; cursor: pointer; }
 .body .mention:hover { text-decoration-thickness: 2px; }
 .body .mention:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
@@ -2284,7 +2286,9 @@ function wireEditor(container) {
   ta.addEventListener("input", () => { keep(); size(); });
   ta.addEventListener("keyup", keep); ta.addEventListener("click", keep);
   attachEmojiShortcuts(ta);
+  const assist = attachAssist(ta.closest(".edit-box"), ta, size, state.current, { emojiOnly: true });
   ta.addEventListener("keydown", (e) => {
+    if (assist.handleKey(e)) return;
     if (e.key === "Enter" && mobileTextInput()) return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); saveEdit(); }
     else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancelEdit(); }
@@ -3023,8 +3027,8 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
   const assist = attachAssist(host, input, autosize, channel);
   attachEmojiShortcuts(input);
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && mobileTextInput()) return;
     if (assist.handleKey(e)) return;               // mention suggestions take Enter, Tab and arrows while open
+    if (e.key === "Enter" && mobileTextInput()) return;
     if (!sendMessage && state.current === channel && e.key === "ArrowUp" && !input.value && !e.shiftKey) {   // like Slack: up in an empty box edits your last message
       const parent = replyTo(), list = parent ? [state.panel.root, ...state.thread] : state.roots, m = lastOwnMessage(list);
       if (m && state.me.identity_type === "user") { e.preventDefault(); input.blur(); startEdit(m.id, parent ? "thread" : "feed"); }
@@ -3740,7 +3744,7 @@ function attachEmojiShortcuts(input) {
   });
 }
 
-function attachAssist(host, input, autosize, channel = state.current) {
+function attachAssist(host, input, autosize, channel = state.current, { emojiOnly = false } = {}) {
   const insertAt = (text, from, to) => {
     const start = from ?? input.selectionStart, end = to ?? input.selectionEnd;
     input.setRangeText(text, start, end, "end");
@@ -3769,7 +3773,7 @@ function attachAssist(host, input, autosize, channel = state.current) {
     }
     picker.querySelector(".emoji-grid").innerHTML = html || `<div class="small" style="padding:10px">No emoji found.</div>`;
   }
-  btn.onclick = () => {
+  if (btn) btn.onclick = () => {
     if (picker) return closePicker();
     picker = document.createElement("div");
     picker.className = "pop emoji-pop";
@@ -3786,9 +3790,12 @@ function attachAssist(host, input, autosize, channel = state.current) {
     search.focus();
     document.addEventListener("click", outside, true);
   };
-  // ---- suggestions: @people and #channels
-  let pop = null, options = [], active = 0, token = null, suggestionVersion = 0;
-  const closeMentions = () => { suggestionVersion++; if (pop) { pop.remove(); pop = null; } options = []; token = null; };
+  // ---- suggestions: emoji, @people and #channels
+  let pop = null, options = [], active = 0, token = null, suggestionVersion = 0, composing = false;
+  const closeMentions = () => {
+    suggestionVersion++; if (pop) { pop.remove(); pop = null; } options = []; token = null;
+    input.removeAttribute("aria-controls"); input.removeAttribute("aria-activedescendant");
+  };
   const rank = (q, ...names) => {
     if (!q) return 1;
     names = names.map((n) => n.toLowerCase());
@@ -3798,11 +3805,25 @@ function attachAssist(host, input, autosize, channel = state.current) {
   async function update() {
     const version = ++suggestionVersion;
     const before = input.value.slice(0, input.selectionStart);
+    const emoji = /(^|[\s(]):([A-Za-z][A-Za-z0-9_+\-]*):?$/.exec(before);
     const m = /(^|[\s(])([@#])([A-Za-z0-9_.:-]*)$/.exec(before);
-    if (!m) return closeMentions();
-    token = { start: before.length - m[3].length - 1, end: input.selectionStart };
-    const q = m[3].toLowerCase();
-    if (m[2] === "#") {
+    if (!input.isConnected || composing || input.selectionStart !== input.selectionEnd || (!emoji && (emojiOnly || !m))) return closeMentions();
+    const match = emoji || m, q = (emoji ? emoji[2] : m[3]).toLowerCase();
+    token = { start: before.length - match[0].length + match[1].length, end: input.selectionStart };
+    if (emoji) {
+      if (/[A-Za-z0-9_+:\-]/.test(input.value[input.selectionEnd] || "") || emojiLiteralContext(before)) return closeMentions();
+      const matches = new Map();
+      for (const [name, value] of EMOJI_SHORTCODES) {
+        if (!value || !name.startsWith(q)) continue;
+        const canonical = EMOJI_NAMES.get(value), score = (name === q ? 3 : 1) + Number(canonical.startsWith(q));
+        if (!matches.has(value) || matches.get(value).score < score) matches.set(value, { name: canonical.startsWith(q) ? canonical : name, score });
+      }
+      const face = EMOTICONS.get(":" + emoji[2]);
+      if (face) matches.set(face, { name: emoji[2], emoticon: true, score: 5 });
+      options = [...matches].sort((a, b) => b[1].score - a[1].score || a[1].name.localeCompare(b[1].name)).slice(0, 7)
+        .map(([value, { name, emoticon }]) => ({ emoji: value, insert: value + " ",
+          html: `<span class="glyph">${value}</span><span>:${esc(name)}${emoticon ? "" : ":"}</span>` }));
+    } else if (m[2] === "#") {
       const chans = state.channels.filter((c) => c.kind !== "dm" && !c.archived);
       options = chans.map((c) => [rank(q, c.name), c]).filter(([s]) => s > 0)
         .sort((a, b) => b[0] - a[0] || a[1].name.localeCompare(b[1].name)).slice(0, 7)
@@ -3821,27 +3842,50 @@ function attachAssist(host, input, autosize, channel = state.current) {
     }
     if (!options.length) return closeMentions();
     active = Math.min(active, options.length - 1);
-    if (!pop) { pop = document.createElement("div"); pop.className = "pop mention-pop"; pop.setAttribute("role", "listbox"); host.appendChild(pop);
-      pop.onmousedown = (e) => { e.preventDefault(); const o = e.target.closest("[data-i]"); if (o) pick(Number(o.dataset.i)); }; }
-    pop.innerHTML = options.map((o, i) => `<div class="opt ${i === active ? "on" : ""}" role="option" data-i="${i}">${o.html}</div>`).join("");
+    if (!pop) { pop = document.createElement("div"); pop.className = "pop mention-pop"; pop.id = "suggest-" + uid(); pop.setAttribute("role", "listbox"); host.appendChild(pop);
+      pop.onmousedown = (e) => { if (e.button !== 0) return; e.preventDefault(); const o = e.target.closest("[data-i]"); if (o) pick(Number(o.dataset.i)); }; }
+    pop.classList.toggle("emoji-suggest", !!emoji);
+    pop.setAttribute("aria-label", emoji ? "Emoji suggestions" : "Suggestions");
+    pop.innerHTML = options.map((o, i) => `<div id="${pop.id}-${i}" class="opt ${i === active ? "on" : ""}" role="option" aria-selected="${i === active}" data-i="${i}">${o.html}</div>`).join("");
+    input.setAttribute("aria-controls", pop.id); input.setAttribute("aria-activedescendant", pop.id + "-" + active);
+    if (emojiOnly) {
+      const rect = input.getBoundingClientRect(), box = host.getBoundingClientRect(), bounds = host.closest(".scroll").getBoundingClientRect();
+      const above = rect.top - bounds.top, below = bounds.bottom - rect.bottom;
+      pop.style.left = "0"; pop.style.maxWidth = "100%"; pop.style.minWidth = "min(260px, 100%)";
+      pop.style.maxHeight = Math.max(30, Math.min(260, innerHeight / 2, Math.max(above, below) - 8)) + "px";
+      const up = above >= pop.offsetHeight + 4;
+      pop.style.bottom = up ? box.bottom - rect.top + 4 + "px" : "auto";
+      pop.style.top = up ? "auto" : rect.bottom - box.top + 4 + "px";
+    }
+    if (emoji) pop.querySelector(".on").scrollIntoView({ block: "nearest" });
     hydrate(pop);
   }
   function pick(i) {
     const o = options[i]; if (!o || !token) return;
-    insertAt(o.insert, token.start, token.end);
+    const { start, end } = token;
     closeMentions();
+    if (o.emoji) {
+      input.focus(); input.setSelectionRange(start, end);
+      if (!document.execCommand || !document.execCommand("insertText", false, o.insert)) insertAt(o.insert, start, end);
+      autosize();
+      store.set("emoji-recent", JSON.stringify([o.emoji, ...recent().filter((x) => x !== o.emoji)].slice(0, 18)));
+    } else insertAt(o.insert, start, end);
   }
   input.addEventListener("input", () => { active = 0; update(); });
   input.addEventListener("click", update);
-  input.addEventListener("blur", () => setTimeout(closeMentions, 150));
+  input.addEventListener("keyup", (e) => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key) || input.selectionStart !== input.selectionEnd) update(); });
+  input.addEventListener("compositionstart", () => { composing = true; closeMentions(); });
+  input.addEventListener("compositionend", () => { composing = false; update(); });
+  input.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== input) closeMentions(); }, 150));
   return {
     handleKey(e) {
       if (!pop || !options.length) return false;
+      if (composing || e.isComposing || e.keyCode === 229 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false;
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault(); active = (active + (e.key === "ArrowDown" ? 1 : options.length - 1)) % options.length; update(); return true;
       }
       if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") { e.preventDefault(); pick(active); return true; }
-      if (e.key === "Escape") { e.preventDefault(); closeMentions(); return true; }
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeMentions(); return true; }
       return false;
     },
   };
