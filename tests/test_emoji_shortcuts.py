@@ -113,11 +113,18 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
         "https://example.com/(:rocket", "ftp://example.com/(:rocket",
         "//example.com/(:rocket", "/relative/(:rocket", "www.example.com/(:rocket",
         "mailto:person@example.com/(:rocket", "See (https://example.com/(:rocket",
+        'See "https://example.com/(:rocket', "See 'https://example.com/(:rocket",
+        "See *https://example.com/(:rocket", "See **https://example.com/(:rocket",
+        "See _https://example.com/(:rocket", "See ~~https://example.com/(:rocket",
+        'See (**"https://example.com/(:rocket', "See “https://example.com/(:rocket",
+        "See ‘https://example.com/(:rocket", "See './files/(:rocket",
         "[link]( :rocket:", "[link](url \"title :D", "[ref]: :rocket:",
         ":unknown:", ":smile:",
     ]:
         input.fill(before)
         pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
+        input.press("Tab")
+        pw.expect(input).to_have_value(before)
         input.press("Space")
         pw.expect(input).to_have_value(before + " ")
     for before in ["`literal` :D", "```\ncode\n```\n:D", "~~~\ncode\n~~~\n:D", "[link](url) :D"]:

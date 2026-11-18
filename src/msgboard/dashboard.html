@@ -3813,7 +3813,8 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
     const match = emoji || m, q = (emoji ? emoji[2] : m[3]).toLowerCase();
     token = { start: before.length - match[0].length + match[1].length, end: input.selectionStart, value: input.value };
     if (emoji) {
-      const word = /\S+$/.exec(before)[0].replace(/^[([{]+/, "");
+      // Ignore prose/Markdown wrappers before checking the enclosing URL or path.
+      const word = /\S+$/.exec(before)[0].replace(/^[^A-Za-z0-9/:]+/, "");
       if (/^(?:[a-z][a-z0-9+.-]*:|\/|www\.)/i.test(word)
           || /[A-Za-z0-9_+:\-]/.test(input.value[input.selectionEnd] || "") || emojiLiteralContext(before)) return closeMentions();
       const matches = new Map();
