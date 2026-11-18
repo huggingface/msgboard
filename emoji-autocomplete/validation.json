@@ -1,9 +1,9 @@
 {
-  "source": "7f04c230c9a84c07c5eeef1f8077520142229615",
+  "source": "a95e4164929b2efe41d487cdd87d3af7de4fab69",
   "full_suite": {
     "passed": 258,
     "live_excluded": 1,
-    "seconds": 179.3
+    "seconds": 181.66
   },
   "browser_functions": 3,
   "native_selection_undo_and_editor_visibility": [
@@ -29,9 +29,17 @@
     ],
     "focused_browser_tests": {
       "passed": 3,
-      "seconds": 12.21
+      "seconds": 12.39
     },
     "added_board_fixtures": 0,
-    "before_after": "review-fixes/before.json and after.json"
-  }
+    "before_after": "review-fixes/before.json and after.json",
+    "wrapped_url_regression": {
+      "baseline": "7f04c23",
+      "baseline_result": "expected failure: quoted URL opens suggestions",
+      "wrappers": "single/double/curly quotes, emphasis, combined wrappers and relative paths",
+      "tab_and_space": "keep literal input",
+      "added_board_fixtures": 0
+    }
+  },
+  "native_selection_undo_and_editor_visibility_source": "7f04c230c9a84c07c5eeef1f8077520142229615"
 }

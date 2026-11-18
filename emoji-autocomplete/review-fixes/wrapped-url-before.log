@@ -1,0 +1,45 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_literal_contexts_selection_composition_paste_caret_and_undo _______
+
+dashboard = (<Page url='http://127.0.0.1:34997/#emoji-checks'>, <msgboard.client.Client object at 0x7f7848184cd0>, <msgboard.clien...c', 'description': None, ...}, {'id': 3, 'external_id': 'helper', 'display_name': None, 'identity_type': 'agent', ...})
+
+    def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
+        page, owner, _, channel, _ = dashboard
+        input = page.locator("#composer textarea")
+        for before in [
+            "`:D", "``some ` :rocket:", "```text\n:D", "~~~\n:rocket:",
+            "> ```\n:D", "- ~~~\n  :D", "    :rocket:", "\t:D", "\\:D", "prefix:D",
+            "https://example.com/:rocket:", "<https://example.com/ :D",
+            "https://example.com/(:rocket", "ftp://example.com/(:rocket",
+            "//example.com/(:rocket", "/relative/(:rocket", "www.example.com/(:rocket",
+            "mailto:person@example.com/(:rocket", "See (https://example.com/(:rocket",
+            'See "https://example.com/(:rocket', "See 'https://example.com/(:rocket",
+            "See *https://example.com/(:rocket", "See **https://example.com/(:rocket",
+            "See _https://example.com/(:rocket", "See ~~https://example.com/(:rocket",
+            'See (**"https://example.com/(:rocket', "See “https://example.com/(:rocket",
+            "See ‘https://example.com/(:rocket", "See './files/(:rocket",
+            "[link]( :rocket:", "[link](url \"title :D", "[ref]: :rocket:",
+            ":unknown:", ":smile:",
+        ]:
+            input.fill(before)
+>           pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
+E           AssertionError: Locator expected not to be visible
+E           Actual value: visible 
+E           Call log:
+E             - Expect "not_to_be_visible" get_by_role("listbox", name="Emoji suggestions") with timeout 5000ms
+E             - waiting for get_by_role("listbox", name="Emoji suggestions")
+E               14 × locator resolved to <div role="listbox" aria-label="Emoji suggestions" class="pop mention-pop emoji-suggest" id="suggest-0b34f4a013584ed6aa5e3a29d593ca3a">…</div>
+E                  - unexpected value "visible"
+E           
+E           Aria snapshot:
+E           - listbox "Emoji suggestions":
+E             - option "🚀 :rocket:" [selected]
+
+tests/test_emoji_shortcuts.py:125: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+Created board in /tmp/pytest-of-node/pytest-35/test_literal_contexts_selectio0/board (schema v31).
+Operator token saved to /tmp/pytest-of-node/pytest-35/test_literal_contexts_selectio0/board/operator.token (mode 0600). Keep it secret; open the dashboard with it to create invite links.
+=========================== short test summary info ============================
+FAILED tests/test_emoji_shortcuts.py::test_literal_contexts_selection_composition_paste_caret_and_undo
+1 failed, 2 deselected in 7.54s
