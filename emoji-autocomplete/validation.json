@@ -1,9 +1,9 @@
 {
-  "source": "623ec148a3d9fc3fb2ba0444a14c42424a144463",
+  "source": "7f04c230c9a84c07c5eeef1f8077520142229615",
   "full_suite": {
     "passed": 258,
     "live_excluded": 1,
-    "seconds": 177.52
+    "seconds": 179.3
   },
   "browser_functions": 3,
   "native_selection_undo_and_editor_visibility": [
@@ -20,5 +20,18 @@
     "footer_clearance_mm": 8.7
   },
   "merged": false,
-  "deployed": false
+  "deployed": false,
+  "review_fixes": {
+    "findings": [
+      1,
+      2,
+      3
+    ],
+    "focused_browser_tests": {
+      "passed": 3,
+      "seconds": 12.21
+    },
+    "added_board_fixtures": 0,
+    "before_after": "review-fixes/before.json and after.json"
+  }
 }

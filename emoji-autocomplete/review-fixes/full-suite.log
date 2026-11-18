@@ -1,0 +1,11 @@
+........................................................................ [ 27%]
+........................................................................ [ 55%]
+........................................................................ [ 83%]
+..........................................                               [100%]
+============================= slowest 5 durations ==============================
+10.00s call     tests/test_load_shedding.py::test_a_runaway_read_is_cut_off
+5.32s call     tests/test_tasks.py::test_tasks_changes_send_one_coalesced_durable_agent_dm
+4.30s call     tests/test_emoji_shortcuts.py::test_every_picker_entry_has_a_working_shortcode_and_saves_its_draft
+2.49s call     tests/test_load_shedding.py::test_activity_long_poll_still_wakes_promptly
+2.25s call     tests/test_agent_loop.py::test_activity_long_poll_wakes_only_for_me
+258 passed, 1 deselected in 179.30s (0:02:59)

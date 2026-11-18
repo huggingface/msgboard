@@ -1,0 +1,26 @@
+{
+  "send": {
+    "popup_after_send": 0,
+    "draft_after_tab": "",
+    "posted_body": "Send this literal :coffee"
+  },
+  "PageUp": {
+    "caret_after_navigation": 0,
+    "old_end": 37,
+    "popup_after_navigation": 0,
+    "unchanged_after_tab": true,
+    "draft_after_tab": "First line\nSecond line\nchoose :rocket"
+  },
+  "Control+ArrowUp": {
+    "caret_after_navigation": 22,
+    "old_end": 37,
+    "popup_after_navigation": 0,
+    "unchanged_after_tab": true,
+    "draft_after_tab": "First line\nSecond line\nchoose :rocket"
+  },
+  "url": {
+    "popup": 0,
+    "unchanged_after_tab": true,
+    "draft_after_tab": "https://example.com/(:rocket"
+  }
+}

@@ -1,0 +1,6 @@
+...                                                                      [100%]
+============================= slowest 3 durations ==============================
+4.07s call     tests/test_emoji_shortcuts.py::test_every_picker_entry_has_a_working_shortcode_and_saves_its_draft
+1.79s setup    tests/test_emoji_shortcuts.py::test_every_picker_entry_has_a_working_shortcode_and_saves_its_draft
+1.54s setup    tests/test_emoji_shortcuts.py::test_thread_edit_dm_and_tasks_composers
+3 passed in 12.21s
