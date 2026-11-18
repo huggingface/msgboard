@@ -3049,7 +3049,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
     if (!ownsDraft() || sending || (!c && !sendMessage) || uploading() || (!text && !ready.length && !allowEmpty())) return;
     if (!canSend()) { pending.textContent = "This item cannot accept an answer. Review its current status."; return; }
     if (items.some((it) => it.status === "error")) { pending.textContent = "Remove or retry the files that did not upload."; return; }
-    sending = true; renderChips();
+    assist.close(); sending = true; renderChips();
     store.del(filesKey); setDraft(draftKey, "");   // taken out of the draft while sending; put back if it fails
     const key = uid();  // reused on every retry, so a resend never duplicates
     try {
@@ -3078,7 +3078,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
           await sleep(Math.min(500 * 2 ** attempt, 4000));
         }
       }
-      input.value = ""; autosize(); pending.textContent = "";
+      input.value = ""; assist.close(); autosize(); pending.textContent = "";
       if (ownsDraft()) { setDraft(draftKey, ""); store.del(filesKey); }   // a newer box may own the draft by now
       items.forEach((it) => it.thumb && URL.revokeObjectURL(it.thumb)); items = [];
       if (onSent) onSent();
@@ -3796,6 +3796,8 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
     suggestionVersion++; if (pop) { pop.remove(); pop = null; } options = []; token = null;
     input.removeAttribute("aria-controls"); input.removeAttribute("aria-activedescendant");
   };
+  const currentToken = () => token && input.isConnected && input.value === token.value
+    && input.selectionStart === token.end && input.selectionEnd === token.end;
   const rank = (q, ...names) => {
     if (!q) return 1;
     names = names.map((n) => n.toLowerCase());
@@ -3809,9 +3811,11 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
     const m = /(^|[\s(])([@#])([A-Za-z0-9_.:-]*)$/.exec(before);
     if (!input.isConnected || composing || input.selectionStart !== input.selectionEnd || (!emoji && (emojiOnly || !m))) return closeMentions();
     const match = emoji || m, q = (emoji ? emoji[2] : m[3]).toLowerCase();
-    token = { start: before.length - match[0].length + match[1].length, end: input.selectionStart };
+    token = { start: before.length - match[0].length + match[1].length, end: input.selectionStart, value: input.value };
     if (emoji) {
-      if (/[A-Za-z0-9_+:\-]/.test(input.value[input.selectionEnd] || "") || emojiLiteralContext(before)) return closeMentions();
+      const word = /\S+$/.exec(before)[0].replace(/^[([{]+/, "");
+      if (/^(?:[a-z][a-z0-9+.-]*:|\/|www\.)/i.test(word)
+          || /[A-Za-z0-9_+:\-]/.test(input.value[input.selectionEnd] || "") || emojiLiteralContext(before)) return closeMentions();
       const matches = new Map();
       for (const [name, value] of EMOJI_SHORTCODES) {
         if (!value || !name.startsWith(q)) continue;
@@ -3861,7 +3865,7 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
     hydrate(pop);
   }
   function pick(i) {
-    const o = options[i]; if (!o || !token) return;
+    const o = options[i]; if (!o || !currentToken()) { closeMentions(); return; }
     const { start, end } = token;
     closeMentions();
     if (o.emoji) {
@@ -3873,14 +3877,23 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
   }
   input.addEventListener("input", () => { active = 0; update(); });
   input.addEventListener("click", update);
-  input.addEventListener("keyup", (e) => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key) || input.selectionStart !== input.selectionEnd) update(); });
+  input.addEventListener("keyup", (e) => {
+    if ((["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(e.key) && !currentToken())
+        || input.selectionStart !== input.selectionEnd) update();
+  });
   input.addEventListener("compositionstart", () => { composing = true; closeMentions(); });
   input.addEventListener("compositionend", () => { composing = false; update(); });
   input.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== input) closeMentions(); }, 150));
   return {
+    close: closeMentions,
     handleKey(e) {
       if (!pop || !options.length) return false;
       if (composing || e.isComposing || e.keyCode === 229 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false;
+      if (!currentToken()) {
+        closeMentions();
+        if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); e.stopPropagation(); return true; }
+        return false;
+      }
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault(); active = (active + (e.key === "ArrowDown" ? 1 : options.length - 1)) % options.length; update(); return true;
       }

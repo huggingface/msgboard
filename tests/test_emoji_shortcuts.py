@@ -92,15 +92,27 @@ def test_every_picker_entry_has_a_working_shortcode_and_saves_its_draft(dashboar
     pw.expect(page.locator("#composer .mention-pop")).to_be_visible()
     input.press("Tab")
     pw.expect(input).to_have_value("@helper ")
+    input.fill("Send this literal :coffee")
+    pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).to_be_visible()
+    with page.expect_response(lambda r: r.request.method == "POST" and "/messages" in r.url):
+        page.locator("#composer .btn").click()
+    pw.expect(input).to_have_value("")
+    pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
+    input.press("Tab")
+    pw.expect(input).to_have_value("")
+    assert owner.read(channel["id"])["messages"][-1]["body"] == "Send this literal :coffee"
 
 
 def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
-    page, _, _, _, _ = dashboard
+    page, owner, _, channel, _ = dashboard
     input = page.locator("#composer textarea")
     for before in [
         "`:D", "``some ` :rocket:", "```text\n:D", "~~~\n:rocket:",
         "> ```\n:D", "- ~~~\n  :D", "    :rocket:", "\t:D", "\\:D", "prefix:D",
         "https://example.com/:rocket:", "<https://example.com/ :D",
+        "https://example.com/(:rocket", "ftp://example.com/(:rocket",
+        "//example.com/(:rocket", "/relative/(:rocket", "www.example.com/(:rocket",
+        "mailto:person@example.com/(:rocket", "See (https://example.com/(:rocket",
         "[link]( :rocket:", "[link](url \"title :D", "[ref]: :rocket:",
         ":unknown:", ":smile:",
     ]:
@@ -175,6 +187,23 @@ def test_literal_contexts_selection_composition_paste_caret_and_undo(dashboard):
     input.fill(":ro")
     input.press("Home")
     pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
+    body = "First line\nSecond line\nchoose :rocket"
+    for key in ["PageUp", "Control+ArrowUp"]:
+        input.fill(body)
+        pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).to_be_visible()
+        input.press(key)
+        assert input.evaluate("el => el.selectionStart") < len(body)
+        pw.expect(page.get_by_role("listbox", name="Emoji suggestions")).not_to_be_visible()
+        input.press("Tab")
+        pw.expect(input).to_have_value(body)
+    # Caret movement can precede keyup; stale Enter must neither complete nor send.
+    input.fill(body)
+    page.keyboard.down("PageUp")
+    input.press("Enter")
+    page.keyboard.up("PageUp")
+    pw.expect(input).to_have_value(body)
+    assert owner.read(channel["id"])["messages"] == []
+    complete(input, "Looks (:rocket", "Looks (🚀 ")
     input.fill(":Dtail")
     input.evaluate("el => el.setSelectionRange(2, 2)")
     input.press("Space")
