@@ -1,0 +1,14 @@
+{
+  "chromium": {
+    "native_selection_undo_redo": true,
+    "selection_did_not_send": true,
+    "menu_and_editor_in_view": true,
+    "page_errors": []
+  },
+  "firefox": {
+    "native_selection_undo_redo": true,
+    "selection_did_not_send": true,
+    "menu_and_editor_in_view": true,
+    "page_errors": []
+  }
+}
