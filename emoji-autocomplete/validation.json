@@ -1,0 +1,24 @@
+{
+  "source": "623ec148a3d9fc3fb2ba0444a14c42424a144463",
+  "full_suite": {
+    "passed": 258,
+    "live_excluded": 1,
+    "seconds": 177.52
+  },
+  "browser_functions": 3,
+  "native_selection_undo_and_editor_visibility": [
+    "Chromium",
+    "Firefox"
+  ],
+  "baseline_regression": {
+    "source": "d86cd196918fbc43e6557211c4649ab0867ce0a9",
+    "result": "expected failure: :grin remains literal after Tab"
+  },
+  "diagram": {
+    "pages": 1,
+    "black_and_white": true,
+    "footer_clearance_mm": 8.7
+  },
+  "merged": false,
+  "deployed": false
+}
