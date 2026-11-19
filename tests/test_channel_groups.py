@@ -19,13 +19,18 @@ def test_channel_groups_desktop_touch_order_and_save_failures(env, tmp_path):
     writer.post(runtime, "@person-a a second question")
     errors = []
     with pw.sync_playwright() as p:
-        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"),
+                                    args=["--host-resolver-rules=MAP msgboard.test 127.0.0.1", "--no-proxy-server"])
         context = browser.new_context(viewport={"width": 1160, "height": 850})
         context.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
         context.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
         page = context.new_page()
         page.on("pageerror", lambda error: errors.append(str(error)))
-        page.goto(env.url + "/#general")
+        # A real LAN-style HTTP origin has no secure-context randomUUID API.
+        browser_url = env.url.replace("127.0.0.1", "msgboard.test")
+        page.goto(browser_url + "/#general")
+        assert page.evaluate("window.isSecureContext") is False
+        assert page.evaluate("typeof crypto.randomUUID") == "undefined"
         pw.expect(page.locator("#ch-title")).to_have_text("#general")
 
         def menu(label):
@@ -54,6 +59,16 @@ def test_channel_groups_desktop_touch_order_and_save_failures(env, tmp_path):
         page.locator(f'li[data-cid="{runtime}"]').drag_to(page.get_by_role("button", name="Research", exact=True))
         pw.expect(group.locator("li[data-cid]")).to_have_count(1)
         page.get_by_role("button", name="Engineering", exact=True).click()
+        # Moving with the keyboard must leave focus at the visible destination.
+        options = page.get_by_role("button", name="Move dev-runtime to group", exact=True)
+        options.focus(); options.press("Enter")
+        page.get_by_role("menuitem", name="Engineering", exact=True).press("Enter")
+        pw.expect(group.locator(".group-toggle")).to_be_focused()
+        page.keyboard.press("Tab")
+        pw.expect(group.locator(".group-options")).to_be_focused()
+        group.locator(".group-toggle").click()
+        move("dev-runtime", "Research")
+        group.locator(".group-toggle").click()
         page.locator(f'li[data-cid="{runtime}"]').drag_to(group.locator(".group-toggle"))
         pw.expect(group.locator(".group-toggle")).to_have_attribute("aria-expanded", "false")
         pw.expect(group.locator(".group-toggle .count")).to_have_text("2")
@@ -99,7 +114,8 @@ def test_channel_groups_desktop_touch_order_and_save_failures(env, tmp_path):
         responses = []
         def hold_first(route):
             if not responses:
-                response = route.fetch()
+                # APIRequestContext does not use Chromium's hostname resolver.
+                response = route.fetch(url=route.request.url.replace(browser_url, env.url))
                 responses.append((route, response))
             else:
                 route.continue_()
@@ -124,7 +140,7 @@ def test_channel_groups_desktop_touch_order_and_save_failures(env, tmp_path):
         touch.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
         mobile = touch.new_page()
         mobile.on("pageerror", lambda error: errors.append(str(error)))
-        mobile.goto(env.url + "/#general")
+        mobile.goto(browser_url + "/#general")
         mobile.locator("#menu").tap()
         options = mobile.get_by_role("button", name="Move papers to group", exact=True)
         pw.expect(options).to_have_css("opacity", "1")

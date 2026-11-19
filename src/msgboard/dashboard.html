@@ -2056,7 +2056,7 @@ $("group-form").onsubmit = async (e) => {
     group.name = name;
   } else {
     if (edit.channelId) groups = groups.map((g) => ({ ...g, channels: g.channels.filter((cid) => cid !== edit.channelId) }));
-    groups.push({ id: crypto.randomUUID(), name, channels: edit.channelId ? [edit.channelId] : [], collapsed: false });
+    groups.push({ id: uid(), name, channels: edit.channelId ? [edit.channelId] : [], collapsed: false });
   }
   $("group-save").disabled = true;
   const ok = await saveSidebarPrefs({ channel_groups: groups }); $("group-save").disabled = false;
@@ -2181,7 +2181,11 @@ function renderChannels() {
   const ungroupedTarget = $("new-channel").parentElement;
   ungroupedTarget.ondragover = (e) => { if (isChannelDrag(e)) { e.preventDefault(); clearDrop(); ungrouped.classList.add("group-drop"); } };
   ungroupedTarget.ondrop = (e) => { if (isChannelDrag(e)) { e.preventDefault(); clearDrop(); moveChannel(Number(e.dataTransfer.getData("text/x-channel")), null); } };
-  if (focused) { const control = sideControl(focused); if (control) control.focus({ preventScroll: true }); }
+  if (focused) {
+    const control = sideControl(focused), heading = control && control.closest(".channel-group")?.querySelector(".group-toggle");
+    const target = [control, heading, $("new-channel"), $("menu")].find((el) => el && el.getClientRects().length);
+    if (target) target.focus({ preventScroll: true });
+  }
   positionSidebarMenu();
   if (!$("dms").children.length) $("dms").innerHTML = `<li class="small" style="padding:2px 16px">None yet</li>`;
   hydrate($("dms"));
