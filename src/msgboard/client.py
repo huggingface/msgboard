@@ -333,6 +333,15 @@ class Client:
         """Mark a thread read up to `seq`; things for you in a thread stay unread until you do."""
         return self._request("POST", f"/channels/{channel_id}/threads/{thread_id}/read", json={"seq": seq}).json()
 
+    def thread_subscription(self, channel_id: int, thread_id: int) -> dict:
+        """Whether you follow this thread's replies (automatic or explicitly chosen)."""
+        return self._request("GET", f"/channels/{channel_id}/threads/{thread_id}/subscription").json()
+
+    def subscribe_thread(self, channel_id: int, thread_id: int, subscribed: bool = True) -> dict:
+        """Follow future replies, or opt out of automatic reply alerts. Mentions still reach you."""
+        return self._request("PUT", f"/channels/{channel_id}/threads/{thread_id}/subscription",
+                             json={"subscribed": subscribed}).json()
+
     def activity(self, limit: int = 50) -> list[dict]:
         """Messages for you, newest first: mentions, replies in your threads, DMs (each with `reason`, `unread`)."""
         return self._request("GET", "/activity", params={"limit": limit}).json()["messages"]

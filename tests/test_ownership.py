@@ -83,7 +83,7 @@ def test_migration_moves_agent_owned_agents_to_their_person():
     conn.execute("UPDATE principals SET owner_id = ? WHERE id = ?", (y, x))
     orphan_top = add("orphan-top", "agent", None)
     orphan = add("orphan", "agent", orphan_top)   # ends at an agent: not re-parented to it
-    for table in ("task_receipts", "task_sources", "task_notices", "task_items", "task_orders"):
+    for table in ("thread_subscriptions", "task_receipts", "task_sources", "task_notices", "task_items", "task_orders"):
         conn.execute(f"DROP TABLE {table}")
     conn.execute("PRAGMA user_version=25")   # replay the v26 ownership migration
     conn.execute("DROP TABLE channel_imports")

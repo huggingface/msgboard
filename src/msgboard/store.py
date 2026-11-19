@@ -1440,6 +1440,8 @@ def read_messages(conn, p: Principal, channel_id: int, after: int, limit: int, b
 
 
 def _attach_thread_summaries(conn, messages: list[dict], viewer: Principal | None = None) -> None:
+    if viewer is not None:
+        _attach_thread_subscriptions(conn, messages, viewer)
     roots = [m["id"] for m in messages if m["thread_id"] is None]
     if not roots:
         return
@@ -1908,12 +1910,68 @@ def _reads_baseline(conn, p: Principal) -> float:
     return max(float(since[0]) if since else 0.0, joined)
 
 
-MY_THREADS = """(SELECT id FROM messages WHERE sender_id = :me AND thread_id IS NULL
-                 UNION SELECT thread_id FROM messages WHERE sender_id = :me AND thread_id IS NOT NULL)"""
+PARTICIPATED_THREADS = """(SELECT id FROM messages WHERE sender_id = :me AND thread_id IS NULL
+                          UNION SELECT thread_id FROM messages WHERE sender_id = :me AND thread_id IS NOT NULL)"""
+OVERRIDDEN_THREADS = "(SELECT thread_id FROM thread_subscriptions WHERE principal_id = :me)"
+MY_THREADS = f"(SELECT * FROM {PARTICIPATED_THREADS} EXCEPT SELECT * FROM {OVERRIDDEN_THREADS})"
+FOLLOWED_REPLY = f"""(m.thread_id IN {MY_THREADS} OR m.thread_id IN (
+    SELECT thread_id FROM thread_subscriptions WHERE principal_id = :me AND subscribed = 1 AND m.seq > after_seq))"""
+
+
+def _dm_notification(dm: str) -> str:
+    return f"({dm} = 1 AND (m.thread_id IS NULL OR m.thread_id NOT IN {OVERRIDDEN_THREADS}))"
 
 
 def _for_me(dm: str) -> str:
-    return f"({dm} = 1 OR mm.principal_id IS NOT NULL OR m.thread_id IN {MY_THREADS})"
+    return f"({_dm_notification(dm)} OR mm.principal_id IS NOT NULL OR {FOLLOWED_REPLY})"
+
+
+def _attach_thread_subscriptions(conn, messages: list[dict], p: Principal) -> None:
+    roots = [m["id"] for m in messages if m["thread_id"] is None]
+    if not roots:
+        return
+    marks = ",".join(str(int(i)) for i in roots)
+    states = {}
+    for tid, explicit, after, automatic in conn.execute(f"""
+            SELECT m.id, s.subscribed, s.after_seq,
+                   (m.id IN {PARTICIPATED_THREADS} OR (c.kind = 'dm' AND cm.principal_id IS NOT NULL))
+            FROM messages m JOIN channels c ON c.id = m.channel_id
+            LEFT JOIN channel_members cm ON cm.channel_id = c.id AND cm.principal_id = :me
+            LEFT JOIN thread_subscriptions s ON s.thread_id = m.id AND s.principal_id = :me
+            WHERE m.id IN ({marks})""", {"me": p.id}):
+        states[tid] = {"thread_id": tid, "subscribed": bool(automatic if explicit is None else explicit),
+                       "mode": "auto" if explicit is None else "subscribed" if explicit else "unsubscribed",
+                       "after_seq": after or 0}
+    for m in messages:
+        if m["id"] in states:
+            m["subscription"] = states[m["id"]]
+
+
+def thread_subscription(conn, p: Principal, channel_id: int, thread_id: int) -> dict:
+    channel_for(conn, p, channel_id)
+    root = conn.execute("SELECT id, thread_id, channel_id FROM messages WHERE id = ? AND channel_id = ? AND thread_id IS NULL",
+                        (thread_id, channel_id)).fetchone()
+    if root is None:
+        raise not_found("no such thread in this channel")
+    messages = [dict(root)]
+    _attach_thread_subscriptions(conn, messages, p)
+    return messages[0]["subscription"] | {"for_me_unread": _threads_for_me(conn, p, [thread_id], messages).get(thread_id, 0)}
+
+
+def set_thread_subscription(conn, p: Principal, channel_id: int, thread_id: int, payload, now: float) -> dict:
+    current = thread_subscription(conn, p, channel_id, thread_id)
+    if not isinstance(payload, dict) or set(payload) != {"subscribed"} or not isinstance(payload["subscribed"], bool):
+        raise bad_request('request body must be {"subscribed": true|false}')
+    subscribed = payload["subscribed"]
+    if current["mode"] == ("subscribed" if subscribed else "unsubscribed"):
+        return current                    # a retry must not move the starting position
+    ch = channel_for(conn, p, channel_id)
+    after = 0 if current["mode"] == "auto" and current["subscribed"] and subscribed else ch["next_seq"] - 1
+    conn.execute("""INSERT INTO thread_subscriptions (principal_id, thread_id, subscribed, after_seq, updated_at)
+                    VALUES (?, ?, ?, ?, ?) ON CONFLICT (principal_id, thread_id) DO UPDATE
+                    SET subscribed = excluded.subscribed, after_seq = excluded.after_seq, updated_at = excluded.updated_at""",
+                 (p.id, thread_id, int(subscribed), after, now))
+    return thread_subscription(conn, p, channel_id, thread_id)
 
 
 def _thread_unread(floor: str) -> str:
@@ -2050,9 +2108,8 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     rows = conn.execute(MESSAGE_SELECT + f"""
         WHERE m.imported = 0 AND m.sender_id != :me AND m.id > :after AND m.id <= :through{scope} AND (
             m.id IN (SELECT message_id FROM message_mentions WHERE principal_id = :me)
-            OR m.thread_id IN {MY_THREADS}
-            OR m.channel_id IN (SELECT c.id FROM channels c JOIN channel_members cm ON cm.channel_id = c.id
-                                WHERE c.kind = 'dm' AND cm.principal_id = :me){followed})
+            OR {FOLLOWED_REPLY}
+            OR {_dm_notification("(m.channel_id IN (SELECT c.id FROM channels c JOIN channel_members cm ON cm.channel_id = c.id WHERE c.kind = 'dm' AND cm.principal_id = :me))")}{followed})
         ORDER BY m.id {order} LIMIT :limit""", {"me": p.id, "limit": limit + 1, "after": after or 0,
                                                "through": through}).fetchall()
     has_more = len(rows) > limit
@@ -2060,6 +2117,8 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     _attach_mentions(conn, messages)
     _attach_reactions(conn, messages, p.id)
     my_threads = {r[0] for r in conn.execute(MY_THREADS.strip()[1:-1], {"me": p.id})} if messages else set()
+    subscriptions = {r[0]: (r[1], r[2]) for r in conn.execute(
+        "SELECT thread_id, subscribed, after_seq FROM thread_subscriptions WHERE principal_id = ?", (p.id,))} if messages else {}
     reads = dict(conn.execute("SELECT channel_id, last_read_seq FROM channel_reads WHERE principal_id = ?", (p.id,)).fetchall())
     floors = dict(conn.execute("SELECT channel_id, thread_floor FROM channel_reads WHERE principal_id = ?", (p.id,)).fetchall())
     thread_reads = dict(conn.execute("SELECT thread_id, last_read_seq FROM thread_reads WHERE principal_id = ?", (p.id,)).fetchall())
@@ -2071,9 +2130,12 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
             channels[cid] = _channel_json(conn, conn.execute("SELECT * FROM channels WHERE id = ?", (cid,)).fetchone())
         m["channel"] = {k: channels[cid][k] for k in ("id", "name", "kind")} | (
             {"members": channels[cid]["members"]} if channels[cid]["kind"] == "dm" else {})
-        m["reason"] = ("dm" if channels[cid]["kind"] == "dm" and any(x and x["id"] == p.id for x in channels[cid]["members"])
-                       else "mention" if any(x["id"] == p.id for x in m["mentions"])
-                       else "reply" if m["thread_id"] in my_threads else "channel")
+        sub = subscriptions.get(m["thread_id"])
+        followed_reply = m["thread_id"] in my_threads or bool(sub and sub[0] and m["seq"] > sub[1])
+        mentioned = any(x["id"] == p.id for x in m["mentions"])
+        direct = (channels[cid]["kind"] == "dm" and any(x and x["id"] == p.id for x in channels[cid]["members"])
+                  and (sub is None or followed_reply or mentioned))
+        m["reason"] = "dm" if direct else "mention" if mentioned else "reply" if followed_reply else "channel"
         if m["thread_id"]:
             tr = thread_reads.get(m["thread_id"])
             m["unread"] = m["seq"] > max(tr or 0, floors.get(cid, 0)) and (cid in reads or m["created_at"] > baseline)
@@ -2605,6 +2667,7 @@ def get_message(conn, p: Principal, message_id: int) -> dict:
         raise not_found("no such message")
     channel = channel_for(conn, p, row["channel_id"])
     out = _message_json(row)
+    _attach_thread_subscriptions(conn, [out], p)
     _attach_mentions(conn, [out])
     _attach_reactions(conn, [out], p.id)
     c = _channel_json(conn, channel)

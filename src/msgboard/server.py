@@ -156,7 +156,7 @@ class Database:
 ANY_CHANNEL = -1   # notifier key woken by a post in any channel (activity long-polls wait on it)
 # Writes that cannot change who a token belongs to or what it may do; every other write clears the auth cache.
 AUTH_SAFE_WRITES = frozenset({store.post_message, store.react, store.mark_read, store.mark_thread_read,
-                              store.mark_all_read, store.save_presence})
+                              store.mark_all_read, store.save_presence, store.set_thread_subscription})
 
 
 class Notifier:
@@ -715,6 +715,17 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     async def archive_channel(channel_id: int, request: Request):
         p = await authn(request)
         return await db.write(store.archive_channel, p, channel_id, time.time())
+
+    @app.get("/v1/channels/{channel_id}/threads/{thread_id}/subscription")
+    async def thread_subscription(channel_id: int, thread_id: int, request: Request):
+        p = await authn(request)
+        return await db.read(store.thread_subscription, p, channel_id, thread_id)
+
+    @app.put("/v1/channels/{channel_id}/threads/{thread_id}/subscription")
+    async def set_thread_subscription(channel_id: int, thread_id: int, request: Request):
+        p = await authn(request)
+        return await db.write(store.set_thread_subscription, p, channel_id, thread_id,
+                              await _json_body(request, 1024), time.time())
 
     @app.post("/v1/channels/{channel_id}/threads/{thread_id}/read")
     async def mark_thread_read(channel_id: int, thread_id: int, request: Request):
