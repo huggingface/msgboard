@@ -1,0 +1,172 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_subscription_buttons_share_state_on_desktop_and_touch __________
+
+env = <tests.conftest.Env object at 0x7f55c9561750>
+tmp_path = PosixPath('/tmp/pytest-of-node/pytest-50/test_subscription_buttons_shar0')
+
+    def test_subscription_buttons_share_state_on_desktop_and_touch(env, tmp_path):
+        pw = pytest.importorskip("playwright.sync_api")
+        _, token, reader = env.human("person-a")
+        _, _, writer = env.human("person-b")
+        channel = writer.create_channel("subscription-checks")
+        root = writer.post(channel["id"], "Let’s compare the two options here.")
+        tid, cid = root["id"], channel["id"]
+        with pw.sync_playwright() as p:
+            browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+            ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+            ctx.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+            ctx.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+            page = ctx.new_page()
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(env.url + "/#subscription-checks")
+            post = page.locator(f'#messages [data-mid="{tid}"] [data-thread-subscribe]')
+            pw.expect(post).to_be_enabled()         # works on a post before its first reply
+            pw.expect(post.locator("..")).to_have_css("pointer-events", "none")
+            post.focus()
+            pw.expect(post.locator("..")).to_have_css("pointer-events", "auto")
+            post.press("Space")
+            pw.expect(post).to_have_attribute("aria-pressed", "true")
+            page.locator(f'#messages [data-mid="{tid}"]').hover()
+            page.locator(f'#messages [data-thread="{tid}"]').click()
+            header = page.locator("#panel-subscribe")
+            pw.expect(header).to_have_text("Unsubscribe")
+            pw.expect(header).to_have_attribute("aria-pressed", "true")
+            page.screenshot(path=str(tmp_path / "subscriptions-desktop.png"))
+            header.click()
+            pw.expect(header).to_have_text("Subscribe")
+            pw.expect(post).to_have_attribute("aria-pressed", "false")
+            # Replying after an explicit opt-out does not silently subscribe again.
+            field = page.locator("#panel-composer textarea")
+            field.fill("I’m participating, but keeping reply alerts off.")
+            field.press("Enter")
+            pw.expect(field).to_have_value("")
+            pw.expect(header).to_have_text("Subscribe")
+            assert not reader.thread_subscription(cid, tid)["subscribed"]
+            page.locator("#panel-close").click()
+            # A different device changes this closed thread; focus must reconcile its bell.
+            reader.subscribe_thread(cid, tid)
+            with page.expect_response(lambda r: r.request.method == "GET" and "/thread-subscriptions?" in r.url):
+                page.evaluate("window.dispatchEvent(new Event('focus'))")
+            pw.expect(post).to_have_attribute("aria-pressed", "true")
+            reader.subscribe_thread(cid, tid, False)
+            writer.post(cid, "Quiet reply", reply_to=tid)
+            pw.expect(page.locator(f'#messages [data-mid="{tid}"] .replies b')).to_have_text("2 replies")
+            pw.expect(post).to_have_attribute("aria-pressed", "false")
+            pw.expect(page.locator(f'#messages [data-mid="{tid}"] .rbadge')).to_have_count(0)
+            assert next(c for c in reader.list_channels() if c["id"] == cid)["for_me"] == 0
+            mention = writer.post(cid, "@person-a please look", reply_to=tid)
+            pw.expect(page.locator(f'#messages [data-mid="{tid}"] .rbadge')).to_have_text("1 for you")
+            assert [m["id"] for m in reader.activity()] == [mention["id"]]
+            page.reload()
+            pw.expect(post).to_have_attribute("aria-pressed", "false")
+            post.focus()
+            post.press("Enter")
+            pw.expect(post).to_have_attribute("aria-pressed", "true")
+            # A different browser reads the saved choice. A tap updates both copies.
+            phone = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+            phone.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+            phone.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+            mobile = phone.new_page()
+            mobile.on("pageerror", lambda error: errors.append(str(error)))
+            mobile.goto(env.url + f"/#msg/{tid}")
+            mobile_post = mobile.locator(f'#messages [data-mid="{tid}"] [data-thread-subscribe]')
+            pw.expect(mobile_post.locator("..")).to_have_css("opacity", "1")
+            pw.expect(mobile_post.locator("..")).to_have_css("pointer-events", "auto")
+            mobile_post.tap()                       # the control is visible before the first tap
+            pw.expect(mobile_post).to_have_attribute("aria-pressed", "false")
+            mobile_post.tap()
+            pw.expect(mobile_post).to_have_attribute("aria-pressed", "true")
+            mobile.locator(f'#messages .replies[data-thread="{tid}"]').tap()
+            toggle = mobile.locator("#panel-subscribe")
+            pw.expect(toggle).to_have_text("Unsubscribe")
+            toggle.tap()
+            pw.expect(toggle).to_have_text("Subscribe")
+            assert not reader.thread_subscription(cid, tid)["subscribed"]
+            assert mobile.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            mobile.screenshot(path=str(tmp_path / "subscriptions-phone.png"))
+            page.reload()
+            pw.expect(post).to_have_attribute("aria-pressed", "false")
+            held = {}
+    
+            def hold_subscription_read(route):
+                if route.request.method == "GET":
+                    held["response"] = route.fetch()   # delay an actual response from this board
+                    held["route"] = route
+                else:
+                    route.continue_()
+    
+            page.route(f"**/channels/{cid}/threads/*/subscription", hold_subscription_read)
+            composer = page.locator("#composer textarea")
+            composer.fill("My new thread")
+            with page.expect_request(lambda r: r.method == "GET" and r.url.endswith("/subscription")):
+                composer.press("Enter")
+            pw.expect(composer).to_have_value("")
+            own = reader.read(cid)["messages"][-1]
+            # A choice on another thread must not invalidate this thread's pending read.
+            post.focus()
+            post.press("Enter")
+            pw.expect(post).to_have_attribute("aria-pressed", "true")
+            held["route"].fulfill(response=held["response"])
+            pw.expect(page.locator(f'#messages [data-mid="{own["id"]}"] [data-thread-subscribe]')).to_have_attribute("aria-pressed", "true")
+            page.unroute(f"**/channels/{cid}/threads/*/subscription", hold_subscription_read)
+    
+            other = reader.create_channel("navigation-other")
+            page.reload()                         # both channels are now in the sidebar
+            pw.expect(page.locator("#composer textarea")).to_be_visible()
+            for kind in ["single", "batch"]:
+                delayed = {}
+                pattern = (f"**/channels/{cid}/threads/*/subscription" if kind == "single"
+                           else f"**/channels/{cid}/thread-subscriptions?*")
+    
+                def hold_navigation_read(route):
+                    if route.request.method == "GET" and not delayed:
+                        delayed["response"] = route.fetch()
+                        delayed["route"] = route
+                    else:
+                        route.continue_()
+    
+                page.route(pattern, hold_navigation_read)
+                if kind == "single":
+                    composer.fill("A new navigation check")
+                    with page.expect_request(lambda r: r.method == "GET" and r.url.endswith("/subscription")):
+                        composer.press("Enter")
+                    pw.expect(composer).to_have_value("")
+                    target = reader.read(cid)["messages"][-1]
+                    desired = False               # the held automatic-follow response says true
+                else:
+                    target, desired = root, False
+                    reader.subscribe_thread(cid, tid)
+                    with page.expect_request(lambda r: "/thread-subscriptions?" in r.url):
+                        page.evaluate("window.dispatchEvent(new Event('focus'))")
+                reader.subscribe_thread(cid, target["id"], desired)
+                page.locator("#channels button").filter(has_text=other["name"]).click()
+                pw.expect(page.locator("#composer textarea")).to_have_attribute("placeholder", "Message #" + other["name"])
+                page.locator("#channels button").filter(has_text=channel["name"]).click()
+                current = page.locator(f'#messages [data-mid="{target["id"]}"] [data-thread-subscribe]')
+                pw.expect(current).to_have_attribute("aria-pressed", str(desired).lower())
+                with page.expect_response(lambda r: (r.url.endswith("/subscription") if kind == "single"
+                                                    else "/thread-subscriptions?" in r.url)) as old_response:
+                    delayed["route"].fulfill(response=delayed["response"])
+                old_response.value.finished()
+                page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+>               pw.expect(current).to_have_attribute("aria-pressed", str(desired).lower())
+E               AssertionError: Locator expected to have attribute 'false'
+E               Actual value: true 
+E               Call log:
+E                 - Expect "to_have_attribute" locator("#messages [data-mid=\"6\"] [data-thread-subscribe]") with timeout 5000ms
+E                 - waiting for locator("#messages [data-mid=\"6\"] [data-thread-subscribe]")
+E                   14 × locator resolved to <button type="button" class="subscribed" aria-pressed="true" data-thread-subscribe="6" title="Unsubscribe from replies" aria-label="Unsubscribe from replies">…</button>
+E                      - unexpected value "true"
+E               
+E               Aria snapshot:
+E               - button "Unsubscribe from replies" [pressed]
+
+tests/test_thread_subscriptions.py:245: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+Created board in /tmp/pytest-of-node/pytest-50/test_subscription_buttons_shar0/board (schema v32).
+Operator token saved to /tmp/pytest-of-node/pytest-50/test_subscription_buttons_shar0/board/operator.token (mode 0600). Keep it secret; open the dashboard with it to create invite links.
+=========================== short test summary info ============================
+FAILED tests/test_thread_subscriptions.py::test_subscription_buttons_share_state_on_desktop_and_touch
+1 failed, 1 deselected in 10.30s

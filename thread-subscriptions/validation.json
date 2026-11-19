@@ -1,5 +1,5 @@
 {
-  "source": "ec96a1d4d91b65fc084af0f120a0b3052bb864d8",
+  "source": "d5736d048d9d0ffe06d9c1de32080295cb425da3",
   "full_suite": {
     "source": "ec96a1d4d91b65fc084af0f120a0b3052bb864d8",
     "passed": 260,
@@ -7,8 +7,9 @@
     "seconds": 186.52
   },
   "focused_tests": {
-    "passed": 5,
-    "seconds": 18.71
+    "source": "d5736d048d9d0ffe06d9c1de32080295cb425da3",
+    "passed": 10,
+    "seconds": 22.19
   },
   "new_test_functions": 2,
   "additional_test_functions_for_review_fixes": 0,
@@ -17,7 +18,8 @@
     "reviewed_source": "28cd77f",
     "findings": [
       1,
-      2
+      2,
+      3
     ],
     "batch_refresh_limit": 200,
     "refresh_triggers": [
@@ -31,13 +33,20 @@
     "proof": [
       "review-fixes/before.json",
       "review-fixes/after.json"
-    ]
+    ],
+    "navigation": {
+      "counter_per_channel_visit": true,
+      "fresh_snapshots_invalidate_reads": true,
+      "single_and_batch_A_B_A_regressions": true,
+      "before_source": "ec96a1d"
+    }
   },
   "diagram": {
     "pages": 1,
     "black_and_white": true,
-    "footer_clearance_mm": 8.5
+    "footer_clearance_mm": 4.8
   },
   "merged": false,
-  "deployed": false
+  "deployed": false,
+  "changes_since_full_suite": "UI navigation and snapshot guards, plus the existing browser regression; backend unchanged"
 }
