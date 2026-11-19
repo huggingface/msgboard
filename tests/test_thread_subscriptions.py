@@ -26,6 +26,7 @@ def test_subscription_overrides_activity_counts_permissions_and_survives_restart
     counts = next(c for c in reader.list_channels() if c["id"] == cid)
     assert (counts["for_me"], counts["threads_for_me"]) == (1, 1)
     assert reader.read(cid)["messages"][0]["replies"]["for_me_unread"] == 1
+    assert reader.thread_subscriptions(cid, [tid, tid]) == [reader.thread_subscription(cid, tid)]
     assert reader.mark_read(cid, reply["seq"])["for_me"] == 1
     assert reader.mark_thread_read(cid, tid, reply["seq"])["for_me"] == 0
 
@@ -57,8 +58,13 @@ def test_subscription_overrides_activity_counts_permissions_and_survives_restart
             assert h.put(path, json=body).status_code == 400
             assert reader.thread_subscription(cid, tid)["mode"] == "subscribed"
         assert h.put(f"/channels/{cid}/threads/{old['id']}/subscription", json={"subscribed": True}).status_code == 404
+        for roots in ["", "x", "0", "-1", str(2**63), ",".join([str(tid)] * 201)]:
+            assert h.get(f"/channels/{cid}/thread-subscriptions", params={"roots": roots}).status_code == 400
     private = author.create_channel("private-subscriptions", private=True)
     hidden = author.post(private["id"], "Hidden")
+    assert [s["thread_id"] for s in reader.thread_subscriptions(cid, [tid, hidden["id"], old["id"]])] == [tid]
+    with env.http(token) as h:
+        assert h.get(f"/channels/{private['id']}/thread-subscriptions", params={"roots": hidden["id"]}).status_code == 404
     for method in ["GET", "PUT"]:
         with env.http(token) as h:
             r = h.request(method, f"/channels/{private['id']}/threads/{hidden['id']}/subscription",
@@ -108,9 +114,12 @@ def test_subscription_buttons_share_state_on_desktop_and_touch(env, tmp_path):
         page.goto(env.url + "/#subscription-checks")
         post = page.locator(f'#messages [data-mid="{tid}"] [data-thread-subscribe]')
         pw.expect(post).to_be_enabled()         # works on a post before its first reply
+        pw.expect(post.locator("..")).to_have_css("pointer-events", "none")
         post.focus()
+        pw.expect(post.locator("..")).to_have_css("pointer-events", "auto")
         post.press("Space")
         pw.expect(post).to_have_attribute("aria-pressed", "true")
+        page.locator(f'#messages [data-mid="{tid}"]').hover()
         page.locator(f'#messages [data-thread="{tid}"]').click()
         header = page.locator("#panel-subscribe")
         pw.expect(header).to_have_text("Unsubscribe")
@@ -127,7 +136,17 @@ def test_subscription_buttons_share_state_on_desktop_and_touch(env, tmp_path):
         pw.expect(header).to_have_text("Subscribe")
         assert not reader.thread_subscription(cid, tid)["subscribed"]
         page.locator("#panel-close").click()
+        # A different device changes this closed thread; focus must reconcile its bell.
+        reader.subscribe_thread(cid, tid)
+        with page.expect_response(lambda r: r.request.method == "GET" and "/thread-subscriptions?" in r.url):
+            page.evaluate("window.dispatchEvent(new Event('focus'))")
+        pw.expect(post).to_have_attribute("aria-pressed", "true")
+        reader.subscribe_thread(cid, tid, False)
         writer.post(cid, "Quiet reply", reply_to=tid)
+        pw.expect(page.locator(f'#messages [data-mid="{tid}"] .replies b')).to_have_text("2 replies")
+        pw.expect(post).to_have_attribute("aria-pressed", "false")
+        pw.expect(page.locator(f'#messages [data-mid="{tid}"] .rbadge')).to_have_count(0)
+        assert next(c for c in reader.list_channels() if c["id"] == cid)["for_me"] == 0
         mention = writer.post(cid, "@person-a please look", reply_to=tid)
         pw.expect(page.locator(f'#messages [data-mid="{tid}"] .rbadge')).to_have_text("1 for you")
         assert [m["id"] for m in reader.activity()] == [mention["id"]]
@@ -143,6 +162,13 @@ def test_subscription_buttons_share_state_on_desktop_and_touch(env, tmp_path):
         mobile = phone.new_page()
         mobile.on("pageerror", lambda error: errors.append(str(error)))
         mobile.goto(env.url + f"/#msg/{tid}")
+        mobile_post = mobile.locator(f'#messages [data-mid="{tid}"] [data-thread-subscribe]')
+        pw.expect(mobile_post.locator("..")).to_have_css("opacity", "1")
+        pw.expect(mobile_post.locator("..")).to_have_css("pointer-events", "auto")
+        mobile_post.tap()                       # the control is visible before the first tap
+        pw.expect(mobile_post).to_have_attribute("aria-pressed", "false")
+        mobile_post.tap()
+        pw.expect(mobile_post).to_have_attribute("aria-pressed", "true")
         mobile.locator(f'#messages .replies[data-thread="{tid}"]').tap()
         toggle = mobile.locator("#panel-subscribe")
         pw.expect(toggle).to_have_text("Unsubscribe")

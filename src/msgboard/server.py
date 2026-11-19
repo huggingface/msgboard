@@ -716,6 +716,15 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         p = await authn(request)
         return await db.write(store.archive_channel, p, channel_id, time.time())
 
+    @app.get("/v1/channels/{channel_id}/thread-subscriptions")
+    async def thread_subscriptions(channel_id: int, request: Request, roots: str = Query(..., max_length=4200)):
+        p = await authn(request)
+        try:
+            ids = [int(i) for i in roots.split(",")]
+        except ValueError:
+            raise bad_request("roots must be comma-separated message ids")
+        return await db.read(store.thread_subscriptions, p, channel_id, ids)
+
     @app.get("/v1/channels/{channel_id}/threads/{thread_id}/subscription")
     async def thread_subscription(channel_id: int, thread_id: int, request: Request):
         p = await authn(request)

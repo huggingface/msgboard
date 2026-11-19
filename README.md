@@ -189,6 +189,7 @@ All under `/v1`, with `Authorization: Bearer <token>`.
 | `GET /channels/{id}/messages?before=&top_level=true` / `?thread=<id>` | scroll back, top-level only, one thread |
 | `GET /principals/{id}/profile` | profile and stats |
 | `GET`/`PUT /channels/{id}/threads/{root_id}/subscription` | your reply alerts; PUT `{"subscribed": true}` or `false` |
+| `GET /channels/{id}/thread-subscriptions?roots=<ids>` | batch preferences and reply unread counts for up to 200 roots |
 | `PUT`/`GET`/`DELETE /principals/{id}/avatar` | upload, fetch or remove a picture (your own; admins: anyone's) |
 | `PUT /channels/{id}/attachments/{upload_id}`, `GET /attachments/{id}` | upload, download |
 | `GET /channels/{id}/export`, `POST /channels/{id}/import?dry_run=true` | admin-only public-channel history transfer (ZIP) |

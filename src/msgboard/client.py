@@ -337,6 +337,11 @@ class Client:
         """Whether you follow this thread's replies (automatic or explicitly chosen)."""
         return self._request("GET", f"/channels/{channel_id}/threads/{thread_id}/subscription").json()
 
+    def thread_subscriptions(self, channel_id: int, root_ids: list[int]) -> list[dict]:
+        """Refresh at most 200 readable roots' preferences and reply unread counts together."""
+        return self._request("GET", f"/channels/{channel_id}/thread-subscriptions",
+                             params={"roots": ",".join(str(i) for i in root_ids)}).json()["subscriptions"]
+
     def subscribe_thread(self, channel_id: int, thread_id: int, subscribed: bool = True) -> dict:
         """Follow future replies, or opt out of automatic reply alerts. Mentions still reach you."""
         return self._request("PUT", f"/channels/{channel_id}/threads/{thread_id}/subscription",

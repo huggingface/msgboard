@@ -1958,6 +1958,20 @@ def thread_subscription(conn, p: Principal, channel_id: int, thread_id: int) -> 
     return messages[0]["subscription"] | {"for_me_unread": _threads_for_me(conn, p, [thread_id], messages).get(thread_id, 0)}
 
 
+def thread_subscriptions(conn, p: Principal, channel_id: int, root_ids: list[int]) -> dict:
+    """One bounded refresh for the posts a browser is displaying, including their reply badges."""
+    channel_for(conn, p, channel_id)
+    if not 1 <= len(root_ids) <= 200 or any(type(i) is not int or not 0 < i < 2**63 for i in root_ids):
+        raise bad_request("roots must contain between 1 and 200 positive message ids")
+    marks = ",".join(str(i) for i in dict.fromkeys(root_ids))
+    messages = [dict(r) for r in conn.execute(
+        f"SELECT id, channel_id, thread_id FROM messages WHERE channel_id = ? AND thread_id IS NULL AND id IN ({marks})",
+        (channel_id,))]
+    _attach_thread_subscriptions(conn, messages, p)
+    counts = _threads_for_me(conn, p, [m["id"] for m in messages], messages)
+    return {"subscriptions": [m["subscription"] | {"for_me_unread": counts.get(m["id"], 0)} for m in messages]}
+
+
 def set_thread_subscription(conn, p: Principal, channel_id: int, thread_id: int, payload, now: float) -> dict:
     current = thread_subscription(conn, p, channel_id, thread_id)
     if not isinstance(payload, dict) or set(payload) != {"subscribed"} or not isinstance(payload["subscribed"], bool):

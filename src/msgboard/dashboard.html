@@ -458,8 +458,11 @@ button.fchip:hover { border-color: var(--ink); }
 .replies .rbadge { font: 600 10.5px/1 var(--mono); background: var(--ink); color: var(--bg); padding: 3px 5px; }
 .replies .when { color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .msg.open-thread { background: var(--hover); box-shadow: inset 2px 0 0 var(--ink); }
-.actions { position: absolute; right: 20px; top: -10px; display: flex; opacity: 0; background: var(--bg); border: 1px solid var(--rule-2); }
-.msg:hover .actions, .msg:focus-within .actions { opacity: 1; }
+.actions { position: absolute; right: 20px; top: -10px; display: flex; opacity: 0; pointer-events: none; background: var(--bg); border: 1px solid var(--rule-2); }
+.msg:hover .actions, .msg:focus-within .actions { opacity: 1; pointer-events: auto; }
+@media (hover: none) {
+  .actions { position: static; grid-column: 2; justify-self: end; margin: 4px 0 2px; max-width: 100%; opacity: 1; pointer-events: auto; }
+}
 .msg:has(.edit-box) .actions { display: none; }
 .actions button { background: none; border: 0; padding: 3px 6px; font: 11px var(--mono); color: var(--ink-2); display: grid; place-items: center; }
 .actions button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; display: block; }
@@ -1846,7 +1849,7 @@ async function refreshChannels() {
     const first = !state.chanKey; state.chanKey = key;
     if (!first && state.current && state.view === "chat") renderFeed(false);   // links to new or renamed channels
   }
-  renderChannels(); docMaybeChanged(); refreshOpenSubscription();
+  renderChannels(); docMaybeChanged(); refreshSubscriptions();
 }
 function dmPeer(c) {
   const others = (c.members || []).filter((m) => m && m.id !== state.me.id);
@@ -2029,21 +2032,19 @@ function ingest(m) {
   if (!m.thread_id) {
     state.roots.push(m);
     if (!m.subscription) {
-      const version = subscriptionVersions.get(m.id), principalId = state.me.id;
+      const version = subscriptionVersions.get(m.id), read = beginSubscriptionRead(m.id), principalId = state.me.id;
       api("GET", `/channels/${m.channel_id}/threads/${m.id}/subscription`).then((sub) => {
-        if (state.me?.id === principalId && version === subscriptionVersions.get(m.id)) applySubscription(m.channel_id, m.id, sub);
+        if (state.me?.id === principalId && version === subscriptionVersions.get(m.id) && read === subscriptionReads.get(m.id)) applySubscription(m.channel_id, m.id, sub);
       }).catch(() => {});
     }
     return true;
   }
   const root = state.byId.get(m.thread_id);
   if (root) {
-    const r = root.replies || (root.replies = { count: 0, last_at: 0, participants: [] });
+    const r = root.replies || (root.replies = { count: 0, last_at: 0, participants: [], for_me_unread: root.subscription?.for_me_unread || 0 });
     r.count += 1; r.last_at = m.created_at;
-    const open = state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id;
     if (m.sender.id === state.me.id && root.subscription?.mode === "auto") root.subscription.subscribed = true;
-    const inThread = root.subscription ? root.subscription.subscribed && m.seq > root.subscription.after_seq : root.sender.id === state.me.id || r.participants.some((p) => p.id === state.me.id);
-    if (!open && !m.history && m.sender.id !== state.me.id && (inThread || (m.mentions || []).some((x) => x.id === state.me.id))) r.for_me_unread = (r.for_me_unread || 0) + 1;
+    // Reply badges come from the same server rules as Activity, not cached participation.
     r.participants = [m.sender].concat(r.participants.filter((p) => p.id !== m.sender.id)).slice(0, 5);
   }
   if (state.panel && state.panel.type === "thread" && state.panel.root.id === m.thread_id) { state.thread.push(m); renderThread(nearBottom($("panel-scroll")) || m.sender.id === state.me.id); markThreadSeen(); }
@@ -2073,6 +2074,8 @@ async function pollLoop(c) {
       if (page.edit_cursor != null) state.editCursor = Math.max(state.editCursor, page.edit_cursor);
       if (page.edits && page.edits.length && page.edits.map(applyEdit).some(Boolean) && !page.messages.length) rerenderAfterEdit();
       if (page.messages.length) {
+        await refreshSubscriptions([...new Set(page.messages.map((m) => m.thread_id).filter(Boolean))]);
+        if (state.current !== c || ctrl.signal.aborted) return;
         const sc = $("scroll"), atBottom = nearBottom(sc);
         const fresh = page.messages.filter((m) => !state.byId.has(m.id) && !m.thread_id && !m.history && m.sender.id !== state.me.id).length;
         page.messages.forEach(ingest);
@@ -3930,6 +3933,10 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
 // Thread choices live on the account. A late read must not overwrite a newer local choice.
 const subscriptionPending = new Set();
 const subscriptionVersions = new Map();
+const subscriptionReads = new Map();
+function beginSubscriptionRead(id) {
+  const read = (subscriptionReads.get(id) || 0) + 1; subscriptionReads.set(id, read); return read;
+}
 function paintSubscriptionButtons() {
   const panel = state.panel, header = $("panel-subscribe");
   if (panel?.type === "thread") header.dataset.threadSubscribe = panel.root.id;
@@ -3959,14 +3966,29 @@ function applySubscription(channelId, id, subscription) {
   }
   paintSubscriptionButtons();
 }
-async function refreshOpenSubscription() {
-  const panel = state.panel, channel = state.current;
-  const version = panel?.type === "thread" ? subscriptionVersions.get(panel.root.id) : null;
-  if (panel?.type !== "thread" || !channel || subscriptionPending.has(panel.root.id)) return;
+async function refreshSubscriptions(ids = null) {
+  const channel = state.current, principalId = state.me?.id;
+  if (!channel || state.view !== "chat") return;
+  if (ids == null) {
+    const frame = $("scroll").getBoundingClientRect();
+    ids = [...$("messages").querySelectorAll(".msg[data-mid]")].filter((el) => {
+      const rect = el.getBoundingClientRect(); return rect.bottom > frame.top && rect.top < frame.bottom;
+    }).map((el) => Number(el.dataset.mid));
+    if (state.panel?.type === "thread") ids.push(state.panel.root.id);
+  }
+  ids = [...new Set(ids)].filter((id) => state.byId.has(id) && !subscriptionPending.has(id)).slice(0, 200);
+  if (!ids.length) return;
+  const reads = new Map(ids.map((id) => [id, { version: subscriptionVersions.get(id), read: beginSubscriptionRead(id) }]));
   try {
-    const sub = await api("GET", `/channels/${channel.id}/threads/${panel.root.id}/subscription`);
-    if (state.panel === panel && subscriptionVersions.get(panel.root.id) === version && !subscriptionPending.has(panel.root.id)) applySubscription(channel.id, panel.root.id, sub);
-  } catch {}   // keep the last known choice when offline; the next refresh retries
+    const data = await api("GET", `/channels/${channel.id}/thread-subscriptions?roots=${ids.join(",")}`);
+    if (state.current !== channel || state.me?.id !== principalId) return;
+    for (const sub of data.subscriptions) {
+      const id = sub.thread_id, ticket = reads.get(id);
+      if (!ticket || subscriptionPending.has(id) || ticket.version !== subscriptionVersions.get(id) || ticket.read !== subscriptionReads.get(id)) continue;
+      if (state.panel?.type === "thread" && state.panel.root.id === id && document.visibilityState === "visible") sub.for_me_unread = 0;
+      applySubscription(channel.id, id, sub);
+    }
+  } catch {}   // keep known state while offline; polling and focus retry
 }
 async function toggleThreadSubscription(id) {
   const channel = state.current, root = state.byId.get(id);
@@ -3980,7 +4002,7 @@ async function toggleThreadSubscription(id) {
   } catch (e) { if (state.me?.id === principalId && state.current === channel) alert("Could not save the subscription: " + e.message); }
   finally { subscriptionPending.delete(id); paintSubscriptionButtons(); }
 }
-window.addEventListener("focus", refreshOpenSubscription);
+window.addEventListener("focus", () => refreshSubscriptions());
 
 // ------------------------------------------------------------------ side panel: thread, profile, members
 function openPanel(kind, title, sub) {
@@ -4007,12 +4029,12 @@ async function openThread(rootId) {
   $("panel-scroll").innerHTML = `<div class="empty">Loading…</div>`;
   mountComposer($("panel-composer"), { placeholder: "Reply…", replyTo: () => root.id });
   renderFeed(false);
-  const version = subscriptionVersions.get(rootId);
+  const version = subscriptionVersions.get(rootId), read = beginSubscriptionRead(rootId);
   const page = await api("GET", `/channels/${c.id}/messages?thread=${rootId}&limit=500`);
   if (!state.panel || state.panel.root !== root) return;
   for (const m of page.messages) { if (!state.byId.has(m.id)) remember(m); }
   const freshRoot = page.messages.find((m) => m.id === rootId);
-  if (freshRoot?.subscription && version === subscriptionVersions.get(rootId) && !subscriptionPending.has(rootId)) applySubscription(c.id, rootId, freshRoot.subscription);
+  if (freshRoot?.subscription && version === subscriptionVersions.get(rootId) && read === subscriptionReads.get(rootId) && !subscriptionPending.has(rootId)) applySubscription(c.id, rootId, freshRoot.subscription);
   state.thread = page.messages.filter((m) => m.id !== rootId);
   renderThread(true);
   markThreadSeen();
