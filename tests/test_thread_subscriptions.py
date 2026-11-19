@@ -153,11 +153,27 @@ def test_subscription_buttons_share_state_on_desktop_and_touch(env, tmp_path):
         mobile.screenshot(path=str(tmp_path / "subscriptions-phone.png"))
         page.reload()
         pw.expect(post).to_have_attribute("aria-pressed", "false")
+        held = {}
+
+        def hold_subscription_read(route):
+            if route.request.method == "GET":
+                held["response"] = route.fetch()   # delay an actual response from this board
+                held["route"] = route
+            else:
+                route.continue_()
+
+        page.route(f"**/channels/{cid}/threads/*/subscription", hold_subscription_read)
         composer = page.locator("#composer textarea")
         composer.fill("My new thread")
-        composer.press("Enter")
+        with page.expect_request(lambda r: r.method == "GET" and r.url.endswith("/subscription")):
+            composer.press("Enter")
         pw.expect(composer).to_have_value("")
         own = reader.read(cid)["messages"][-1]
+        # A choice on another thread must not invalidate this thread's pending read.
+        post.focus()
+        post.press("Enter")
+        pw.expect(post).to_have_attribute("aria-pressed", "true")
+        held["route"].fulfill(response=held["response"])
         pw.expect(page.locator(f'#messages [data-mid="{own["id"]}"] [data-thread-subscribe]')).to_have_attribute("aria-pressed", "true")
         assert errors == []
         phone.close()

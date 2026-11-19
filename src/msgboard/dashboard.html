@@ -2029,9 +2029,9 @@ function ingest(m) {
   if (!m.thread_id) {
     state.roots.push(m);
     if (!m.subscription) {
-      const version = subscriptionVersion, principalId = state.me.id;
+      const version = subscriptionVersions.get(m.id), principalId = state.me.id;
       api("GET", `/channels/${m.channel_id}/threads/${m.id}/subscription`).then((sub) => {
-        if (state.me?.id === principalId && version === subscriptionVersion) applySubscription(m.channel_id, m.id, sub);
+        if (state.me?.id === principalId && version === subscriptionVersions.get(m.id)) applySubscription(m.channel_id, m.id, sub);
       }).catch(() => {});
     }
     return true;
@@ -3929,7 +3929,7 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
 
 // Thread choices live on the account. A late read must not overwrite a newer local choice.
 const subscriptionPending = new Set();
-let subscriptionVersion = 0;
+const subscriptionVersions = new Map();
 function paintSubscriptionButtons() {
   const panel = state.panel, header = $("panel-subscribe");
   if (panel?.type === "thread") header.dataset.threadSubscribe = panel.root.id;
@@ -3960,18 +3960,19 @@ function applySubscription(channelId, id, subscription) {
   paintSubscriptionButtons();
 }
 async function refreshOpenSubscription() {
-  const panel = state.panel, channel = state.current, version = subscriptionVersion;
+  const panel = state.panel, channel = state.current;
+  const version = panel?.type === "thread" ? subscriptionVersions.get(panel.root.id) : null;
   if (panel?.type !== "thread" || !channel || subscriptionPending.has(panel.root.id)) return;
   try {
     const sub = await api("GET", `/channels/${channel.id}/threads/${panel.root.id}/subscription`);
-    if (state.panel === panel && subscriptionVersion === version && !subscriptionPending.has(panel.root.id)) applySubscription(channel.id, panel.root.id, sub);
+    if (state.panel === panel && subscriptionVersions.get(panel.root.id) === version && !subscriptionPending.has(panel.root.id)) applySubscription(channel.id, panel.root.id, sub);
   } catch {}   // keep the last known choice when offline; the next refresh retries
 }
 async function toggleThreadSubscription(id) {
   const channel = state.current, root = state.byId.get(id);
   if (!channel || !root?.subscription || subscriptionPending.has(id)) return;
   const subscribed = !root.subscription.subscribed, principalId = state.me.id;
-  subscriptionVersion++; subscriptionPending.add(id); paintSubscriptionButtons();
+  subscriptionVersions.set(id, (subscriptionVersions.get(id) || 0) + 1); subscriptionPending.add(id); paintSubscriptionButtons();
   try {
     const sub = await api("PUT", `/channels/${channel.id}/threads/${id}/subscription`, { body: { subscribed } });
     if (state.me?.id === principalId) applySubscription(channel.id, id, sub);
@@ -4006,12 +4007,12 @@ async function openThread(rootId) {
   $("panel-scroll").innerHTML = `<div class="empty">Loading…</div>`;
   mountComposer($("panel-composer"), { placeholder: "Reply…", replyTo: () => root.id });
   renderFeed(false);
-  const version = subscriptionVersion;
+  const version = subscriptionVersions.get(rootId);
   const page = await api("GET", `/channels/${c.id}/messages?thread=${rootId}&limit=500`);
   if (!state.panel || state.panel.root !== root) return;
   for (const m of page.messages) { if (!state.byId.has(m.id)) remember(m); }
   const freshRoot = page.messages.find((m) => m.id === rootId);
-  if (freshRoot?.subscription && version === subscriptionVersion && !subscriptionPending.has(rootId)) applySubscription(c.id, rootId, freshRoot.subscription);
+  if (freshRoot?.subscription && version === subscriptionVersions.get(rootId) && !subscriptionPending.has(rootId)) applySubscription(c.id, rootId, freshRoot.subscription);
   state.thread = page.messages.filter((m) => m.id !== rootId);
   renderThread(true);
   markThreadSeen();
