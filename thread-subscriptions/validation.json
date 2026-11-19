@@ -1,0 +1,25 @@
+{
+  "source": "28cd77fa6a6032c8d0048410c02cd8c37f5f82f2",
+  "full_suite": {
+    "source": "4292403",
+    "passed": 260,
+    "live_excluded": 1,
+    "seconds": 184.43
+  },
+  "final_change": "per-thread browser response guards and delayed real-response regression only",
+  "final_focused_tests": {
+    "source": "28cd77fa6a6032c8d0048410c02cd8c37f5f82f2",
+    "passed": 5,
+    "seconds": 17.74
+  },
+  "new_test_functions": 2,
+  "schema": 32,
+  "initial_failures": "three old-schema fixture constructions and two message-write metadata/Tasks receipt compatibility failures; all fixed and rechecked",
+  "native_browser": "Chromium desktop and touch, actual board/API responses, no page errors",
+  "diagram": {
+    "pages": 1,
+    "black_and_white": true
+  },
+  "merged": false,
+  "deployed": false
+}
