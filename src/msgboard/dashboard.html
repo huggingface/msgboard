@@ -907,6 +907,31 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 .subscription-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.2; }
 #panel-subscribe { margin-left: auto; }
 #panel-subscribe:not(.hidden) + .close { margin-left: 0; }
+
+/* Personal channel groups - the same compact sidebar, with collapsible headings. */
+.channel-row { display:flex; align-items:center; }
+.navlist .channel-link { flex:1; min-width:0; }
+.navlist .channel-options { width:24px; flex:none; padding:5px 2px; justify-content:center; opacity:0; }
+.channel-row:hover .channel-options, .channel-row:focus-within .channel-options { opacity:1; }
+.channel-group { margin-top:2px; }
+.group-head { display:flex; align-items:center; padding:3px 16px; gap:6px; cursor:grab; }
+.group-head button { border:0; background:none; color:var(--ink); padding:0; }
+.group-toggle { flex:1; min-width:0; display:flex; align-items:center; gap:7px; font-size:13px; font-weight:650; text-align:left; }
+.group-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-toggle svg { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; }
+.channel-group.collapsed .group-toggle svg { transform:rotate(-90deg); }
+.group-head .count { font:10.5px/1 var(--mono); background:var(--ink); color:var(--bg); padding:3px 5px; }
+.group-head .group-options { color:var(--ink-2); font-size:17px; width:20px; flex:none; }
+.channel-group .navlist { padding-left:19px; }
+.group-empty { padding:5px 8px; font-size:12px; color:var(--ink-3); }
+#channels .dragging { opacity:.4; }
+#channels .drop-before { box-shadow:inset 0 2px 0 var(--ink); }
+#channels .drop-after { box-shadow:inset 0 -2px 0 var(--ink); }
+#channels .group-drop, #channels-ungrouped.group-drop { outline:1px dashed var(--ink); outline-offset:-1px; }
+.sidebar-menu { position:fixed; z-index:30; max-width:calc(100vw - 16px); max-height:calc(100dvh - 16px); overflow-y:auto; }
+.sidebar-menu button { overflow-wrap:anywhere; }
+#group-name { width:100%; }
+@media (hover:none) { .navlist .channel-options { opacity:1; width:30px; } .group-head button { min-height:28px; } }
 </style>
 <style id="avatar-styles"></style>
 </head>
@@ -921,8 +946,8 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="nav-scroll">
       <ul class="navlist hidden" id="tasks-nav"><li><button id="tasks-open"><span class="glyph"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3h8M6.5 8h8M6.5 13h8"/><rect x="1.5" y="1.7" width="2.6" height="2.6"/><rect x="1.5" y="6.7" width="2.6" height="2.6"/><rect x="1.5" y="11.7" width="2.6" height="2.6"/></svg></span><span class="name">Tasks</span></button></li></ul>
       <ul class="navlist" id="activity-list"><li><button id="activity-open"><span class="glyph"><svg class="lock" viewBox="0 0 10 11" aria-hidden="true"><path d="M2 8 V5 a3 3 0 0 1 6 0 V8 H2 Z M4 9.5 h2"/></svg></span><span class="name">Activity</span></button></li></ul>
-      <div class="side-head"><span class="label">Channels</span><button id="new-channel" class="hidden" title="New channel">+</button></div>
-      <ul class="navlist" id="channels"></ul>
+      <div class="side-head"><span class="label">Channels</span><button id="new-channel" data-side-key="new-channel" aria-label="New channel or group" aria-haspopup="menu" aria-expanded="false" title="New channel or group">+</button></div>
+      <div id="channels"></div>
       <div class="side-head"><span class="label">Direct messages</span><button id="new-dm" class="hidden" title="New direct message">+</button></div>
       <ul class="navlist" id="dms"></ul>
     </div>
@@ -1022,6 +1047,16 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div class="picker"><input type="text" id="channel-people-filter" placeholder="Filter by name" autocomplete="off"><div class="list" id="channel-people-list"></div></div>
     <div class="row"><span class="err hidden" id="channel-error"></span><span></span>
       <span><button class="btn ghost" type="button" id="channel-cancel">Cancel</button> <button class="btn" value="ok">Create</button></span></div>
+  </form>
+</dialog>
+
+<dialog id="group-dialog" aria-labelledby="group-title">
+  <form id="group-form">
+    <h3 id="group-title">New group</h3>
+    <label class="label" for="group-name">Name</label>
+    <input type="text" id="group-name" maxlength="80" required autocomplete="off">
+    <div class="row"><span class="err hidden" id="group-error"></span><span></span>
+      <span><button class="btn ghost" type="button" id="group-cancel">Cancel</button> <button class="btn" id="group-save">Save</button></span></div>
   </form>
 </dialog>
 
@@ -1710,7 +1745,7 @@ async function boot() {
   $("app").classList.remove("hidden");
   renderMe();
   $("tasks-nav").classList.toggle("hidden", state.me.identity_type !== "user");
-  $("new-channel").classList.toggle("hidden", !can("create_channels"));
+  $("new-channel").classList.remove("hidden");
   $("new-dm").classList.toggle("hidden", !can("post"));
   $("settings-open").classList.toggle("hidden", !(can("invite_agents") || can("manage")));
   $("add-agents").classList.toggle("hidden", !can("invite_agents"));
@@ -1872,6 +1907,205 @@ async function joinChannel(c) {
 }
 const showPrivate = () => !!(state.me && state.me.prefs && state.me.prefs.show_private);
 const hideArchived = () => !!(state.me && state.me.prefs && state.me.prefs.hide_archived);
+// Personal sidebar layout uses the existing account preferences endpoint.
+const channelGroups = () => (state.me.prefs && state.me.prefs.channel_groups) || [];
+let prefQueue = Promise.resolve(), prefRevision = 0, prefChanged = {}, prefConfirmed = null, prefOwner = null;
+function saveSidebarPrefs(changes) {
+  const owner = state.me.id;
+  if (prefOwner !== owner) { prefOwner = owner; prefConfirmed = { ...state.me.prefs }; prefChanged = {}; }
+  const revision = ++prefRevision;
+  for (const key of Object.keys(changes)) prefChanged[key] = revision;
+  state.me.prefs = { ...state.me.prefs, ...changes }; renderChannels();
+  const reconcile = (prefs) => {
+    for (const key of ["channel_groups", "channel_order", "show_private", "hide_archived"]) {
+      if ((prefChanged[key] || 0) > revision) continue;
+      if (key in prefs) state.me.prefs[key] = prefs[key]; else delete state.me.prefs[key];
+    }
+    renderChannels();
+  };
+  const result = prefQueue.then(async () => {
+    if (!state.me || state.me.id !== owner) return false;
+    try {
+      const prefs = await api("PUT", "/me/prefs", { body: changes });
+      if (!state.me || state.me.id !== owner) return false;
+      prefConfirmed = prefs; reconcile(prefs); return true;
+    } catch (e) {
+      if (state.me && state.me.id === owner) { reconcile(prefConfirmed); alert("Could not save the sidebar: " + e.message); }
+      return false;
+    }
+  });
+  prefQueue = result; return result;
+}
+function orderedSidebarChannels() {
+  const pos = new Map(((state.me.prefs && state.me.prefs.channel_order) || []).map((id, i) => [id, i]));
+  return [...state.channels].sort((a, b) => (observing(a) ? 1 : 0) - (observing(b) ? 1 : 0)
+    || (a.archived ? 1 : 0) - (b.archived ? 1 : 0)
+    || (pos.has(a.id) ? pos.get(a.id) : 1e6) - (pos.has(b.id) ? pos.get(b.id) : 1e6));
+}
+function sidebarOrder() {
+  return [...new Set([...orderedSidebarChannels().filter((c) => c.kind !== "dm").map((c) => c.id),
+    ...((state.me.prefs && state.me.prefs.channel_order) || [])])];
+}
+function moveChannel(id, groupId, neighbor = null, after = false) {
+  if (!state.channels.some((c) => c.id === id && c.kind !== "dm")) return;
+  if (groupId && !channelGroups().some((g) => g.id === groupId)) return;
+  const groups = channelGroups().map((g) => ({ ...g, channels: g.channels.filter((cid) => cid !== id) }));
+  if (groupId) groups.find((g) => g.id === groupId).channels.push(id);
+  const order = sidebarOrder().filter((cid) => cid !== id);
+  const at = neighbor === null ? -1 : order.indexOf(neighbor);
+  order.splice(at < 0 ? order.length : at + (after ? 1 : 0), 0, id);
+  return saveSidebarPrefs({ channel_groups: groups, channel_order: order });
+}
+function moveChannelStep(id, offset) {
+  const group = channelGroups().find((g) => g.channels.includes(id));
+  const grouped = new Set(channelGroups().flatMap((g) => g.channels));
+  const peers = orderedSidebarChannels().filter((c) => c.kind !== "dm" &&
+    (group ? group.channels.includes(c.id) : !grouped.has(c.id)));
+  const next = peers[peers.findIndex((c) => c.id === id) + offset];
+  if (next) return moveChannel(id, group && group.id, next.id, offset > 0);
+}
+function moveGroup(id, neighbor, after = false) {
+  if (id === neighbor) return;
+  const groups = [...channelGroups()], at = groups.findIndex((g) => g.id === id);
+  if (at < 0) return;
+  const [group] = groups.splice(at, 1), target = groups.findIndex((g) => g.id === neighbor);
+  if (target < 0) return;
+  groups.splice(target + (after ? 1 : 0), 0, group);
+  return saveSidebarPrefs({ channel_groups: groups });
+}
+let sidebarMenu = null;
+function sideControl(key) { return document.querySelector(`[data-side-key="${CSS.escape(key)}"]`); }
+function closeSidebarMenu(focus = false) {
+  if (!sidebarMenu) return;
+  const old = sidebarMenu; sidebarMenu = null;
+  const anchor = sideControl(old.key); if (anchor) anchor.setAttribute("aria-expanded", "false");
+  old.el.remove(); if (focus && anchor) anchor.focus();
+}
+function positionSidebarMenu() {
+  if (!sidebarMenu) return;
+  const anchor = sideControl(sidebarMenu.key);
+  if (!anchor) return closeSidebarMenu();
+  anchor.setAttribute("aria-expanded", "true");
+  const box = anchor.getBoundingClientRect(), menu = sidebarMenu.el;
+  menu.style.left = Math.max(8, Math.min(box.left, innerWidth - menu.offsetWidth - 8)) + "px";
+  menu.style.top = Math.max(8, Math.min(box.bottom + 4, innerHeight - menu.offsetHeight - 8)) + "px";
+}
+function openSidebarMenu(anchor, items, label) {
+  if (sidebarMenu && sidebarMenu.key === anchor.dataset.sideKey) return closeSidebarMenu(true);
+  closeSidebarMenu();
+  const menu = document.createElement("div"); menu.className = "menu sidebar-menu";
+  menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", label);
+  for (const [text, action, checked] of items) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = (checked ? "✓ " : "") + text;
+    b.setAttribute("role", "menuitem");
+    b.onclick = () => { closeSidebarMenu(true); action(); }; menu.appendChild(b);
+  }
+  sidebarMenu = { key: anchor.dataset.sideKey, el: menu }; document.body.appendChild(menu);
+  positionSidebarMenu(); menu.querySelector("button").focus();
+  menu.onkeydown = (e) => {
+    if (e.key === "Escape" || e.key === "Tab") { e.stopPropagation(); if (e.key === "Escape") e.preventDefault(); closeSidebarMenu(true); }
+    else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+      e.preventDefault(); const buttons = [...menu.querySelectorAll("button")], i = buttons.indexOf(document.activeElement);
+      const n = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[n].focus();
+    }
+  };
+}
+document.addEventListener("pointerdown", (e) => {
+  if (sidebarMenu && !sidebarMenu.el.contains(e.target) && !e.target.closest(`[data-side-key="${CSS.escape(sidebarMenu.key)}"]`)) closeSidebarMenu();
+}, true);
+window.addEventListener("resize", positionSidebarMenu);
+document.querySelector(".nav-scroll").addEventListener("scroll", positionSidebarMenu, { passive: true });
+function channelMoveMenu(anchor, c) {
+  const current = channelGroups().find((g) => g.channels.includes(c.id));
+  openSidebarMenu(anchor, [
+    ...channelGroups().map((g) => [g.name, () => { if (!current || current.id !== g.id) moveChannel(c.id, g.id); }, current && current.id === g.id]),
+    ["Channels (ungrouped)", () => { if (current) moveChannel(c.id, null); }, !current],
+    ["New group…", () => editChannelGroup(null, c.id)],
+    ["Move up", () => moveChannelStep(c.id, -1)], ["Move down", () => moveChannelStep(c.id, 1)],
+  ], "Move " + channelTitle(c) + " to group");
+}
+function groupMenu(anchor, group) {
+  const groups = channelGroups(), i = groups.findIndex((g) => g.id === group.id);
+  openSidebarMenu(anchor, [
+    ["Rename group…", () => editChannelGroup(group.id)],
+    ...(i > 0 ? [["Move up", () => moveGroup(group.id, groups[i - 1].id)]] : []),
+    ...(i + 1 < groups.length ? [["Move down", () => moveGroup(group.id, groups[i + 1].id, true)]] : []),
+    ["Remove group", () => {
+      if (confirm(`Remove “${group.name}”? Its channels will return to Channels.`)) {
+        saveSidebarPrefs({ channel_groups: channelGroups().filter((g) => g.id !== group.id) }); $("new-channel").focus();
+      }
+    }],
+  ], group.name + " group options");
+}
+let editingChannelGroup = null;
+function editChannelGroup(id = null, channelId = null) {
+  const group = channelGroups().find((g) => g.id === id);
+  editingChannelGroup = { id, channelId };
+  $("group-title").textContent = group ? "Rename group" : "New group";
+  $("group-name").value = group ? group.name : ""; $("group-error").classList.add("hidden");
+  $("group-dialog").showModal(); $("group-name").focus();
+}
+$("group-cancel").onclick = () => $("group-dialog").close();
+$("group-form").onsubmit = async (e) => {
+  e.preventDefault(); const name = $("group-name").value.trim(), edit = editingChannelGroup;
+  if (!name) { $("group-name").focus(); return; }
+  let groups = channelGroups().map((g) => ({ ...g, channels: [...g.channels] }));
+  if (edit.id) {
+    const group = groups.find((g) => g.id === edit.id); if (!group) return $("group-dialog").close();
+    group.name = name;
+  } else {
+    if (edit.channelId) groups = groups.map((g) => ({ ...g, channels: g.channels.filter((cid) => cid !== edit.channelId) }));
+    groups.push({ id: crypto.randomUUID(), name, channels: edit.channelId ? [edit.channelId] : [], collapsed: false });
+  }
+  $("group-save").disabled = true;
+  const ok = await saveSidebarPrefs({ channel_groups: groups }); $("group-save").disabled = false;
+  if (ok) $("group-dialog").close();
+  else { $("group-error").textContent = "The group was not saved. Try again."; $("group-error").classList.remove("hidden"); }
+};
+const isChannelDrag = (e) => [...e.dataTransfer.types].includes("text/x-channel");
+const isGroupDrag = (e) => [...e.dataTransfer.types].includes("text/x-channel-group");
+function groupSection(group, channels) {
+  const section = document.createElement("section"); section.className = "channel-group" + (group.collapsed ? " collapsed" : "");
+  section.dataset.groupId = group.id;
+  const heading = document.createElement("div"); heading.className = "group-head"; heading.draggable = true;
+  const toggle = document.createElement("button"); toggle.className = "group-toggle";
+  toggle.type = "button"; toggle.dataset.sideKey = "group-" + group.id; toggle.setAttribute("aria-expanded", String(!group.collapsed));
+  const total = channels.reduce((n, c) => n + (c.for_me || 0), 0);
+  toggle.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg><span class="group-name">${esc(group.name)}</span>` +
+    (total && group.collapsed ? `<span class="count" aria-label="${total} for you">${total > 99 ? "99+" : total}</span>` : "");
+  toggle.onclick = () => saveSidebarPrefs({ channel_groups: channelGroups().map((g) => g.id === group.id ? { ...g, collapsed: !g.collapsed } : g) });
+  const options = document.createElement("button"); options.type = "button"; options.className = "group-options";
+  options.textContent = "⋯"; options.dataset.sideKey = "group-options-" + group.id;
+  options.setAttribute("aria-label", group.name + " group options"); options.setAttribute("aria-haspopup", "menu");
+  options.setAttribute("aria-expanded", "false"); options.onclick = () => groupMenu(options, channelGroups().find((g) => g.id === group.id));
+  heading.append(toggle, options); section.appendChild(heading);
+  const list = document.createElement("ul"); list.className = "navlist";
+  list.id = "group-channels-" + group.id; toggle.setAttribute("aria-controls", list.id);
+  list.hidden = group.collapsed;
+  for (const c of channels) list.appendChild(navButton(c));
+  if (!channels.length && !group.collapsed) {
+    const empty = document.createElement("li"); empty.className = "group-empty"; empty.textContent = "Drop channels here"; list.appendChild(empty);
+  }
+  section.appendChild(list);
+  heading.ondragstart = (e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/x-channel-group", group.id); heading.classList.add("dragging"); };
+  heading.ondragend = () => { heading.classList.remove("dragging"); clearDrop(); };
+  section.ondragover = (e) => {
+    if (!isChannelDrag(e) && !isGroupDrag(e)) return;
+    e.preventDefault(); e.stopPropagation(); clearDrop();
+    if (isChannelDrag(e)) section.classList.add("group-drop");
+    else { const r = heading.getBoundingClientRect(); section.classList.add(e.clientY < r.top + r.height / 2 ? "drop-before" : "drop-after"); }
+  };
+  section.ondrop = (e) => {
+    if (!isChannelDrag(e) && !isGroupDrag(e)) return;
+    e.preventDefault(); e.stopPropagation();
+    const after = section.classList.contains("drop-after"); clearDrop();
+    if (isGroupDrag(e)) moveGroup(e.dataTransfer.getData("text/x-channel-group"), group.id, after);
+    else moveChannel(Number(e.dataTransfer.getData("text/x-channel")), group.id);
+  };
+  return section;
+}
+
 function navButton(c) {
   const isCur = state.view === "chat" && state.current && state.current.id === c.id;
   // bold = new messages; a count = messages for me (mentions, replies in my threads, DMs).
@@ -1890,35 +2124,37 @@ function navButton(c) {
     (draft ? `<span class="draft" title="Unsent draft">✎</span>` : "") + (forMe ? `<span class="count">${forMe > 99 ? "99+" : forMe}</span>` : "");
   b.onclick = () => { $("app").classList.remove("nav"); openChannel(c.id); };
   li.appendChild(b);
+  if (c.kind !== "dm") {
+    li.className = "channel-row"; b.classList.add("channel-link"); b.dataset.sideKey = "channel-" + c.id;
+    const options = document.createElement("button"); options.type = "button"; options.className = "channel-options";
+    options.textContent = "⋯"; options.dataset.sideKey = "channel-options-" + c.id;
+    options.setAttribute("aria-label", "Move " + channelTitle(c) + " to group"); options.setAttribute("aria-haspopup", "menu");
+    options.setAttribute("aria-expanded", "false"); options.onclick = () => channelMoveMenu(options, c); li.appendChild(options);
+    li.oncontextmenu = (e) => { e.preventDefault(); channelMoveMenu(options, c); };
+  }
   if (c.kind !== "dm") {   // drag to reorder channels
     li.draggable = true; li.dataset.cid = c.id;
     li.addEventListener("dragstart", (e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/x-channel", String(c.id)); li.classList.add("dragging"); });
     li.addEventListener("dragend", () => { li.classList.remove("dragging"); clearDrop(); });
     li.addEventListener("dragover", (e) => {
-      if (![...e.dataTransfer.types].includes("text/x-channel")) return;
-      e.preventDefault(); clearDrop();
+      if (!isChannelDrag(e)) return;
+      e.preventDefault(); e.stopPropagation(); clearDrop();
       const r = li.getBoundingClientRect(); li.classList.add(e.clientY < r.top + r.height / 2 ? "drop-before" : "drop-after");
     });
     li.addEventListener("drop", (e) => {
-      const id = Number(e.dataTransfer.getData("text/x-channel")); if (!id || id === c.id) return clearDrop();
-      e.preventDefault();
-      const before = li.classList.contains("drop-before"); clearDrop();
-      const ids = [...$("channels").querySelectorAll("li[data-cid]")].map((x) => Number(x.dataset.cid)).filter((x) => x !== id);
-      ids.splice(ids.indexOf(c.id) + (before ? 0 : 1), 0, id);
-      saveChannelOrder(ids);
+      if (!isChannelDrag(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      const id = Number(e.dataTransfer.getData("text/x-channel")), after = li.classList.contains("drop-after"); clearDrop();
+      if (!id || id === c.id) return;
+      const group = channelGroups().find((g) => g.channels.includes(c.id));
+      moveChannel(id, group && group.id, c.id, after);
     });
   }
   return li;
 }
 $("new-below").onclick = () => { const sc = $("scroll"); sc.scrollTop = sc.scrollHeight; newBelow(0); };
 $("scroll").addEventListener("scroll", () => { if (unseenBelow && nearBottom($("scroll"))) newBelow(0); }, { passive: true });
-const clearDrop = () => document.querySelectorAll(".drop-before, .drop-after").forEach((x) => x.classList.remove("drop-before", "drop-after"));
-async function saveChannelOrder(ids) {
-  state.me.prefs = Object.assign({}, state.me.prefs, { channel_order: ids });
-  renderChannels();
-  try { state.me.prefs = await api("PUT", "/me/prefs", { body: { channel_order: ids } }); }
-  catch (e) { alert("Could not save the order: " + e.message); }
-}
+const clearDrop = () => document.querySelectorAll(".drop-before, .drop-after, .group-drop").forEach((x) => x.classList.remove("drop-before", "drop-after", "group-drop"));
 function renderChannels() {
   const total = state.channels.reduce((n, c) => n + (c.for_me || 0), 0);
   document.title = (total ? `(${total > 99 ? "99+" : total}) ` : "") + baseTitle;
@@ -1927,17 +2163,26 @@ function renderChannels() {
   $("tasks-open").classList.toggle("active", state.view === "tasks");
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
+  const focused = $("channels").contains(document.activeElement) && document.activeElement.dataset.sideKey;
   $("channels").innerHTML = ""; $("dms").innerHTML = "";
-  // your order first (saved on your account), unknown channels after it, archived ones after that,
-  // and private conversations you only see as an admin at the very bottom
-  const pos = new Map(((state.me && state.me.prefs && state.me.prefs.channel_order) || []).map((id, i) => [id, i]));
-  const ordered = [...state.channels].sort((a, b) => (observing(a) ? 1 : 0) - (observing(b) ? 1 : 0)
-    || (a.archived ? 1 : 0) - (b.archived ? 1 : 0)
-    || (pos.has(a.id) ? pos.get(a.id) : 1e6) - (pos.has(b.id) ? pos.get(b.id) : 1e6));
+  const ordered = orderedSidebarChannels();
   const isCur = (c) => state.view === "chat" && state.current && state.current.id === c.id;
+  const visible = ordered.filter((c) => ((!observing(c) || showPrivate()) && (!c.archived || !hideArchived())) || isCur(c));
   $("show-archived-row").classList.toggle("hidden", !state.channels.some((c) => c.archived));
-  $("show-archived").checked = !hideArchived();
-  for (const c of ordered) if ((!observing(c) || showPrivate()) && (!c.archived || !hideArchived()) || isCur(c)) (c.kind === "dm" ? $("dms") : $("channels")).appendChild(navButton(c));
+  $("show-archived").checked = !hideArchived(); $("show-private").checked = showPrivate();
+  const grouped = new Set(channelGroups().flatMap((g) => g.channels));
+  const ungrouped = document.createElement("ul"); ungrouped.className = "navlist"; ungrouped.id = "channels-ungrouped";
+  for (const c of visible) {
+    if (c.kind === "dm") $("dms").appendChild(navButton(c));
+    else if (!grouped.has(c.id)) ungrouped.appendChild(navButton(c));
+  }
+  $("channels").appendChild(ungrouped);
+  for (const group of channelGroups()) $("channels").appendChild(groupSection(group, visible.filter((c) => c.kind !== "dm" && group.channels.includes(c.id))));
+  const ungroupedTarget = $("new-channel").parentElement;
+  ungroupedTarget.ondragover = (e) => { if (isChannelDrag(e)) { e.preventDefault(); clearDrop(); ungrouped.classList.add("group-drop"); } };
+  ungroupedTarget.ondrop = (e) => { if (isChannelDrag(e)) { e.preventDefault(); clearDrop(); moveChannel(Number(e.dataTransfer.getData("text/x-channel")), null); } };
+  if (focused) { const control = sideControl(focused); if (control) control.focus({ preventScroll: true }); }
+  positionSidebarMenu();
   if (!$("dms").children.length) $("dms").innerHTML = `<li class="small" style="padding:2px 16px">None yet</li>`;
   hydrate($("dms"));
 }
@@ -4937,13 +5182,11 @@ $("add-agents").onclick = async () => {
 };
 $("show-archived").onchange = async () => {
   const hide = !$("show-archived").checked;
-  state.me.prefs = Object.assign({}, state.me.prefs, { hide_archived: hide }); renderChannels();
-  try { state.me.prefs = await api("PUT", "/me/prefs", { body: { hide_archived: hide } }); } catch (e) { alert("Could not save: " + e.message); }
+  await saveSidebarPrefs({ hide_archived: hide });
 };
 $("show-private").onchange = async () => {
   const on = $("show-private").checked;
-  state.me.prefs = Object.assign({}, state.me.prefs, { show_private: on }); renderChannels();
-  try { state.me.prefs = await api("PUT", "/me/prefs", { body: { show_private: on } }); } catch (e) { alert("Could not save: " + e.message); }
+  await saveSidebarPrefs({ show_private: on });
 };
 const expirySelect = (id) => `<select id="${id}">${EXPIRY.map(([l, v]) => `<option value="${v ?? ""}">${l}</option>`).join("")}</select>`;
 const intOrNull = (v) => v === "" ? null : Number(v);
@@ -5677,7 +5920,7 @@ $("channel-people-list").onchange = (e) => {
 $("channel-people-filter").oninput = renderChannelPeople;
 $("channel-people-filter").onkeydown = (e) => { if (e.key === "Enter") e.preventDefault(); };   // filtering, not creating
 $("channel-cancel").onclick = () => $("channel-dialog").close();
-$("new-channel").onclick = async () => {
+async function openNewChannel() {
   $("channel-error").classList.add("hidden");
   $("private-row").classList.toggle("hidden", !state.me.settings.allow_private_channels);
   $("channel-private").checked = false;
@@ -5686,7 +5929,11 @@ $("new-channel").onclick = async () => {
   try { newChannel.people = (await loadPeople(true)).filter((p) => !p.disabled && p.id !== state.me.id); }
   catch { newChannel.people = []; }
   renderChannelPeople();
-};
+}
+$("new-channel").onclick = () => openSidebarMenu($("new-channel"), [
+  ...(can("create_channels") ? [["New channel…", openNewChannel]] : []),
+  ["New group…", () => editChannelGroup()],
+], "New channel or group");
 $("channel-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   let c;
