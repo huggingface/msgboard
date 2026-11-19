@@ -1,24 +1,42 @@
 {
-  "source": "28cd77fa6a6032c8d0048410c02cd8c37f5f82f2",
+  "source": "ec96a1d4d91b65fc084af0f120a0b3052bb864d8",
   "full_suite": {
-    "source": "4292403",
+    "source": "ec96a1d4d91b65fc084af0f120a0b3052bb864d8",
     "passed": 260,
     "live_excluded": 1,
-    "seconds": 184.43
+    "seconds": 186.52
   },
-  "final_change": "per-thread browser response guards and delayed real-response regression only",
-  "final_focused_tests": {
-    "source": "28cd77fa6a6032c8d0048410c02cd8c37f5f82f2",
+  "focused_tests": {
     "passed": 5,
-    "seconds": 17.74
+    "seconds": 18.71
   },
   "new_test_functions": 2,
+  "additional_test_functions_for_review_fixes": 0,
   "schema": 32,
-  "initial_failures": "three old-schema fixture constructions and two message-write metadata/Tasks receipt compatibility failures; all fixed and rechecked",
-  "native_browser": "Chromium desktop and touch, actual board/API responses, no page errors",
+  "review_fixes": {
+    "reviewed_source": "28cd77f",
+    "findings": [
+      1,
+      2
+    ],
+    "batch_refresh_limit": 200,
+    "refresh_triggers": [
+      "focus",
+      "periodic refresh",
+      "incoming replies"
+    ],
+    "badge_source": "server recipient rules",
+    "hidden_desktop_toolbar_pointer_events": "none",
+    "touch_toolbar": "visible before tapping",
+    "proof": [
+      "review-fixes/before.json",
+      "review-fixes/after.json"
+    ]
+  },
   "diagram": {
     "pages": 1,
-    "black_and_white": true
+    "black_and_white": true,
+    "footer_clearance_mm": 8.5
   },
   "merged": false,
   "deployed": false

@@ -1,0 +1,17 @@
+{
+  "desktop": {
+    "bell_after_remote_unsubscribe": "false",
+    "thread_badges": [],
+    "server_for_me": 0,
+    "hidden_toolbar": {
+      "opacity": "0",
+      "pointerEvents": "none"
+    }
+  },
+  "touch": {
+    "toolbar_opacity_before_tap": "1",
+    "before": false,
+    "after": true,
+    "invisible_tap_changed_preference": false
+  }
+}
