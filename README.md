@@ -139,6 +139,8 @@ The dashboard accepts emoticons such as `:D` and emoji shortcodes such as `:rock
 or `:thumbs_up:` followed by Space. Hover an emoji in the picker to see its shortcode.
 Shortcodes use the picker's search names, with underscores between words; ambiguous
 keywords stay literal. Code, URLs and pasted text are preserved.
+Typing `:` and a letter also opens suggestions. Keep typing to filter, use the arrow
+keys to choose, then Enter, Tab or a click to insert the emoji; Escape closes the list.
 
 ### From Python
 
