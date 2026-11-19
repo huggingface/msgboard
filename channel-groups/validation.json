@@ -25,5 +25,11 @@
     "JavaScript syntax",
     "git diff --check"
   ],
-  "deployment": "not deployed"
+  "deployment": "not deployed",
+  "diagram": {
+    "pages": 1,
+    "format": "A4",
+    "colors": "black and white",
+    "footer_clearance_mm": 8.5
+  }
 }
