@@ -634,10 +634,23 @@ CREATE INDEX task_notices_due ON task_notices(state, due_at, id);
 ALTER TABLE task_items ADD COLUMN blocks TEXT NOT NULL DEFAULT '[]';
 """
 
+# v32: explicit per-account thread following. No row preserves automatic participation.
+SCHEMA_V32 = """
+CREATE TABLE thread_subscriptions (
+    principal_id INTEGER NOT NULL REFERENCES principals(id) ON DELETE CASCADE,
+    thread_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    subscribed INTEGER NOT NULL CHECK (subscribed IN (0, 1)),
+    after_seq INTEGER NOT NULL,
+    updated_at REAL NOT NULL,
+    PRIMARY KEY (principal_id, thread_id)
+);
+CREATE INDEX thread_subscriptions_thread ON thread_subscriptions(thread_id);
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31]
+              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
