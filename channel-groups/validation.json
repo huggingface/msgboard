@@ -1,0 +1,29 @@
+{
+  "source_sha": "f8a6245ff7ea6b21a216a14e0173f8c2eb22e4bd",
+  "focused": {
+    "passed": 9,
+    "seconds": 13.92
+  },
+  "full": {
+    "passed": 261,
+    "deselected_live": 1,
+    "seconds": 191.94
+  },
+  "new_browser_test_seconds": 4.71,
+  "new_test_functions": 1,
+  "extended_existing_api_test": true,
+  "checks": [
+    "native desktop drag channels and group headings",
+    "touch move menus",
+    "rename with HTML escaped",
+    "collapse and reload",
+    "cross-browser saved layout",
+    "failed-save rollback",
+    "delayed save response with a newer local choice",
+    "archived-channel filter",
+    "private channel access and DM separation",
+    "JavaScript syntax",
+    "git diff --check"
+  ],
+  "deployment": "not deployed"
+}

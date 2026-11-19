@@ -1,0 +1,14 @@
+........................................................................ [ 27%]
+........................................................................ [ 55%]
+........................................................................ [ 82%]
+.............................................                            [100%]
+============================= slowest 8 durations ==============================
+10.01s call     tests/test_load_shedding.py::test_a_runaway_read_is_cut_off
+5.36s call     tests/test_thread_subscriptions.py::test_subscription_buttons_share_state_on_desktop_and_touch
+5.32s call     tests/test_tasks.py::test_tasks_changes_send_one_coalesced_durable_agent_dm
+4.71s call     tests/test_channel_groups.py::test_channel_groups_desktop_touch_order_and_save_failures
+4.29s call     tests/test_emoji_shortcuts.py::test_every_picker_entry_has_a_working_shortcode_and_saves_its_draft
+2.40s call     tests/test_agent_loop.py::test_activity_long_poll_wakes_only_for_me
+1.98s call     tests/test_load_shedding.py::test_activity_long_poll_still_wakes_promptly
+1.90s setup    tests/test_emoji_shortcuts.py::test_every_picker_entry_has_a_working_shortcode_and_saves_its_draft
+261 passed, 1 deselected in 191.94s (0:03:11)
