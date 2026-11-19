@@ -1,6 +1,6 @@
 Channel groups - PR #46
 
-Source: f8a6245ff7ea6b21a216a14e0173f8c2eb22e4bd. Screenshots come from the real local desktop/touch test board with placeholder accounts and content.
+Source: a64f705d3bdaee1d3fb526652f3b86937c9f96d5. Full-suite baseline: f8a6245; nine affected tests rechecked on this head. Screenshots come from the real local desktop/touch test board with placeholder accounts and content.
 
 The diagram shows the changed sidebar, existing preferences API/storage, and the visible-channel filter used for collapsed counts. Ordinary channel-list internals are simplified. One A4 page, pure black/white, 8.5 mm above footer.
 

@@ -1,13 +1,15 @@
 {
-  "source_sha": "f8a6245ff7ea6b21a216a14e0173f8c2eb22e4bd",
+  "source_sha": "a64f705d3bdaee1d3fb526652f3b86937c9f96d5",
   "focused": {
+    "source_sha": "a64f705d3bdaee1d3fb526652f3b86937c9f96d5",
     "passed": 9,
-    "seconds": 13.92
+    "seconds": 14.81
   },
   "full": {
     "passed": 261,
     "deselected_live": 1,
-    "seconds": 191.94
+    "seconds": 191.94,
+    "source_sha": "f8a6245ff7ea6b21a216a14e0173f8c2eb22e4bd"
   },
   "new_browser_test_seconds": 4.71,
   "new_test_functions": 1,
@@ -31,5 +33,10 @@
     "format": "A4",
     "colors": "black and white",
     "footer_clearance_mm": 8.5
-  }
+  },
+  "review_fixes": {
+    "1": "Existing uid() fallback on real plain-HTTP origin; previous head fails group creation.",
+    "2": "Visible focus fallback to destination heading; without fix the keyboard move loses focus."
+  },
+  "full_repeated_after_ui_fixes": false
 }
