@@ -201,6 +201,50 @@ def test_subscription_buttons_share_state_on_desktop_and_touch(env, tmp_path):
         pw.expect(post).to_have_attribute("aria-pressed", "true")
         held["route"].fulfill(response=held["response"])
         pw.expect(page.locator(f'#messages [data-mid="{own["id"]}"] [data-thread-subscribe]')).to_have_attribute("aria-pressed", "true")
+        page.unroute(f"**/channels/{cid}/threads/*/subscription", hold_subscription_read)
+
+        other = reader.create_channel("navigation-other")
+        page.reload()                         # both channels are now in the sidebar
+        pw.expect(page.locator("#composer textarea")).to_be_visible()
+        for kind in ["single", "batch"]:
+            delayed = {}
+            pattern = (f"**/channels/{cid}/threads/*/subscription" if kind == "single"
+                       else f"**/channels/{cid}/thread-subscriptions?*")
+
+            def hold_navigation_read(route):
+                if route.request.method == "GET" and not delayed:
+                    delayed["response"] = route.fetch()
+                    delayed["route"] = route
+                else:
+                    route.continue_()
+
+            page.route(pattern, hold_navigation_read)
+            if kind == "single":
+                composer.fill("A new navigation check")
+                with page.expect_request(lambda r: r.method == "GET" and r.url.endswith("/subscription")):
+                    composer.press("Enter")
+                pw.expect(composer).to_have_value("")
+                target = reader.read(cid)["messages"][-1]
+                desired = False               # the held automatic-follow response says true
+            else:
+                target, desired = root, False
+                reader.subscribe_thread(cid, tid)
+                with page.expect_request(lambda r: "/thread-subscriptions?" in r.url):
+                    page.evaluate("window.dispatchEvent(new Event('focus'))")
+            reader.subscribe_thread(cid, target["id"], desired)
+            page.locator("#channels button").filter(has_text=other["name"]).click()
+            pw.expect(page.locator("#composer textarea")).to_have_attribute("placeholder", "Message #" + other["name"])
+            page.locator("#channels button").filter(has_text=channel["name"]).click()
+            current = page.locator(f'#messages [data-mid="{target["id"]}"] [data-thread-subscribe]')
+            pw.expect(current).to_have_attribute("aria-pressed", str(desired).lower())
+            with page.expect_response(lambda r: (r.url.endswith("/subscription") if kind == "single"
+                                                else "/thread-subscriptions?" in r.url)) as old_response:
+                delayed["route"].fulfill(response=delayed["response"])
+            old_response.value.finished()
+            page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+            pw.expect(current).to_have_attribute("aria-pressed", str(desired).lower())
+            assert reader.thread_subscription(cid, target["id"])["subscribed"] is desired
+            page.unroute(pattern, hold_navigation_read)
         assert errors == []
         phone.close()
         ctx.close()

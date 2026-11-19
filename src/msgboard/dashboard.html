@@ -1972,14 +1972,16 @@ function showChat() {
   state.view = "chat";
   $("settings").classList.add("hidden"); $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("chat-view").style.display = "contents";
 }
+let channelNavigation = 0;
 async function openChannel(id) {
   const c = state.channels.find((x) => x.id === id);
   if (!c) return;
+  const navigation = ++channelNavigation;
   mentionCandidates.delete(c.id);   // members change elsewhere too: fetch them fresh for each visit
   showChat();
   if (state.poll) state.poll.abort();
   if (state.panel && state.panel.type !== "profile") closePanel();
-  Object.assign(state, { current: c, roots: [], cursor: c.last_seq, oldest: null, hasOlder: false, editCursor: c.edit_rev || 0, editing: null });
+  Object.assign(state, { current: c, roots: [], cursor: c.last_seq, oldest: null, hasOlder: false, loadingOlder: false, editCursor: c.edit_rev || 0, editing: null });
   newBelow(0);
   state.byId.clear();
   store.set("channel", c.name);
@@ -1996,12 +1998,12 @@ async function openChannel(id) {
   mountComposer($("composer"), { placeholder: c.kind === "dm" ? "Message " + channelTitle(c) : "Message #" + c.name, replyTo: () => null });
   try {
     const page = await api("GET", `/channels/${c.id}/messages?top_level=true&limit=${PAGE}&before=${c.last_seq + 1}`);
-    if (state.current !== c) return;
+    if (state.current !== c || navigation !== channelNavigation) return;
     page.messages.forEach(remember);
     state.roots = page.messages; state.hasOlder = page.has_more;
     state.oldest = page.messages.length ? page.messages[0].seq : null;
     renderFeed(true);
-  } catch (e) { $("messages").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  } catch (e) { if (navigation !== channelNavigation) return; $("messages").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   markSeen(); renderChannels();
   pollLoop(c);
 }
@@ -2009,14 +2011,15 @@ const PAGE = 200;   // messages per page of history
 // older history loads by itself as you scroll near the top; renderFeed keeps what you are reading in place
 async function loadOlder() {
   const c = state.current; if (!c || !state.oldest || state.loadingOlder) return;
+  const navigation = channelNavigation;
   state.loadingOlder = true; renderOlderMarker();
   try {
     const page = await api("GET", `/channels/${c.id}/messages?top_level=true&limit=${PAGE}&before=${state.oldest}`);
-    if (state.current !== c) return;
+    if (state.current !== c || navigation !== channelNavigation) return;
     page.messages.forEach(remember);
     state.roots = page.messages.concat(state.roots); state.hasOlder = page.has_more;
     if (page.messages.length) state.oldest = page.messages[0].seq;
-  } finally { state.loadingOlder = false; }
+  } finally { if (navigation === channelNavigation) state.loadingOlder = false; }
   renderFeed(false);
 }
 function renderOlderMarker() {
@@ -2025,16 +2028,19 @@ function renderOlderMarker() {
 $("scroll").addEventListener("scroll", () => {
   if (state.view === "chat" && state.hasOlder && !state.loadingOlder && $("scroll").scrollTop < 600) loadOlder();
 }, { passive: true });
-const remember = (m) => state.byId.set(m.id, m);
+const remember = (m) => {
+  if (!m.thread_id && m.subscription) beginSubscriptionRead(m.id);   // a fresh snapshot supersedes older reads
+  state.byId.set(m.id, m);
+};
 function ingest(m) {
   if (state.byId.has(m.id)) return false;
   remember(m);
   if (!m.thread_id) {
     state.roots.push(m);
     if (!m.subscription) {
-      const version = subscriptionVersions.get(m.id), read = beginSubscriptionRead(m.id), principalId = state.me.id;
+      const version = subscriptionVersions.get(m.id), read = beginSubscriptionRead(m.id), principalId = state.me.id, navigation = channelNavigation;
       api("GET", `/channels/${m.channel_id}/threads/${m.id}/subscription`).then((sub) => {
-        if (state.me?.id === principalId && version === subscriptionVersions.get(m.id) && read === subscriptionReads.get(m.id)) applySubscription(m.channel_id, m.id, sub);
+        if (navigation === channelNavigation && state.me?.id === principalId && version === subscriptionVersions.get(m.id) && read === subscriptionReads.get(m.id)) applySubscription(m.channel_id, m.id, sub);
       }).catch(() => {});
     }
     return true;
@@ -2064,18 +2070,19 @@ function markThreadSeen() {
   if (state.view === "chat") renderFeed(false);
 }
 async function pollLoop(c) {
+  const navigation = channelNavigation;
   const ctrl = new AbortController(); state.poll = ctrl;
   let delay = 1000;
-  while (state.current === c && !ctrl.signal.aborted) {
+  while (state.current === c && navigation === channelNavigation && !ctrl.signal.aborted) {
     try {
       updateMeta(true);
       const page = await api("GET", `/channels/${c.id}/messages?after=${state.cursor}&limit=200&wait=25&edits_after=${state.editCursor}`, { signal: ctrl.signal });
-      if (state.current !== c) return;
+      if (state.current !== c || navigation !== channelNavigation) return;
       if (page.edit_cursor != null) state.editCursor = Math.max(state.editCursor, page.edit_cursor);
       if (page.edits && page.edits.length && page.edits.map(applyEdit).some(Boolean) && !page.messages.length) rerenderAfterEdit();
       if (page.messages.length) {
         await refreshSubscriptions([...new Set(page.messages.map((m) => m.thread_id).filter(Boolean))]);
-        if (state.current !== c || ctrl.signal.aborted) return;
+        if (state.current !== c || navigation !== channelNavigation || ctrl.signal.aborted) return;
         const sc = $("scroll"), atBottom = nearBottom(sc);
         const fresh = page.messages.filter((m) => !state.byId.has(m.id) && !m.thread_id && !m.history && m.sender.id !== state.me.id).length;
         page.messages.forEach(ingest);
@@ -3954,6 +3961,7 @@ function paintSubscriptionButtons() {
 function applySubscription(channelId, id, subscription) {
   if (state.current?.id !== channelId) return;
   const copies = new Set([state.byId.get(id), state.panel?.root, ...state.roots].filter((m) => m?.id === id));
+  beginSubscriptionRead(id);
   for (const root of copies) {
     root.subscription = subscription;
     if (root.replies && subscription.for_me_unread != null) root.replies.for_me_unread = subscription.for_me_unread;
@@ -3967,7 +3975,7 @@ function applySubscription(channelId, id, subscription) {
   paintSubscriptionButtons();
 }
 async function refreshSubscriptions(ids = null) {
-  const channel = state.current, principalId = state.me?.id;
+  const channel = state.current, principalId = state.me?.id, navigation = channelNavigation;
   if (!channel || state.view !== "chat") return;
   if (ids == null) {
     const frame = $("scroll").getBoundingClientRect();
@@ -3981,7 +3989,7 @@ async function refreshSubscriptions(ids = null) {
   const reads = new Map(ids.map((id) => [id, { version: subscriptionVersions.get(id), read: beginSubscriptionRead(id) }]));
   try {
     const data = await api("GET", `/channels/${channel.id}/thread-subscriptions?roots=${ids.join(",")}`);
-    if (state.current !== channel || state.me?.id !== principalId) return;
+    if (navigation !== channelNavigation || state.current !== channel || state.me?.id !== principalId) return;
     for (const sub of data.subscriptions) {
       const id = sub.thread_id, ticket = reads.get(id);
       if (!ticket || subscriptionPending.has(id) || ticket.version !== subscriptionVersions.get(id) || ticket.read !== subscriptionReads.get(id)) continue;
@@ -3993,14 +4001,14 @@ async function refreshSubscriptions(ids = null) {
 async function toggleThreadSubscription(id) {
   const channel = state.current, root = state.byId.get(id);
   if (!channel || !root?.subscription || subscriptionPending.has(id)) return;
-  const subscribed = !root.subscription.subscribed, principalId = state.me.id;
+  const subscribed = !root.subscription.subscribed, principalId = state.me.id, navigation = channelNavigation;
   subscriptionVersions.set(id, (subscriptionVersions.get(id) || 0) + 1); subscriptionPending.add(id); paintSubscriptionButtons();
   try {
     const sub = await api("PUT", `/channels/${channel.id}/threads/${id}/subscription`, { body: { subscribed } });
-    if (state.me?.id === principalId) applySubscription(channel.id, id, sub);
+    if (navigation === channelNavigation && state.me?.id === principalId) applySubscription(channel.id, id, sub);
     await refreshChannels();
-  } catch (e) { if (state.me?.id === principalId && state.current === channel) alert("Could not save the subscription: " + e.message); }
-  finally { subscriptionPending.delete(id); paintSubscriptionButtons(); }
+  } catch (e) { if (navigation === channelNavigation && state.me?.id === principalId && state.current === channel) alert("Could not save the subscription: " + e.message); }
+  finally { subscriptionPending.delete(id); paintSubscriptionButtons(); if (navigation !== channelNavigation) refreshSubscriptions([id]); }
 }
 window.addEventListener("focus", () => refreshSubscriptions());
 
@@ -4024,6 +4032,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.pa
 async function openThread(rootId) {
   const c = state.current, root = state.byId.get(rootId);
   if (!c || !root) return;
+  const navigation = channelNavigation;
   state.panel = { type: "thread", root }; state.thread = [];
   openPanel("thread", "Thread", c.kind === "dm" ? channelTitle(c) : "#" + c.name);
   $("panel-scroll").innerHTML = `<div class="empty">Loading…</div>`;
@@ -4031,7 +4040,7 @@ async function openThread(rootId) {
   renderFeed(false);
   const version = subscriptionVersions.get(rootId), read = beginSubscriptionRead(rootId);
   const page = await api("GET", `/channels/${c.id}/messages?thread=${rootId}&limit=500`);
-  if (!state.panel || state.panel.root !== root) return;
+  if (navigation !== channelNavigation || !state.panel || state.panel.root !== root) return;
   for (const m of page.messages) { if (!state.byId.has(m.id)) remember(m); }
   const freshRoot = page.messages.find((m) => m.id === rootId);
   if (freshRoot?.subscription && version === subscriptionVersions.get(rootId) && read === subscriptionReads.get(rootId) && !subscriptionPending.has(rootId)) applySubscription(c.id, rootId, freshRoot.subscription);
