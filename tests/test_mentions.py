@@ -122,6 +122,32 @@ def test_group_mentions_reach_only_channel_members(env):
     assert ids(env.op.post(gen["id"], "@humans look")) == []
     assert other.activity_page(0)["messages"] == [] and ana.activity_page(0)["messages"] == []
     assert ids(env.op.post(gen["id"], "@other-bot and @agents"))  == ["bot", "other-bot"]   # by name still works
+    # @myagents uses the author's ownership, with the same channel-member boundary.
+    owned, _, mine = env.agent("ana-bot", owner=ana, channels=["general"])
+    _, _, outside = env.agent("ana-outside", owner=ana)
+    inactive, _, _ = env.agent("ana-disabled", owner=ana, channels=["general"])
+    env.op.update_identity(inactive["id"], disabled=True)
+    message = ana.post(gen["id"], "@MYAGENTS please check", request_id="owned-group")
+    assert ids(message) == ["ana-bot"] and message["mentions"][0]["as"] == "myagents"
+    assert mine.activity_page(0)["messages"][0]["reason"] == "mention"
+    assert outside.activity_page(0)["messages"] == []
+    assert ids(env.op.post(gen["id"], "@myagents operator's agents")) == ["bot"]
+    assert ids(mine.post(gen["id"], "@myagents does not mean my owner's agents")) == []
+    mixed = ana.post(gen["id"], "@myagents and @agents together")
+    assert ids(mixed) == ["ana-bot", "bot"]
+    assert {m["external_id"]: m["as"] for m in mixed["mentions"]} == {"ana-bot": "myagents", "bot": "agents"}
+    assert ids(ana.post(gen["id"], "@ana-bot and @myagents deduplicate")) == ["ana-bot"]
+    assert ids(ana.post(gen["id"], "email a@myagents.test /@myagents @myagents_extra @myagents-extra")) == []
+    ana.add_member(gen["id"], outside.identity["id"])
+    assert ana.post(gen["id"], "@MYAGENTS please check", request_id="owned-group")["mentions"] == message["mentions"]
+    assert ids(ana.post(gen["id"], "@myagents newly joined")) == ["ana-bot", "ana-outside"]
+    # Private-channel access is still required; edits recalculate from the same author.
+    secret = ana.create_channel("owned-secret", private=True)
+    ana.add_member(secret["id"], owned["id"])
+    original = ana.post(secret["id"], "A question")
+    edited = ana.edit(secret["id"], original["id"], "@myagents private question")
+    assert ids(edited) == ["ana-bot"]
+    assert all(m["channel_id"] != secret["id"] for m in outside.activity_page(0)["messages"])
 
 
 def test_group_words_are_not_personal_names(env):
@@ -129,9 +155,14 @@ def test_group_words_are_not_personal_names(env):
     _, _, bot = env.agent("bot", channels=["general"])
     named, _, agents = env.agent("agents-bot", display_name="Agents")       # not a member
     _, _, humans = env.agent("humans-bot", display_name="humans")           # not a member, and not a person
+    mine_named, _, myagents = env.agent("myagents-bot", display_name="MyAgents")
     ids = lambda m: sorted(x["external_id"] for x in m["mentions"])
     assert ids(env.op.post(gen["id"], "@agents go")) == ["bot"]
     assert ids(env.op.post(gen["id"], "@humans look")) == []
+    assert ids(env.op.post(gen["id"], "@myagents look")) == ["bot"]
+    env.op.update_identity(mine_named["id"], display_name="Renamed Agent")
+    assert ids(env.op.post(gen["id"], "@MyAgents again")) == ["bot"]
+    assert myagents.activity_page(0)["messages"] == []
     env.op.update_identity(named["id"], display_name="Agent Smith")        # a former name is no way in either
     assert ids(env.op.post(gen["id"], "@Agents again")) == ["bot"]
     assert agents.activity_page(0)["messages"] == [] and humans.activity_page(0)["messages"] == []

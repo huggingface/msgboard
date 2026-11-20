@@ -1758,18 +1758,19 @@ def find_mentions(conn, body: str) -> list:
     return [row for row, _ in find_mention_spans(conn, body)]
 
 
-GROUP_MENTIONS = {"all": ("user", "agent", "system"), "agents": ("agent", "system"), "humans": ("user",),
+GROUP_MENTIONS = {"all": ("user", "agent", "system"), "agents": ("agent", "system"), "myagents": ("agent", "system"), "humans": ("user",),
                   "people": ("user",), "everyone": ("user", "agent", "system")}
 GROUP_RE = re.compile(r"(?<![\w@/])@(" + "|".join(GROUP_MENTIONS) + r")(?![\w-])", re.I)
 
 
 def group_mentions(body: str) -> set[str]:
-    """Which of @all, @agents, @humans (and @everyone, @people) a message uses."""
+    """Which channel-wide or author-owned group tags a message uses."""
     return {m.group(1).lower() for m in GROUP_RE.finditer(body)} if "@" in body else set()
 
 
 def _record_mentions(conn, channel, message_id: int, body: str, sender_id: int) -> None:
-    kinds = {k for g in group_mentions(body) for k in GROUP_MENTIONS[g]}
+    groups = sorted(group_mentions(body), key=lambda g: (g != "myagents", len(GROUP_MENTIONS[g]), g))
+    kinds = {k for g in groups for k in GROUP_MENTIONS[g]}
     # a personal mention first (it keeps the exact text), then the groups fill in everyone else
     for row, text in find_mention_spans(conn, body):
         # only people who can read the channel get the mention: it must not reveal the channel to anyone else
@@ -1777,15 +1778,16 @@ def _record_mentions(conn, channel, message_id: int, body: str, sender_id: int) 
             continue
         conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id, mentioned_as) VALUES (?, ?, ?)",
                      (message_id, row["id"], text))
-    if kinds:   # @all / @agents / @humans: the channel's members of that kind, not everyone who could read it
+    if kinds:   # Group tags reach channel members; @myagents further restricts them to the author's agents.
         marks = ",".join("?" * len(kinds))
-        group_of = {k: g for g in sorted(group_mentions(body), key=lambda g: len(GROUP_MENTIONS[g])) for k in GROUP_MENTIONS[g]}
         for row in conn.execute(f"""SELECT p.* FROM principals p JOIN channel_members cm ON cm.principal_id = p.id
                                     WHERE cm.channel_id = ? AND p.disabled = 0 AND p.identity_type IN ({marks})""",
                                 (channel["id"], *sorted(kinds))):
-            if row["id"] != sender_id and can_see(conn, _principal_obj(row), channel):
+            group = next((g for g in groups if row["identity_type"] in GROUP_MENTIONS[g]
+                          and (g != "myagents" or row["owner_id"] == sender_id)), None)
+            if group and row["id"] != sender_id and can_see(conn, _principal_obj(row), channel):
                 conn.execute("INSERT OR IGNORE INTO message_mentions (message_id, principal_id, mentioned_as) VALUES (?, ?, ?)",
-                             (message_id, row["id"], group_of[row["identity_type"]]))
+                             (message_id, row["id"], group))
 
 
 def backfill_mentions(conn) -> int:
