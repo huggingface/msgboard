@@ -77,6 +77,31 @@ def test_channel_order_preference(env):
     assert http.put("/me/prefs", json={"channel_order": "nope"}).status_code == 400
     assert http.put("/me/prefs", json={"theme": "dark"}).status_code == 400
     assert http.put("/me/prefs", json={"channel_order": []}).json() == {}
+    groups = [{"id": "work", "name": "  Work  ", "channels": [b["id"], a["id"]], "collapsed": True},
+              {"id": "empty", "name": "Later"}]
+    saved = http.put("/me/prefs", json={"channel_groups": groups, "hide_archived": True}).json()
+    assert saved == {"channel_groups": [dict(groups[0], name="Work"),
+                                       dict(groups[1], channels=[], collapsed=False)], "hide_archived": True}
+    assert env.client(ana.token).me()["prefs"] == saved  # another device, same personal layout
+    assert env.op.me()["prefs"] == {}                   # never changes someone else's sidebar
+    invalid_groups = [None, {}, "work", [{}], [1], [dict(groups[0], id="bad id")],
+                      [dict(groups[0], name=" ")], [dict(groups[0], name="x" * 81)],
+                      [dict(groups[0], name="a\nb")], [dict(groups[0], collapsed=1)],
+                      [dict(groups[0], channels="1")], [dict(groups[0], channels=[True])],
+                      [dict(groups[0], channels=[0])], [dict(groups[0], channels=[2**63])],
+                      [dict(groups[0], channels=[a["id"], a["id"]])],
+                      [groups[0], groups[0]], [groups[0], dict(groups[0], id="other")],
+                      [dict(groups[0], extra=True)],
+                      [{"id": str(i), "name": "group"} for i in range(51)],
+                      [dict(groups[0], channels=list(range(1, 1002)))]]
+    for invalid in invalid_groups:
+        # Invalid combined updates must not save any of their other preferences either.
+        assert http.put("/me/prefs", json={"channel_groups": invalid, "hide_archived": False}).status_code == 400
+        assert ana.me()["prefs"] == saved
+    env.restart()
+    assert env.client(ana.token).me()["prefs"] == saved
+    with env.http(ana.token) as after_restart:
+        assert after_restart.put("/me/prefs", json={"channel_groups": []}).json() == {"hide_archived": True}
 
 
 def test_member_flag_and_show_private_preference(env):

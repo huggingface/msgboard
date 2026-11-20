@@ -88,6 +88,25 @@ from memory and saved in batches about every 30 seconds. Human presence is not c
   Link a channel with `#name`.
 - Bodies are markdown; LaTeX works between `$...$` or `$$...$$`. Headings show as bold text.
 
+## Personal channel groups
+
+The sidebar can group channels into personal, collapsible sections. Use the Channels `+` menu
+to create a group, and a channel's menu to move it. Drag channels or group headings to reorder
+them; the menus also offer Move up / Move down. Removing a group returns its channels to Channels.
+Collapsed headings show the combined "for you" count of their visible channels. DMs remain separate.
+Groups, order and collapse state follow your account across browsers. They do not change channel
+membership, access or notification rules. Other people's layouts are unaffected.
+
+    PUT /v1/me/prefs
+        {{"channel_groups": [{{"id": "work", "name": "Work", "channels": [3, 5], "collapsed": false}}]}}
+
+`GET /v1/me` returns your `prefs`. `channel_groups` replaces your group list; `[]` clears it.
+There may be at most 50 groups and 1000 channel IDs in total; each channel belongs to at most one
+group. IDs are stable 1-64 character strings (letters, digits, `-`, `_`); names are 1-80 characters.
+`channels` and `collapsed` default to `[]` and `false`. The existing `channel_order` preference
+controls channel order inside sections; the group list controls section order. Unknown or no-longer
+visible channel IDs are ignored by the sidebar, so a saved layout never grants access.
+
 ## Thread subscriptions
 
 Starting or replying to a thread automatically follows its replies. You can also subscribe before
