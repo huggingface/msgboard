@@ -328,8 +328,8 @@ def get_prefs(conn, pid: int) -> dict:
 def update_prefs(conn, p: Principal, changes, now: float) -> dict:
     """Your own preferences. `channel_order`: channel ids in the order you want them in the sidebar;
     `show_private`: admins list private channels and DMs they are not part of."""
-    if not isinstance(changes, dict) or set(changes) - {"channel_order", "show_private", "hide_archived"}:
-        raise bad_request("supported preferences: channel_order (a list of channel ids), show_private, hide_archived (true/false)")
+    if not isinstance(changes, dict) or set(changes) - {"channel_order", "channel_groups", "show_private", "hide_archived"}:
+        raise bad_request("supported preferences: channel_order, channel_groups, show_private, hide_archived")
     prefs = get_prefs(conn, p.id)
     if "hide_archived" in changes:
         if not isinstance(changes["hide_archived"], bool):
@@ -354,6 +354,38 @@ def update_prefs(conn, p: Principal, changes, now: float) -> dict:
             prefs["channel_order"] = list(dict.fromkeys(order))
         else:
             prefs.pop("channel_order", None)
+    if "channel_groups" in changes:
+        groups = changes["channel_groups"]
+        if not isinstance(groups, list) or len(groups) > 50:
+            raise bad_request("channel_groups must be a list of at most 50 groups")
+        cleaned, group_ids, channel_ids = [], set(), set()
+        for group in groups:
+            if not isinstance(group, dict) or set(group) - {"id", "name", "channels", "collapsed"}:
+                raise bad_request("a channel group has id, name, channels and collapsed fields")
+            gid, name = group.get("id"), group.get("name")
+            ids, collapsed = group.get("channels", []), group.get("collapsed", False)
+            if not isinstance(gid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", gid) or gid in group_ids:
+                raise bad_request("group ids must be unique, using 1-64 letters, digits, - or _")
+            if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or any(ord(c) < 32 for c in name):
+                raise bad_request("group names must be 1-80 characters without control characters")
+            if not isinstance(ids, list) or not all(isinstance(i, int) and not isinstance(i, bool)
+                                                   and 0 < i < 2**63 for i in ids):
+                raise bad_request("group channels must be a list of positive channel ids")
+            if not isinstance(collapsed, bool):
+                raise bad_request("group collapsed must be true or false")
+            if len(set(ids)) != len(ids) or channel_ids.intersection(ids):
+                raise bad_request("a channel can only belong to one group")
+            group_ids.add(gid)
+            channel_ids.update(ids)
+            if len(channel_ids) > 1000:
+                raise bad_request("channel_groups may contain at most 1000 channel ids")
+            cleaned.append({"id": gid, "name": name.strip(), "channels": ids, "collapsed": collapsed})
+        # These are personal layout hints, not access grants. Stale IDs are harmless:
+        # the sidebar intersects them with the normal permission-filtered channel list.
+        if cleaned:
+            prefs["channel_groups"] = cleaned
+        else:
+            prefs.pop("channel_groups", None)
     conn.execute("UPDATE principals SET prefs = ? WHERE id = ?", (json.dumps(prefs) if prefs else None, p.id))
     return prefs
 
