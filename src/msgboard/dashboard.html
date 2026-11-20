@@ -4051,23 +4051,21 @@ function normalizeLinkUrl(raw) {
     : /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d+)?(?:[/?#]\S*)?$/i.test(u) ? "https://" + u : null;
   try { const url = abs && new URL(abs); return url && /^https?:$/.test(url.protocol) && url.hostname ? url.href : null; } catch { return null; }
 }
-// Link text Markdown shows as typed, as one link: balanced brackets stay; brackets that could open another link
-// ("](", "]["), stray brackets, < >, backslashes and entity-like "&name;" become entities (backslash escapes
-// would collide with the \[ \] and \( \) math delimiters)
-function linkLabel(text) {
-  text = text.replace(/\s+/g, " ").trim().replace(/&(?=#?\w+;)/g, "&amp;").replace(/\\/g, "&#92;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  let depth = 0, ok = !/\]\s*[([]/.test(text);
-  for (const c of text) { if (c === "[") { depth++; ok = ok && depth <= 1; } else if (c === "]" && --depth < 0) ok = false; }
-  return ok && depth === 0 ? text : text.replace(/\[/g, "&#91;").replace(/\]/g, "&#93;");
-}
+// Link text Markdown shows as typed, as exactly one link: brackets (which could make a nested or reference
+// link), < >, backslashes and entity-like "&name;" become entities. Backslash escapes would collide with
+// the \[ \] and \( \) math delimiters.
+const linkLabel = (text) => text.replace(/\s+/g, " ").trim().replace(/&(?=#?\w+;)/g, "&amp;")
+  .replace(/[\\<>[\]]/g, (c) => ({ "\\": "&#92;", "<": "&lt;", ">": "&gt;", "[": "&#91;", "]": "&#93;" })[c]);
 // A link target every renderer reads byte for byte: \ escaped (so "\@" survives), an entity-like "&name;" written
 // as "&amp;name;" (so "&copy;" stays text), ( ) < > and spaces percent-encoded
 const linkDest = (url) => url.replace(/\\/g, "\\\\").replace(/&(?=#?\w+;)/g, "&amp;")
   .replace(/[()<>\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
-// Before sending: an empty-text link [](url) outside code would be invisible, so it shows its URL as the text
+// Before sending: a link with empty or blank text, [](url) or [ ](url), outside code would be invisible,
+// so it shows its URL as the text. Images and escaped \[ are left alone.
 function showEmptyLinks(text) {
-  return text.replace(/(!?)\[\]\(([^()\s]+)\)/g, (all, bang, dest, at) => {
-    if (bang || emojiLiteralContext(text.slice(0, at))) return all;
+  return text.replace(/(!?)\[[ \t]*\]\(([^()\s]+)\)/g, (all, bang, dest, at) => {
+    const before = text.slice(0, at);
+    if (bang || /(^|[^\\])(\\\\)*\\$/.test(before) || emojiLiteralContext(before)) return all;
     return `[${linkLabel(dest.replace(/&amp;/g, "&").replace(/\\(.)/g, "$1"))}](${dest})`;
   });
 }

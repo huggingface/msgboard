@@ -132,7 +132,7 @@ def test_link_text_and_targets_survive_markdown(dashboard):
     pop = page.get_by_role("dialog", name="Add link")
     cases = [  # text, link typed, Markdown inserted, link text and target as rendered
         ("[draft] notes", "https://en.wikipedia.org/wiki/Foo_(bar)",
-         "[[draft] notes](https://en.wikipedia.org/wiki/Foo_%28bar%29)",
+         "[&#91;draft&#93; notes](https://en.wikipedia.org/wiki/Foo_%28bar%29)",
          "[draft] notes", "https://en.wikipedia.org/wiki/Foo_%28bar%29"),
         ("a ] b \\ c", "https://a.co/x", "[a &#93; b &#92; c](https://a.co/x)", "a ] b \\ c", "https://a.co/x"),
         # a backslash is a slash to a browser: the link keeps pointing at good.example
@@ -150,8 +150,9 @@ def test_link_text_and_targets_survive_markdown(dashboard):
         pop.locator(".link-url").fill(url)
         pop.locator(".link-save").click()
         pw.expect(input).to_have_value(inserted)
-        # CommonMark reads it as one link with the intended text and target
-        assert MarkdownIt().renderInline(inserted) == f'<a href="{href}">{shown}</a>', inserted
+        # CommonMark reads it as one link with the intended text and target, even next to a reference definition
+        html = MarkdownIt().render(inserted + "\n\n[inner]: https://other.example\n[draft]: https://other.example")
+        assert f'<a href="{href}">{shown}</a>' in html and html.count("<a ") == 1, inserted
 
 
 def test_paste_url_over_selection(dashboard):
@@ -241,9 +242,12 @@ def test_paste_url_with_nothing_selected(dashboard):
     pw.expect(input).to_have_value("c [](https://hf.co/x)")
     send()
     assert sent() == "c [https://hf.co/x](https://hf.co/x)"
-    input.fill("`[](https://a.co)` ![](https://b.co)")
+    input.fill("d [ ](https://hf.co/y)")
     send()
-    assert sent() == "`[](https://a.co)` ![](https://b.co)"
+    assert sent() == "d [https://hf.co/y](https://hf.co/y)"
+    input.fill("`[](https://a.co)` ![](https://b.co) \\[](https://c.co)")
+    send()
+    assert sent() == "`[](https://a.co)` ![](https://b.co) \\[](https://c.co)"
 
     # inside code, or in a link target, the URL pastes as is
     for before in ["run `curl ", "```\n", "[docs]("]:
