@@ -539,6 +539,11 @@ button.fchip:hover { border-color: var(--ink); }
 #panel .pop { left: 20px; }
 .emoji-pop { width: min(340px, calc(100% - 32px)); }
 .emoji-pop input { width: 100%; border: 0; border-bottom: 1px solid var(--rule); padding: 8px 10px; outline: none; background: transparent; }
+.link-pop { width: min(320px, calc(100% - 32px)); padding: 10px; }
+.link-pop label { display: block; font: 11px var(--mono); color: var(--ink-3); margin: 0 0 3px; }
+.link-pop input { display: block; width: 100%; border: 1px solid var(--rule-2); padding: 6px 8px; margin: 0 0 10px; outline: none; background: transparent; color: var(--ink); }
+.link-pop input:focus { border-color: var(--ink); }
+.link-pop .row { display: flex; justify-content: flex-end; gap: 6px; }
 .emoji-grid { height: 228px; overflow-y: auto; padding: 6px; }
 .emoji-grid .label { display: block; margin: 8px 4px 4px; }
 .emoji-grid button { width: 36px; height: 34px; border: 0; background: none; font-size: 21px; line-height: 1; padding: 0; }
@@ -3154,6 +3159,7 @@ function fileLink(it) {
   return kindOf(it.file.name, it.file.type) === "image" ? `![${name}](${it.url})` : `[📎 ${name}](${it.url})`;
 }
 const composerOwners = new Map();
+const LINK_SHORTCUT = "Ctrl/⌘+Shift+U";   // Slack's; Ctrl/⌘+K is search here
 function mountComposer(host, { placeholder, replyTo = () => null, targetChannel = state.current, draftKey: ownDraftKey = null,
   sendMessage = null, prepareSend = (payload) => payload, allowEmpty = () => false, canPost = null,
   canSend = () => true, onSent = null, onSendError = null, autofocus = true }) {
@@ -3170,6 +3176,8 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
   host.innerHTML = `<div class="cbox"><div class="files hidden"></div><textarea rows="1" placeholder="${esc(placeholder)}"></textarea>
     <div class="bar"><div class="left"><button class="tool emoji-btn" type="button" title="Emoji" aria-label="Emoji" aria-haspopup="dialog" aria-expanded="false">
       <svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7.2"/><path d="M5.8 10.6 Q9 13.6 12.2 10.6"/><path d="M6.6 7 h.01 M11.4 7 h.01" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      <button class="tool link-btn" type="button" title="Add link (${LINK_SHORTCUT})" aria-label="Add link" aria-haspopup="dialog" aria-expanded="false">
+      <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M7.6 10.4a3 3 0 0 0 4.2 0l2.4-2.4a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M10.4 7.6a3 3 0 0 0-4.2 0L3.8 10a3 3 0 0 0 4.2 4.2l1-1"/></svg></button>
       <button class="attach">attach files</button><span class="pending"></span></div><button class="btn">Send</button></div></div>
     <input type="file" multiple class="hidden">`;
   const box = host.querySelector(".cbox"), chips = host.querySelector(".files"), input = host.querySelector("textarea");
@@ -3313,6 +3321,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
   input.addEventListener("input", autosize);
   const assist = attachAssist(host, input, autosize, channel);
   attachEmojiShortcuts(input);
+  attachLinkTool(host, input, autosize, (text) => { if (ownsDraft()) setDraft(draftKey, text); });
   input.addEventListener("keydown", (e) => {
     if (assist.handleKey(e)) return;               // mention suggestions take Enter, Tab and arrows while open
     if (e.key === "Enter" && mobileTextInput()) return;
@@ -3326,7 +3335,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
   sendBtn.onclick = send;
   async function send() {
     const c = channel, ready = items.filter((it) => it.status === "done");
-    let text = input.value;
+    let text = showEmptyLinks(input.value);
     const rest = [];
     for (const it of ready) {
       if (text.includes(fileToken(it))) text = text.split(fileToken(it)).join(fileLink(it));
@@ -4028,6 +4037,154 @@ function attachEmojiShortcuts(input) {
       input.setRangeText(emoji + " ", start, end + 1, "end");
       input.dispatchEvent(new Event("input", { bubbles: true }));
     }
+  });
+}
+
+// ---------- links: a button (and Ctrl/⌘+Shift+U) that writes [text](url), and pasting a URL turns it into a link
+// A URL the box accepts, canonical (the way a browser reads it): http(s), a bare domain (gets https://),
+// or a board-relative path or #anchor. Else null.
+function normalizeLinkUrl(raw) {
+  const u = (raw || "").trim();
+  if (!u || /\s/.test(u)) return null;
+  if (/^(\/[^/\\]|#)/.test(u)) return u;
+  const abs = /^https?:\/\//i.test(u) ? u
+    : /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d+)?(?:[/?#]\S*)?$/i.test(u) ? "https://" + u : null;
+  try { const url = abs && new URL(abs); return url && /^https?:$/.test(url.protocol) && url.hostname ? url.href : null; } catch { return null; }
+}
+// Link text Markdown shows as typed, as exactly one link: brackets (which could make a nested or reference
+// link), < >, backslashes and entity-like "&name;" become entities. Backslash escapes would collide with
+// the \[ \] and \( \) math delimiters.
+const linkLabel = (text) => text.replace(/\s+/g, " ").trim().replace(/&(?=#?\w+;)/g, "&amp;")
+  .replace(/[\\<>[\]]/g, (c) => ({ "\\": "&#92;", "<": "&lt;", ">": "&gt;", "[": "&#91;", "]": "&#93;" })[c]);
+// A link target every renderer reads byte for byte: \ escaped (so "\@" survives), an entity-like "&name;" written
+// as "&amp;name;" (so "&copy;" stays text), ( ) < > and spaces percent-encoded
+const linkDest = (url) => url.replace(/\\/g, "\\\\").replace(/&(?=#?\w+;)/g, "&amp;")
+  .replace(/[()<>\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
+// Before sending: a link with empty or blank text ([](url), [ ](url), a lone line break) outside code would be
+// invisible, so it shows its URL as the text. Images, and anything right after a backslash, are left as written.
+function showEmptyLinks(text) {
+  return text.replace(/(!?)\[[ \t]*(?:\r?\n[ \t]*)?\]\(([^()\s]+)\)/g, (all, bang, dest, at) => {
+    const before = text.slice(0, at);
+    if (bang || before.endsWith("\\") || emojiLiteralContext(before)) return all;
+    return `[${linkLabel(dest.replace(/&amp;/g, "&").replace(/\\(.)/g, "$1"))}](${dest})`;
+  });
+}
+function markdownLink(text, url) {
+  const label = linkLabel(text), dest = linkDest(url);
+  return label ? `[${label}](${dest})` : dest;
+}
+// Replace start..end with text as a native edit, so Ctrl/⌘+Z undoes it (setRangeText alone skips the undo history).
+function insertUndoable(input, text, start, end) {
+  input.focus();
+  input.setSelectionRange(start, end);
+  if (!document.execCommand || !document.execCommand(text ? "insertText" : "delete", false, text)) {
+    input.setRangeText(text, start, end, "end");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
+// the selection without the spaces around it, so "the results " keeps its space outside the link
+function trimmedSelection(input) {
+  let start = input.selectionStart, end = input.selectionEnd;
+  while (start < end && /\s/.test(input.value[start])) start++;
+  while (end > start && /\s/.test(input.value[end - 1])) end--;
+  return { start, end };
+}
+function attachLinkTool(host, input, autosize, saveDraft = () => {}) {
+  const btn = host.querySelector(".link-btn");
+  let pop = null, range = null;
+  const close = (refocus) => {
+    if (!pop) return;
+    pop.remove(); pop = null; btn && btn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", outside, true);
+    if (refocus && range && input.value === range.value) { input.focus(); input.setSelectionRange(range.start, range.end); }
+  };
+  const outside = (e) => { if (pop && !pop.contains(e.target) && !(btn && btn.contains(e.target))) close(false); };
+  input.addEventListener("input", () => close(false));   // the remembered selection is stale once the text changes
+  function open() {
+    if (pop) return close(true);
+    range = { ...trimmedSelection(input), value: input.value };
+    const selected = input.value.slice(range.start, range.end), selUrl = normalizeLinkUrl(selected);
+    pop = document.createElement("div");
+    pop.className = "pop link-pop"; pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", "Add link");
+    pop.innerHTML = `<label>Text<input type="text" class="link-text" autocomplete="off" spellcheck="false"></label>` +
+      `<label>Link<input type="url" class="link-url" placeholder="https://" autocomplete="off" spellcheck="false"></label>` +
+      `<div class="row"><button type="button" class="btn ghost small link-cancel">Cancel</button><button type="button" class="btn small link-save" disabled>Save</button></div>`;
+    host.appendChild(pop); btn && btn.setAttribute("aria-expanded", "true");
+    const text = pop.querySelector(".link-text"), url = pop.querySelector(".link-url"), save = pop.querySelector(".link-save");
+    if (selUrl) url.value = selected; else text.value = selected;
+    const check = () => { save.disabled = !normalizeLinkUrl(url.value); };
+    url.oninput = check; check();
+    const commit = () => {
+      const href = normalizeLinkUrl(url.value);
+      if (!href) return url.focus();
+      const r = range, label = text.value;
+      close(false);
+      if (input.value !== r.value) return;   // the text changed meanwhile: never overwrite it
+      insertUndoable(input, markdownLink(label, href), r.start, r.end);
+      autosize();
+    };
+    save.onclick = commit;
+    pop.querySelector(".link-cancel").onclick = () => close(true);
+    pop.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
+      else if (e.key === "Enter" && !e.isComposing && e.target.tagName === "INPUT") { e.preventDefault(); e.stopPropagation(); commit(); }
+    });
+    (selected && !selUrl ? url : text).focus();
+    document.addEventListener("click", outside, true);
+  }
+  if (btn) btn.onclick = open;
+  // Pasting a URL. Over selected words (like Slack): they become the link text. With nothing selected:
+  // [url](url) with its text selected, so typing a word renames the link. Anything else (a space,
+  // punctuation, Enter, arrows, a click, leaving the box) turns it back into the plain URL straight away,
+  // so the box always holds exactly what will be sent. Backspace or Delete takes the whole paste out.
+  // The draft always keeps the plain-URL form, so a reopened draft holds what would be sent.
+  let fresh = null;   // the link just pasted while its text is still selected
+  const plain = (f) => f.value.slice(0, f.linkStart) + f.url + f.value.slice(f.after);
+  const drop = () => { fresh = null; document.removeEventListener("mousedown", clickAway, true); };
+  const settle = (after = "") => {
+    const f = fresh; drop();
+    if (!f || input.value !== f.value || !input.isConnected) return;
+    insertUndoable(input, f.url + after, f.linkStart, f.after);   // a native edit: undo still works
+    autosize();
+  };
+  // any click, in the box or elsewhere: settle first, while the box still has focus
+  const clickAway = () => settle();
+  input.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === "u") { e.preventDefault(); settle(); open(); return; }
+    if (fresh && !e.isComposing && /^(Enter|Tab|Escape|Arrow\w+|Home|End|Page\w+)$/.test(e.key)) settle();
+  });
+  input.addEventListener("paste", (e) => {
+    drop();
+    if (e.defaultPrevented || !e.clipboardData || e.clipboardData.files.length) return;
+    const pasted = e.clipboardData.getData("text/plain").trim(), href = normalizeLinkUrl(pasted);
+    if (!/^https?:\/\/\S+$/i.test(pasted) || !href) return;   // only a real URL; plain text pastes as usual
+    const { start, end } = input.selectionStart === input.selectionEnd ? { start: input.selectionStart, end: input.selectionStart } : trimmedSelection(input);
+    const selected = input.value.slice(start, end);
+    // in code, a link target or across lines: an ordinary paste
+    if (emojiLiteralContext(input.value.slice(0, start)) || /[`\n]/.test(selected)) return;
+    if (input.selectionStart === input.selectionEnd) {
+      e.preventDefault();
+      const label = linkLabel(pasted), link = `[${label}](${linkDest(href)})`;
+      insertUndoable(input, link, start, start);
+      fresh = { linkStart: start, start: start + 1, end: start + 1 + label.length, after: start + link.length, url: pasted, value: input.value };
+      input.setSelectionRange(fresh.start, fresh.end);
+      saveDraft(plain(fresh));
+      document.addEventListener("mousedown", clickAway, true);
+      autosize();
+      return;
+    }
+    if (start === end || normalizeLinkUrl(selected)) return;
+    e.preventDefault();
+    insertUndoable(input, markdownLink(selected, href), start, end);
+    autosize();
+  });
+  input.addEventListener("beforeinput", (e) => {
+    const f = fresh;
+    if (!f || e.isComposing || input.value !== f.value || input.selectionStart !== f.start || input.selectionEnd !== f.end) return;
+    if (e.inputType.startsWith("delete")) { e.preventDefault(); drop(); insertUndoable(input, "", f.linkStart, f.after); autosize(); }
+    else if (e.inputType === "insertText" && /^[\s.,;:!?)\]}'"…]$/.test(e.data || "")) { e.preventDefault(); settle(e.data); }
+    else if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") { e.preventDefault(); settle("\n"); }
+    else drop();   // a word: it becomes the link text
   });
 }
 
