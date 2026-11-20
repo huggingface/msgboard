@@ -111,25 +111,43 @@ def test_empty_text_bare_domain_selected_url_and_cancel(dashboard):
     page.locator("#composer .link-btn").click()
     pop.locator(".link-cancel").click()
     pw.expect(pop).not_to_be_visible()
+    # editing the text while the box is open closes it, so Save can never overwrite newer text
+    select(input, "the docs", 0, 8)
+    page.locator("#composer .link-btn").click()
+    pop.locator(".link-url").fill("https://example.com/keyboard")
+    input.evaluate("el => { el.focus(); el.setSelectionRange(0, 0); }")
+    input.press_sequentially("PREFIX ")
+    pw.expect(pop).not_to_be_visible()
+    pw.expect(input).to_have_value("PREFIX the docs")
     # clicking the button again closes the box
     page.locator("#composer .link-btn").click()
     page.locator("#composer .link-btn").click()
     pw.expect(pop).not_to_be_visible()
 
 
-def test_brackets_and_parentheses_are_escaped(dashboard):
+def test_link_text_and_targets_survive_markdown(dashboard):
+    from markdown_it import MarkdownIt
     page, *_ = dashboard
     input = page.locator("#composer textarea")
-    select(input, "[draft] notes", 0, 13)
-    page.locator("#composer .link-btn").click()
     pop = page.get_by_role("dialog", name="Add link")
-    pop.locator(".link-url").fill("https://en.wikipedia.org/wiki/Foo_(bar)")
-    pop.locator(".link-save").click()
-    pw.expect(input).to_have_value(r"[\[draft\] notes](https://en.wikipedia.org/wiki/Foo_%28bar%29)")
-    # CommonMark reads it as one link with the intended text and target
-    from markdown_it import MarkdownIt
-    html = MarkdownIt().renderInline(input.input_value())
-    assert html == '<a href="https://en.wikipedia.org/wiki/Foo_%28bar%29">[draft] notes</a>'
+    cases = [  # text, link typed, Markdown inserted, link text and target as rendered
+        ("[draft] notes", "https://en.wikipedia.org/wiki/Foo_(bar)",
+         "[[draft] notes](https://en.wikipedia.org/wiki/Foo_%28bar%29)",
+         "[draft] notes", "https://en.wikipedia.org/wiki/Foo_%28bar%29"),
+        ("a ] b \\ c", "https://a.co/x", "[a &#93; b &#92; c](https://a.co/x)", "a ] b \\ c", "https://a.co/x"),
+        # a backslash is a slash to a browser: the link keeps pointing at good.example
+        ("docs", "https://good.example\\@evil.example/",
+         "[docs](https://good.example/@evil.example/)", "docs", "https://good.example/@evil.example/"),
+        ("q", "https://x.co/?a=1&copy=2", "[q](https://x.co/?a=1\\&copy=2)", "q", "https://x.co/?a=1&amp;copy=2"),
+    ]
+    for text, url, inserted, shown, href in cases:
+        select(input, text, 0, len(text))
+        page.locator("#composer .link-btn").click()
+        pop.locator(".link-url").fill(url)
+        pop.locator(".link-save").click()
+        pw.expect(input).to_have_value(inserted)
+        # CommonMark reads it as one link with the intended text and target
+        assert MarkdownIt().renderInline(inserted) == f'<a href="{href}">{shown}</a>', inserted
 
 
 def test_paste_url_over_selection(dashboard):
@@ -147,6 +165,10 @@ def test_paste_url_over_selection(dashboard):
     assert not paste(input, "https://b.co")
     select(input, "one\ntwo", 0, 7)
     assert not paste(input, "https://hf.co")
+    # inside code or a link target the selection is simply replaced, as usual
+    for value, start, end in [("`curl ORIGINAL`", 6, 14), ("```\nORIGINAL\n```", 4, 12), ("[x](ORIGINAL)", 4, 12), ("a `b` c", 0, 7)]:
+        select(input, value, start, end)
+        assert not paste(input, "https://example.com"), value
 
 
 def test_paste_url_with_nothing_selected(dashboard):
@@ -159,45 +181,45 @@ def test_paste_url_with_nothing_selected(dashboard):
         with page.expect_response(lambda r: r.request.method == "POST" and "/messages" in r.url):
             input.press("Enter")
 
+    def pasted(before, url="https://hf.co/x"):
+        select(input, before, len(before), len(before))
+        assert paste(input, url)
+        pw.expect(input).to_have_value(f"{before}[{url}]({url})")
+        assert sel() == url
+
     # [url](url) with the text selected: typing a word renames the link
-    select(input, "see ", 4, 4)
-    assert paste(input, "https://hf.co/x")
-    pw.expect(input).to_have_value("see [https://hf.co/x](https://hf.co/x)")
-    assert sel() == "https://hf.co/x"
+    pasted("see ")
     input.press_sequentially("the docs")
     pw.expect(input).to_have_value("see [the docs](https://hf.co/x)")
     send()
     assert sent() == "see [the docs](https://hf.co/x)"
 
-    # a space right after pasting goes after the link; left unchanged, it is sent as the plain URL
-    select(input, "see ", 4, 4)
-    assert paste(input, "https://hf.co/x")
+    # anything else turns it straight back into the plain URL, so the box holds what will be sent
+    pasted("see ")
     input.press_sequentially(" now")
-    pw.expect(input).to_have_value("see [https://hf.co/x](https://hf.co/x) now")
-    send()
-    assert sent() == "see https://hf.co/x now"
-
-    # punctuation and Shift+Enter carry on after the link too
-    select(input, "", 0, 0)
-    assert paste(input, "https://hf.co/a")
+    pw.expect(input).to_have_value("see https://hf.co/x now")
+    pasted("")
     input.press(".")
-    pw.expect(input).to_have_value("[https://hf.co/a](https://hf.co/a).")
-    select(input, "", 0, 0)
-    assert paste(input, "https://hf.co/b")
+    pw.expect(input).to_have_value("https://hf.co/x.")
+    pasted("")
     input.press("Shift+Enter")
-    pw.expect(input).to_have_value("[https://hf.co/b](https://hf.co/b)\n")
-
-    # deleting the selected text never sends an invisible link
-    select(input, "x ", 2, 2)
-    assert paste(input, "https://hf.co/c")
-    input.press("Backspace")
-    pw.expect(input).to_have_value("x [](https://hf.co/c)")
+    pw.expect(input).to_have_value("https://hf.co/x\n")
+    pasted("a ")
+    input.press("ArrowLeft")
+    pw.expect(input).to_have_value("a https://hf.co/x")
+    pasted("b ")
+    page.locator(".topbar").first.click()    # leaving the box
+    pw.expect(input).to_have_value("b https://hf.co/x")
+    # sending right away sends the plain URL; Markdown already written with the same URL is left alone
+    pasted("![https://hf.co/x](https://hf.co/x) and ")
     send()
-    assert sent() == "x https://hf.co/c"
+    assert sent() == "![https://hf.co/x](https://hf.co/x) and https://hf.co/x"
 
-    # undo takes the whole paste back
-    select(input, "undo ", 5, 5)
-    assert paste(input, "https://hf.co/d")
+    # Backspace takes the whole paste out (never an invisible [](url) link); undo takes it back
+    pasted("x ")
+    input.press("Backspace")
+    pw.expect(input).to_have_value("x ")
+    pasted("undo ")
     input.press(f"{MOD}+z")
     pw.expect(input).to_have_value("undo ")
 
@@ -205,10 +227,6 @@ def test_paste_url_with_nothing_selected(dashboard):
     for before in ["run `curl ", "```\n", "[docs]("]:
         select(input, before, len(before), len(before))
         assert not paste(input, "https://hf.co/e"), before
-    # a written link that looks the same is left alone
-    input.fill("[https://hf.co/z](https://hf.co/z)")
-    send()
-    assert sent() == "[https://hf.co/z](https://hf.co/z)"
 
 
 def test_thread_and_tasks_composers_have_it(dashboard):
