@@ -3887,9 +3887,10 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
         html: `${avatar(p, "xs", false)}<span class="mention-person"><span>${esc(nameOf(p))}</span><small>@${esc(handleOf(p))}${p.member ? "" : " · not joined"}</small></span>` +
           (isMine(p) ? `<span class="mention-yours">Yours</span>` :
             `<span class="mention-owner">${esc(p.identity_type !== "user" && p.owner ? nameOf(p.owner) + "’s " + kindLabel(p) : kindLabel(p))}</span>`) });
-      // Own agents in this channel always lead, even before typing a name. Tags stay searchable.
-      options = matches.filter(([, p]) => p.member && isMine(p)).map(personOption).concat(tags,
-        matches.filter(([, p]) => !(p.member && isMine(p))).map(personOption)).slice(0, 7);
+      // Own agents always lead. Keep matching group tags even when seven owned rows fill the list.
+      const owned = matches.filter(([, p]) => p.member && isMine(p)).slice(0, 7).map(personOption);
+      options = owned.concat(tags, matches.filter(([, p]) => !(p.member && isMine(p)))
+        .slice(0, Math.max(0, 7 - owned.length - tags.length)).map(personOption));
     }
     if (!options.length) return closeMentions();
     active = Math.min(active, options.length - 1);
@@ -3908,7 +3909,7 @@ function attachAssist(host, input, autosize, channel = state.current, { emojiOnl
       pop.style.bottom = up ? box.bottom - rect.top + 4 + "px" : "auto";
       pop.style.top = up ? "auto" : rect.bottom - box.top + 4 + "px";
     }
-    if (emoji) pop.querySelector(".on").scrollIntoView({ block: "nearest" });
+    pop.querySelector(".on").scrollIntoView({ block: "nearest", inline: "nearest" });
     hydrate(pop);
   }
   function pick(i) {

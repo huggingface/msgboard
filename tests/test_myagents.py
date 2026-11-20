@@ -105,6 +105,41 @@ def test_myagents_suggestions_labels_and_recipient_highlights(env, tmp_path):
             assert tag.evaluate("el => el.classList.contains('mine')") is expected
             assert "author" in tag.get_attribute("title")
             viewer.close()
+        # A crowded owned prefix must retain the group shortcut, after the owned rows.
+        owner.update_identity(named["id"], display_name="Zeta Helper")
+        for i in range(7):
+            env.agent(f"myagents-{i}", owner=owner, channels=["project"])
+            owner.create_channel(f"clip-{i}")
+        page.set_viewport_size({"width": 844, "height": 300})
+        page.reload()
+        def selected_is_visible():
+            selected = page.locator("#composer .mention-pop .on")
+            assert selected.evaluate("""el => {
+                const row = el.getBoundingClientRect(), box = el.parentElement.getBoundingClientRect();
+                return row.top >= box.top - 1 && row.bottom <= box.bottom + 1;
+            }""")
+            assert page.locator("#composer .mention-pop").evaluate("el => el.scrollTop > 0")
+        for prefix, last in [("@myagents-", "myagents-6"), ("#clip", "clip-6")]:
+            field.fill(prefix)
+            pw.expect(options).to_have_count(7)
+            field.press("ArrowUp")
+            pw.expect(page.locator("#composer .mention-pop .on")).to_contain_text(last)
+            selected_is_visible()
+            field.press("Tab")
+            pw.expect(field).to_have_value(prefix[0] + last + " ")
+        for prefix in ["@myagents", "@my"]:
+            field.fill(prefix)
+            pw.expect(options).to_have_count(8)
+            pw.expect(options.nth(6)).to_contain_text("Yours")
+            pw.expect(options.last).to_contain_text("your agents in this channel")
+            field.press("ArrowUp")
+            pw.expect(page.locator("#composer .mention-pop .on")).to_contain_text("your agents in this channel")
+            selected_is_visible()
+            if prefix == "@my":
+                page.screenshot(path=str(tmp_path / "myagents-crowded-landscape.png"))
+                page.locator("#composer .mention-pop").screenshot(path=str(tmp_path / "myagents-crowded-picker.png"))
+            field.press("Tab")
+            pw.expect(field).to_have_value("@myagents ")
         touch = context_for(token, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
         mobile = touch.new_page()
         mobile.on("pageerror", lambda error: errors.append(str(error)))
