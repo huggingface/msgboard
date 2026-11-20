@@ -1,0 +1,181 @@
+"""Link button in the composer, and pasting a URL over selected text (browser; needs the optional browser extra)."""
+
+import json
+import os
+
+import pytest
+
+pw = pytest.importorskip("playwright.sync_api")
+
+MOD = "Meta" if os.uname().sysname == "Darwin" else "Control"
+
+
+@pytest.fixture
+def dashboard(env):
+    _, token, owner = env.human("alex")
+    channel = owner.create_channel("link-checks")
+    helper_id, _, helper = env.agent("helper", owner=owner, channels=[channel["name"]])
+    with pw.sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+        context = browser.new_context(viewport={"width": 1280, "height": 900})
+        context.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+        page = context.new_page()
+        page.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+        page.goto(env.url + "/#link-checks")
+        pw.expect(page.locator("#composer textarea")).to_be_visible()
+        yield page, owner, helper, channel
+        context.close()
+        browser.close()
+
+
+def select(input, value, start, end):
+    input.fill(value)
+    input.evaluate("(el, [s, e]) => { el.focus(); el.setSelectionRange(s, e); }", [start, end])
+
+
+def paste(input, text):
+    """Fire a paste with text/plain; returns True when the page took it over (preventDefault)."""
+    return input.evaluate("""(el, text) => {
+        const dt = new DataTransfer(); dt.setData("text/plain", text);
+        const ev = new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true });
+        el.dispatchEvent(ev); return ev.defaultPrevented; }""", text)
+
+
+def test_button_sits_between_emoji_and_attach(dashboard):
+    page, *_ = dashboard
+    order = page.locator("#composer .bar .left > *").evaluate_all(
+        "els => els.map(e => e.classList.contains('emoji-btn') ? 'emoji' : e.classList.contains('link-btn') ? 'link' : e.className)")
+    assert order[:3] == ["emoji", "link", "attach"]
+    btn = page.locator("#composer .link-btn")
+    assert btn.get_attribute("aria-label") == "Add link"
+    assert "Shift+U" in btn.get_attribute("title")
+
+
+def test_selected_text_becomes_link_text_and_undo_restores_it(dashboard, tmp_path):
+    page, owner, _, channel = dashboard
+    input = page.locator("#composer textarea")
+    before = "Here are the eval results for run 12"
+    select(input, before, 9, 26)                       # "the eval results "
+    page.locator("#composer .link-btn").click()
+    pop = page.get_by_role("dialog", name="Add link")
+    pw.expect(pop.locator(".link-text")).to_have_value("the eval results")
+    pw.expect(pop.locator(".link-url")).to_be_focused()
+    pw.expect(pop.locator(".link-save")).to_be_disabled()
+    pop.locator(".link-url").fill("not a url")
+    pw.expect(pop.locator(".link-save")).to_be_disabled()
+    pop.locator(".link-url").fill("https://huggingface.co/datasets/org/evals")
+    page.screenshot(path=str(tmp_path / "link-pop.png"))
+    pop.locator(".link-url").press("Enter")
+    pw.expect(pop).not_to_be_visible()
+    after = "Here are [the eval results](https://huggingface.co/datasets/org/evals) for run 12"
+    pw.expect(input).to_have_value(after)
+    pw.expect(input).to_be_focused()
+    page.screenshot(path=str(tmp_path / "link-inserted.png"))
+    input.press(f"{MOD}+z")
+    pw.expect(input).to_have_value(before)
+    input.press(f"{MOD}+Shift+z")
+    pw.expect(input).to_have_value(after)
+    with page.expect_response(lambda r: r.request.method == "POST" and "/messages" in r.url):
+        input.press("Enter")
+    assert owner.read(channel["id"])["messages"][-1]["body"] == after
+
+
+def test_empty_text_bare_domain_selected_url_and_cancel(dashboard):
+    page, *_ = dashboard
+    input = page.locator("#composer textarea")
+    pop = page.get_by_role("dialog", name="Add link")
+    # nothing selected: Text starts focused; leaving it empty inserts just the URL; a bare domain gets https://
+    select(input, "see ", 4, 4)
+    page.locator("#composer .link-btn").click()
+    pw.expect(pop.locator(".link-text")).to_be_focused()
+    pop.locator(".link-url").fill("example.com/a b")
+    pw.expect(pop.locator(".link-save")).to_be_disabled()      # spaces: not a URL
+    pop.locator(".link-url").fill("example.com/docs")
+    pop.locator(".link-save").click()
+    pw.expect(input).to_have_value("see https://example.com/docs")
+    # a selected URL goes into Link
+    select(input, "go to https://hf.co/x now", 6, 21)
+    input.press(f"{MOD}+Shift+u")                               # the shortcut opens the same box
+    pw.expect(pop.locator(".link-url")).to_have_value("https://hf.co/x")
+    pw.expect(pop.locator(".link-text")).to_have_value("")
+    pop.locator(".link-text").fill("this")
+    pop.locator(".link-text").press("Enter")
+    pw.expect(input).to_have_value("go to [this](https://hf.co/x) now")
+    # Escape and Cancel leave the text alone and put the selection back
+    select(input, "keep me", 0, 4)
+    page.locator("#composer .link-btn").click()
+    pop.locator(".link-url").press("Escape")
+    pw.expect(pop).not_to_be_visible()
+    pw.expect(input).to_have_value("keep me")
+    assert input.evaluate("el => [el.selectionStart, el.selectionEnd]") == [0, 4]
+    page.locator("#composer .link-btn").click()
+    pop.locator(".link-cancel").click()
+    pw.expect(pop).not_to_be_visible()
+    # clicking the button again closes the box
+    page.locator("#composer .link-btn").click()
+    page.locator("#composer .link-btn").click()
+    pw.expect(pop).not_to_be_visible()
+
+
+def test_brackets_and_parentheses_are_escaped(dashboard):
+    page, *_ = dashboard
+    input = page.locator("#composer textarea")
+    select(input, "[draft] notes", 0, 13)
+    page.locator("#composer .link-btn").click()
+    pop = page.get_by_role("dialog", name="Add link")
+    pop.locator(".link-url").fill("https://en.wikipedia.org/wiki/Foo_(bar)")
+    pop.locator(".link-save").click()
+    pw.expect(input).to_have_value(r"[\[draft\] notes](https://en.wikipedia.org/wiki/Foo_%28bar%29)")
+    # CommonMark reads it as one link with the intended text and target
+    from markdown_it import MarkdownIt
+    html = MarkdownIt().renderInline(input.input_value())
+    assert html == '<a href="https://en.wikipedia.org/wiki/Foo_%28bar%29">[draft] notes</a>'
+
+
+def test_paste_url_over_selection(dashboard):
+    page, *_ = dashboard
+    input = page.locator("#composer textarea")
+    select(input, "read the docs please", 5, 14)               # "the docs " (trailing space stays outside)
+    assert paste(input, "  https://hf.co/docs\n")
+    pw.expect(input).to_have_value("read [the docs](https://hf.co/docs) please")
+    input.press(f"{MOD}+z")
+    pw.expect(input).to_have_value("read the docs please")
+    # not taken over: plain text, no selection, a selected URL, or a selection across lines
+    select(input, "read the docs", 5, 13)
+    assert not paste(input, "the guide")
+    select(input, "read ", 5, 5)
+    assert not paste(input, "https://hf.co/docs")
+    select(input, "https://a.co", 0, 12)
+    assert not paste(input, "https://b.co")
+    select(input, "one\ntwo", 0, 7)
+    assert not paste(input, "https://hf.co")
+
+
+def test_thread_and_tasks_composers_have_it(dashboard):
+    page, owner, helper, channel = dashboard
+    root = owner.post(channel["id"], "Review this change")
+    page.reload()
+    message = page.locator(f'#messages .msg[data-mid="{root["id"]}"]')
+    message.hover()
+    message.locator("[data-thread]").click()
+    thread = page.locator("#panel-composer textarea")
+    select(thread, "the PR", 0, 6)
+    page.locator("#panel-composer .link-btn").click()
+    pop = page.locator("#panel-composer").get_by_role("dialog", name="Add link")
+    pop.locator(".link-url").fill("https://github.com/org/repo/pull/1")
+    pop.locator(".link-url").press("Enter")
+    pw.expect(thread).to_have_value("[the PR](https://github.com/org/repo/pull/1)")
+    pw.expect(page.locator("#composer textarea")).to_have_value("")   # the channel box is untouched
+    with page.expect_response(lambda r: r.request.method == "POST" and "/messages" in r.url):
+        thread.press("Enter")
+    reply = owner.read(channel["id"])["messages"][-1]
+    assert reply["reply_to"] == root["id"] and reply["body"] == "[the PR](https://github.com/org/repo/pull/1)"
+    page.locator("#panel-close").click()
+
+    item = helper.put_task("link-answer", "Link answer check", channel_id=channel["id"])
+    page.goto(page.url.split("#")[0] + "#tasks/" + str(item["id"]))
+    answer = page.locator("#tasks-answer-composer textarea")
+    select(answer, "see notes", 4, 9)
+    assert paste(answer, "https://hf.co/notes")
+    pw.expect(answer).to_have_value("see [notes](https://hf.co/notes)")
+    pw.expect(page.locator("#tasks-answer-composer .link-btn")).to_be_visible()
