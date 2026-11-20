@@ -4060,12 +4060,12 @@ const linkLabel = (text) => text.replace(/\s+/g, " ").trim().replace(/&(?=#?\w+;
 // as "&amp;name;" (so "&copy;" stays text), ( ) < > and spaces percent-encoded
 const linkDest = (url) => url.replace(/\\/g, "\\\\").replace(/&(?=#?\w+;)/g, "&amp;")
   .replace(/[()<>\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
-// Before sending: a link with empty or blank text, [](url) or [ ](url), outside code would be invisible,
-// so it shows its URL as the text. Images and escaped \[ are left alone.
+// Before sending: a link with empty or blank text ([](url), [ ](url), a lone line break) outside code would be
+// invisible, so it shows its URL as the text. Images, and anything right after a backslash, are left as written.
 function showEmptyLinks(text) {
-  return text.replace(/(!?)\[[ \t]*\]\(([^()\s]+)\)/g, (all, bang, dest, at) => {
+  return text.replace(/(!?)\[[ \t]*(?:\r?\n[ \t]*)?\]\(([^()\s]+)\)/g, (all, bang, dest, at) => {
     const before = text.slice(0, at);
-    if (bang || /(^|[^\\])(\\\\)*\\$/.test(before) || emojiLiteralContext(before)) return all;
+    if (bang || before.endsWith("\\") || emojiLiteralContext(before)) return all;
     return `[${linkLabel(dest.replace(/&amp;/g, "&").replace(/\\(.)/g, "$1"))}](${dest})`;
   });
 }

@@ -242,12 +242,14 @@ def test_paste_url_with_nothing_selected(dashboard):
     pw.expect(input).to_have_value("c [](https://hf.co/x)")
     send()
     assert sent() == "c [https://hf.co/x](https://hf.co/x)"
-    input.fill("d [ ](https://hf.co/y)")
-    send()
-    assert sent() == "d [https://hf.co/y](https://hf.co/y)"
-    input.fill("`[](https://a.co)` ![](https://b.co) \\[](https://c.co)")
-    send()
-    assert sent() == "`[](https://a.co)` ![](https://b.co) \\[](https://c.co)"
+    for blank in [" ", "\n"]:
+        input.fill(f"d [{blank}](https://hf.co/y)")
+        send()
+        assert sent() == "d [https://hf.co/y](https://hf.co/y)", blank
+    for kept in ["`[](https://a.co)` ![](https://b.co)", "\\[](https://c.co)", "Literal\\\\[](https://c.co)"]:
+        input.fill(kept)
+        send()
+        assert sent() == kept
 
     # inside code, or in a link target, the URL pastes as is
     for before in ["run `curl ", "```\n", "[docs]("]:
