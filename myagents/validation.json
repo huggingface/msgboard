@@ -1,0 +1,30 @@
+{
+  "source_sha": "377935d2b7954d6c417842fd382bc5053814f613",
+  "full": {
+    "passed": 261,
+    "live_excluded": 1,
+    "seconds": 190.87
+  },
+  "new_browser_test_seconds": 4.64,
+  "new_test_functions": 1,
+  "extended_api_tests": [
+    "group_mentions_reach_only_channel_members",
+    "group_words_are_not_personal_names"
+  ],
+  "checks": [
+    "author-owned channel members only",
+    "disabled/nonmembers/other owners excluded",
+    "mixed tags and direct mention deduplication",
+    "retry keeps original recipient snapshot",
+    "private channel and edit behavior",
+    "own agents first for empty and typed search",
+    "ownership labels",
+    "safe individual handles for group-like names",
+    "thread and Tasks composers",
+    "desktop keyboard and touch selection",
+    "recipient-specific group highlighting",
+    "JavaScript syntax",
+    "git diff --check"
+  ],
+  "deployment": "not merged or deployed"
+}
