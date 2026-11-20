@@ -143,12 +143,72 @@ def test_paste_url_over_selection(dashboard):
     # not taken over: plain text, no selection, a selected URL, or a selection across lines
     select(input, "read the docs", 5, 13)
     assert not paste(input, "the guide")
-    select(input, "read ", 5, 5)
-    assert not paste(input, "https://hf.co/docs")
     select(input, "https://a.co", 0, 12)
     assert not paste(input, "https://b.co")
     select(input, "one\ntwo", 0, 7)
     assert not paste(input, "https://hf.co")
+
+
+def test_paste_url_with_nothing_selected(dashboard):
+    page, owner, _, channel = dashboard
+    input = page.locator("#composer textarea")
+    sel = lambda: input.evaluate("el => el.value.slice(el.selectionStart, el.selectionEnd)")
+    sent = lambda: owner.read(channel["id"])["messages"][-1]["body"]
+
+    def send():
+        with page.expect_response(lambda r: r.request.method == "POST" and "/messages" in r.url):
+            input.press("Enter")
+
+    # [url](url) with the text selected: typing a word renames the link
+    select(input, "see ", 4, 4)
+    assert paste(input, "https://hf.co/x")
+    pw.expect(input).to_have_value("see [https://hf.co/x](https://hf.co/x)")
+    assert sel() == "https://hf.co/x"
+    input.press_sequentially("the docs")
+    pw.expect(input).to_have_value("see [the docs](https://hf.co/x)")
+    send()
+    assert sent() == "see [the docs](https://hf.co/x)"
+
+    # a space right after pasting goes after the link; left unchanged, it is sent as the plain URL
+    select(input, "see ", 4, 4)
+    assert paste(input, "https://hf.co/x")
+    input.press_sequentially(" now")
+    pw.expect(input).to_have_value("see [https://hf.co/x](https://hf.co/x) now")
+    send()
+    assert sent() == "see https://hf.co/x now"
+
+    # punctuation and Shift+Enter carry on after the link too
+    select(input, "", 0, 0)
+    assert paste(input, "https://hf.co/a")
+    input.press(".")
+    pw.expect(input).to_have_value("[https://hf.co/a](https://hf.co/a).")
+    select(input, "", 0, 0)
+    assert paste(input, "https://hf.co/b")
+    input.press("Shift+Enter")
+    pw.expect(input).to_have_value("[https://hf.co/b](https://hf.co/b)\n")
+
+    # deleting the selected text never sends an invisible link
+    select(input, "x ", 2, 2)
+    assert paste(input, "https://hf.co/c")
+    input.press("Backspace")
+    pw.expect(input).to_have_value("x [](https://hf.co/c)")
+    send()
+    assert sent() == "x https://hf.co/c"
+
+    # undo takes the whole paste back
+    select(input, "undo ", 5, 5)
+    assert paste(input, "https://hf.co/d")
+    input.press(f"{MOD}+z")
+    pw.expect(input).to_have_value("undo ")
+
+    # inside code, or in a link target, the URL pastes as is
+    for before in ["run `curl ", "```\n", "[docs]("]:
+        select(input, before, len(before), len(before))
+        assert not paste(input, "https://hf.co/e"), before
+    # a written link that looks the same is left alone
+    input.fill("[https://hf.co/z](https://hf.co/z)")
+    send()
+    assert sent() == "[https://hf.co/z](https://hf.co/z)"
 
 
 def test_thread_and_tasks_composers_have_it(dashboard):

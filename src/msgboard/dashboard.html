@@ -3321,7 +3321,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
   input.addEventListener("input", autosize);
   const assist = attachAssist(host, input, autosize, channel);
   attachEmojiShortcuts(input);
-  attachLinkTool(host, input, autosize);
+  const links = attachLinkTool(host, input, autosize);
   input.addEventListener("keydown", (e) => {
     if (assist.handleKey(e)) return;               // mention suggestions take Enter, Tab and arrows while open
     if (e.key === "Enter" && mobileTextInput()) return;
@@ -3335,7 +3335,7 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
   sendBtn.onclick = send;
   async function send() {
     const c = channel, ready = items.filter((it) => it.status === "done");
-    let text = input.value;
+    let text = links.finalize(input.value);
     const rest = [];
     for (const it of ready) {
       if (text.includes(fileToken(it))) text = text.split(fileToken(it)).join(fileLink(it));
@@ -4050,9 +4050,10 @@ function normalizeLinkUrl(raw) {
   return null;
 }
 // [text](url) that Markdown parses as written: brackets in the text escaped, characters that end a link target encoded
+const linkLabel = (text) => text.replace(/\s+/g, " ").trim().replace(/[\\[\]]/g, "\\$&");
+const linkDest = (url) => url.replace(/[()<>\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
 function markdownLink(text, url) {
-  const dest = url.replace(/[()<>\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
-  const label = text.replace(/\s+/g, " ").trim().replace(/[\\[\]]/g, "\\$&");
+  const label = linkLabel(text), dest = linkDest(url);
   return label ? `[${label}](${dest})` : dest;
 }
 // Replace start..end with text as a native edit, so Ctrl/⌘+Z undoes it (setRangeText alone skips the undo history).
@@ -4116,17 +4117,53 @@ function attachLinkTool(host, input, autosize) {
   input.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === "u") { e.preventDefault(); open(); }
   });
-  // Like Slack: select some words, paste a URL, and they become the link text
+  // Pasting a URL. Over selected words (like Slack): they become the link text. With nothing selected:
+  // [url](url) with the text part selected, so it looks as before and typing a word renames it.
+  const pastedUrls = new Set();   // links made that way go out as the plain URL unless their text was changed
+  let fresh = null;               // the just-pasted link while its text is still selected
   input.addEventListener("paste", (e) => {
+    fresh = null;
     if (e.defaultPrevented || !e.clipboardData || e.clipboardData.files.length) return;
-    const { start, end } = trimmedSelection(input), selected = input.value.slice(start, end);
-    if (start === end || selected.includes("\n") || normalizeLinkUrl(selected)) return;
     const pasted = e.clipboardData.getData("text/plain").trim();
     if (!/^https?:\/\/\S+$/i.test(pasted)) return;   // only a real URL; plain text pastes as usual
+    if (input.selectionStart === input.selectionEnd) {
+      const at = input.selectionStart;
+      if (emojiLiteralContext(input.value.slice(0, at))) return;   // in code or a link target: paste it as is
+      e.preventDefault();
+      const link = markdownLink(pasted, pasted);
+      insertUndoable(input, link, at, at);
+      pastedUrls.add(pasted);
+      fresh = { start: at + 1, end: at + 1 + linkLabel(pasted).length, after: at + link.length, value: input.value };
+      input.setSelectionRange(fresh.start, fresh.end);
+      autosize();
+      return;
+    }
+    const { start, end } = trimmedSelection(input), selected = input.value.slice(start, end);
+    if (start === end || selected.includes("\n") || normalizeLinkUrl(selected)) return;
     e.preventDefault();
     insertUndoable(input, markdownLink(selected, pasted), start, end);
     autosize();
   });
+  // A space, punctuation or new line right after pasting goes after the link instead of replacing its text
+  input.addEventListener("beforeinput", (e) => {
+    const f = fresh; fresh = null;
+    if (!f || e.isComposing || input.value !== f.value || input.selectionStart !== f.start || input.selectionEnd !== f.end) return;
+    const newline = e.inputType === "insertLineBreak" || e.inputType === "insertParagraph";
+    if (!newline && !(e.inputType === "insertText" && /^[\s.,;:!?)\]}'"…]$/.test(e.data || ""))) return;
+    e.preventDefault();
+    insertUndoable(input, newline ? "\n" : e.data, f.after, f.after);
+    autosize();
+  });
+  return {
+    // the text to send: pasted links whose text was left as the URL (or emptied) become the plain URL again
+    finalize(text) {
+      for (const u of pastedUrls) {
+        const dest = linkDest(u);
+        text = text.split(`[${linkLabel(u)}](${dest})`).join(u).split(`[](${dest})`).join(u);
+      }
+      return text;
+    },
+  };
 }
 
 function attachAssist(host, input, autosize, channel = state.current, { emojiOnly = false } = {}) {
