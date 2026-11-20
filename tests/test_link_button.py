@@ -138,7 +138,11 @@ def test_link_text_and_targets_survive_markdown(dashboard):
         # a backslash is a slash to a browser: the link keeps pointing at good.example
         ("docs", "https://good.example\\@evil.example/",
          "[docs](https://good.example/@evil.example/)", "docs", "https://good.example/@evil.example/"),
-        ("q", "https://x.co/?a=1&copy=2", "[q](https://x.co/?a=1\\&copy=2)", "q", "https://x.co/?a=1&amp;copy=2"),
+        ("q", "https://x.co/?a=1&copy;=2", "[q](https://x.co/?a=1&amp;copy;=2)", "q", "https://x.co/?a=1&amp;copy;=2"),
+        # text that looks like another link stays text: the only link goes where the box says
+        ("see [inner](https://other.example) <https://other2.example>", "https://dest.example",
+         "[see &#91;inner&#93;(https://other.example) &lt;https://other2.example&gt;](https://dest.example/)",
+         "see [inner](https://other.example) &lt;https://other2.example&gt;", "https://dest.example/"),
     ]
     for text, url, inserted, shown, href in cases:
         select(input, text, 0, len(text))
@@ -208,8 +212,13 @@ def test_paste_url_with_nothing_selected(dashboard):
     input.press("ArrowLeft")
     pw.expect(input).to_have_value("a https://hf.co/x")
     pasted("b ")
-    page.locator(".topbar").first.click()    # leaving the box
+    page.locator(".topbar").first.click()    # leaving the box; undo still works afterwards
     pw.expect(input).to_have_value("b https://hf.co/x")
+    input.focus()
+    input.press(f"{MOD}+z")
+    pw.expect(input).to_have_value("b [https://hf.co/x](https://hf.co/x)")
+    input.press(f"{MOD}+z")
+    pw.expect(input).to_have_value("b ")
     # sending right away sends the plain URL; Markdown already written with the same URL is left alone
     pasted("![https://hf.co/x](https://hf.co/x) and ")
     send()
@@ -222,11 +231,30 @@ def test_paste_url_with_nothing_selected(dashboard):
     pasted("undo ")
     input.press(f"{MOD}+z")
     pw.expect(input).to_have_value("undo ")
+    # an emptied link, however it happened, is sent with its URL as the text; code and images are left alone
+    pasted("c ")
+    input.press("x")
+    input.press(f"{MOD}+z")
+    pw.expect(input).to_have_value("c [https://hf.co/x](https://hf.co/x)")
+    input.evaluate("el => el.setSelectionRange(3, 18)")
+    input.press("Backspace")
+    pw.expect(input).to_have_value("c [](https://hf.co/x)")
+    send()
+    assert sent() == "c [https://hf.co/x](https://hf.co/x)"
+    input.fill("`[](https://a.co)` ![](https://b.co)")
+    send()
+    assert sent() == "`[](https://a.co)` ![](https://b.co)"
 
     # inside code, or in a link target, the URL pastes as is
     for before in ["run `curl ", "```\n", "[docs]("]:
         select(input, before, len(before), len(before))
         assert not paste(input, "https://hf.co/e"), before
+
+    # the saved draft holds the plain URL, so reopening it never brings back the temporary Markdown
+    pasted("r ")
+    page.wait_for_function("() => (localStorage.getItem('msgboard:drafts') || '').includes('r https://hf.co/x')")
+    page.reload()
+    pw.expect(page.locator("#composer textarea")).to_have_value("r https://hf.co/x")
 
 
 def test_thread_and_tasks_composers_have_it(dashboard):
