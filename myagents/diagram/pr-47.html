@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Msgboard PR 47 - Owned-agent mentions</title>
+<style>
+  /* ---------- fonts (files in ./fonts, copied from the skill's assets/fonts) ---------- */
+  /* Leroy-template lettering for every drawing label. */
+  @font-face { font-family: "Routed Gothic"; src: url("fonts/routed-gothic.ttf"); unicode-range: U+0000-0030, U+0032-FFFF; }
+  @font-face { font-family: "Routed Gothic Narrow"; src: url("fonts/routed-gothic-narrow.ttf"); unicode-range: U+0000-0030, U+0032-FFFF; }
+  /* Leroy's plain "1" reads as "I" (API V1, T1). Borrow a flagged one. Delete these two
+     rules for a strictly period look on pages without versions or subscripts. */
+  @font-face { font-family: "Routed Gothic"; src: local("Helvetica Neue"), local("HelveticaNeue"), local("Arial"); unicode-range: U+0031; }
+  @font-face { font-family: "Routed Gothic Narrow"; src: local("Helvetica Neue"), local("HelveticaNeue"), local("Arial"); unicode-range: U+0031; }
+  /* IBM Selectric Letter Gothic: crew checklists only. */
+  @font-face { font-family: "Letter Gothic"; src: url("fonts/LetterGothicCode-R.ttf"); font-weight: 400; }
+  @font-face { font-family: "Letter Gothic"; src: url("fonts/LetterGothicCode-B.ttf"); font-weight: 700; }
+
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @media print { html, body { background: none; } }
+
+  :root {
+    --ink: #000000;
+    --paper: #ffffff;   /* screen only; print is pure white (below) */
+    --type: "Iowan Old Style", "Iowan", Georgia, serif;
+    --leroy: "Routed Gothic Narrow", "Routed Gothic", sans-serif;
+    --selectric: "Letter Gothic", "Courier", monospace;
+  }
+  /* Must come after :root. A printed off-white tint is halftoned into dots. */
+  @media print { :root { --paper: #ffffff; } }
+
+  .page {
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+    margin: 0 auto;
+    padding: 9mm 15mm 0 16mm;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--type);
+    font-size: 8pt;
+    line-height: 1.33;
+    letter-spacing: 0.055em;   /* the Selectric typewriter spacing */
+    overflow: hidden;
+  }
+
+  /* ---------- running head / foot ---------- */
+  .head { text-align: center; line-height: 1.25; }
+  .head .doc { font-weight: 700; font-size: 8.6pt; letter-spacing: 0.06em; }
+  .head .title { font-weight: 700; font-size: 8.6pt; letter-spacing: 0.08em; }
+  .head .part { margin-top: 2.2mm; font-size: 8.2pt; letter-spacing: 0.1em; }
+  .rule { height: 0; border-top: 1.5pt solid var(--ink); margin: 1.4mm -2mm 0; }
+
+  .foot { position: absolute; left: 16mm; right: 15mm; bottom: 8mm; }
+  .foot .rule { margin: 0 -2mm 1.6mm; }
+  .foot .sub { text-align: center; letter-spacing: 0.1em; font-size: 8.2pt; }
+  .foot .line { display: flex; align-items: baseline; justify-content: space-between; margin-top: 2.2mm; font-size: 8.2pt; }
+  .foot .fill { display: inline-block; border-bottom: 0.6pt solid var(--ink); text-align: center; padding: 0 1mm; font-size: 8.8pt; letter-spacing: 0.03em; }
+
+  /* ---------- section opener ---------- */
+  .opener { text-align: center; letter-spacing: 0.12em; margin: 3.4mm 0 2mm; line-height: 1.6; }
+
+  /* ---------- numbered paragraphs ---------- */
+  .para { display: grid; grid-template-columns: 19mm 1fr; position: relative; }
+  .para .num { letter-spacing: 0.08em; }
+  .para h2, .para h3 { margin: 0 0 0.8mm; font: inherit; font-weight: 400; letter-spacing: 0.08em; }
+  .para h3 { text-decoration: underline; text-underline-offset: 1.6pt; text-decoration-thickness: 0.5pt; letter-spacing: 0.06em; }
+  .para p { margin: 0 0 1mm; text-indent: 9mm; text-align: left; }
+  .para p.flush { text-indent: 0; }
+  .changebar { position: absolute; left: -9mm; width: 1.3mm; background: var(--ink); }
+  .nowrap { white-space: nowrap; }
+
+  /* ---------- figures ---------- */
+  figure { margin: 1.6mm 0 0; }
+  figure svg { display: block; width: 100%; height: auto; }
+  figcaption { text-align: center; margin-top: 0.6mm; letter-spacing: 0.07em; }
+  figcaption .n { margin-right: 3mm; }
+
+  /* SVG units are millimetres on paper: a figure 180 units wide fills the 179 mm column. */
+  svg text { font-family: var(--leroy); fill: var(--ink); letter-spacing: 0.04px; }
+  svg .o    { fill: none; stroke: var(--ink); stroke-width: 0.42; stroke-linejoin: round; stroke-linecap: round; } /* object line */
+  svg .of   { fill: var(--paper); stroke: var(--ink); stroke-width: 0.42; stroke-linejoin: round; }               /* object, opaque */
+  svg .t    { fill: none; stroke: var(--ink); stroke-width: 0.17; stroke-linecap: round; }                        /* thin detail */
+  svg .hid  { fill: none; stroke: var(--ink); stroke-width: 0.22; stroke-dasharray: 1.3 0.7; }                     /* hidden */
+  svg .cl   { fill: none; stroke: var(--ink); stroke-width: 0.16; stroke-dasharray: 5 0.8 0.9 0.8; }               /* centerline */
+  svg .cut  { fill: none; stroke: var(--ink); stroke-width: 0.5; stroke-dasharray: 5 1 1 1; }                      /* section cut */
+  svg .ld   { fill: none; stroke: var(--ink); stroke-width: 0.16; marker-end: url(#nh-leader); }                   /* leader */
+  svg .dim  { fill: none; stroke: var(--ink); stroke-width: 0.16; marker-start: url(#nh-dim); }                    /* dimension half */
+  svg .w    { fill: none; stroke: var(--ink); stroke-width: 0.3; stroke-linejoin: round; }                         /* wire */
+  svg .wa   { fill: none; stroke: var(--ink); stroke-width: 0.3; stroke-linejoin: round; marker-end: url(#nh-arrow); } /* wire with arrow */
+  svg .box  { fill: var(--paper); stroke: var(--ink); stroke-width: 0.45; }
+  svg .panel{ fill: none; stroke: var(--ink); stroke-width: 0.3; stroke-dasharray: 2 1; }
+  svg .ev   { fill: none; stroke: var(--ink); stroke-width: 0.18; stroke-dasharray: 1 0.7; }                       /* timeline event */
+  svg .vid  { fill: url(#nh-hatch); stroke: var(--ink); stroke-width: 0.35; }                                      /* hatched bar */
+  svg .aud  { fill: var(--paper); stroke: var(--ink); stroke-width: 0.35; }                                        /* plain bar */
+  svg .gap  { fill: var(--paper); stroke: var(--ink); stroke-width: 0.35; stroke-dasharray: 0.6 0.5; }             /* dotted bar */
+  svg .grain{ fill: url(#nh-dots); stroke: var(--ink); stroke-width: 0.35; }                                       /* granular, powder, fill */
+  svg .dot  { fill: var(--ink); }
+  svg .lbl   { font-size: 2.35px; }                                         /* callouts, box titles */
+  svg .lbl-s { font-size: 2.05px; }                                         /* secondary lines, wire names */
+  svg .lbl-b { font-size: 2.5px; font-family: "Routed Gothic", sans-serif; } /* view titles, big letters */
+  svg .code  { font-size: 2.4px; font-family: "Routed Gothic", sans-serif; } /* figure code, bottom right */
+
+  /* ---------- lower band: data table + notice + checklist ---------- */
+  .lower { display: grid; grid-template-columns: 1fr 64mm; column-gap: 6mm; margin-top: 2.8mm; }
+  .tcap { text-align: center; letter-spacing: 0.07em; margin: 0 0 0.8mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 7.3pt; line-height: 1.2; }
+  th, td { border: 0.6pt solid var(--ink); padding: 0.35mm 1.6mm; text-align: left; vertical-align: top; font-weight: 400; }
+  thead th { text-align: center; letter-spacing: 0.1em; padding: 0.5mm 1.6mm; }
+  td.v { white-space: nowrap; }
+
+  .notice { text-align: left; margin-bottom: 1.8mm; }
+  .notice .tag { display: block; text-align: center; letter-spacing: 0.18em; font-weight: 700; text-decoration: underline; text-underline-offset: 1.6pt; text-decoration-thickness: 0.6pt; margin-bottom: 0.8mm; }
+  .notice p { margin: 0; font-size: 7.4pt; line-height: 1.28; }
+
+  .card { border: 0.8pt solid var(--ink); font-family: var(--selectric); font-size: 7.1pt; line-height: 1.3; letter-spacing: 0; }
+  .card .bar { background: var(--ink); color: var(--paper); font-weight: 700; padding: 0.5mm 1.8mm; display: flex; justify-content: space-between; }
+  .card ol { list-style: none; margin: 0; padding: 0.8mm 1.8mm 1mm; }
+  .card li { display: grid; grid-template-columns: 3.2mm 1fr; white-space: pre; }
+
+  /* black thumb tab, bleeds off the trim edge */
+  .tab { position: absolute; right: 0; top: 112mm; width: 8.5mm; height: 17mm; background: var(--ink); color: var(--paper);
+    font-family: "Routed Gothic", sans-serif; font-size: 8pt; letter-spacing: 0.08em; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+
+<!-- Shared drawing defs: every figure on the page uses these ids. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="nh-leader" viewBox="0 0 6 4" refX="5.6" refY="2" markerWidth="2.1" markerHeight="1.05" markerUnits="userSpaceOnUse" orient="auto" preserveAspectRatio="none"><path d="M0,0 L6,2 L0,4 Z" fill="#000"/></marker>
+    <marker id="nh-arrow" viewBox="0 0 6 4" refX="5.6" refY="2" markerWidth="2.4" markerHeight="1.3" markerUnits="userSpaceOnUse" orient="auto" preserveAspectRatio="none"><path d="M0,0 L6,2 L0,4 Z" fill="#000"/></marker>
+    <marker id="nh-dim" viewBox="0 0 6 4" refX="0" refY="2" markerWidth="2.2" markerHeight="0.95" markerUnits="userSpaceOnUse" orient="auto" preserveAspectRatio="none"><path d="M6,0 L0,2 L6,4 Z" fill="#000"/></marker>
+    <pattern id="nh-hatch" width="1.1" height="1.1" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="1.1" stroke="#000" stroke-width="0.2"/></pattern>
+    <pattern id="nh-bp" width="1.4" height="1.4" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="0.7" height="1.4" fill="#000"/></pattern>
+    <pattern id="nh-dots" width="1.3" height="1.3" patternUnits="userSpaceOnUse"><circle cx="0.32" cy="0.32" r="0.15" fill="#000"/><circle cx="0.97" cy="0.97" r="0.15" fill="#000"/></pattern>
+  </defs>
+</svg>
+
+<div class="page"><header class="head"><div class="doc">MSGBOARD - PR #47 - <span style="background:#000;color:#fff;padding:1mm 2mm">NEW FEATURE</span></div><div class="title" style="margin-top:3mm">IDENTIFY AND TAG YOUR OWN AGENTS</div><div class="rule"></div></header><div class="tab">OWN</div>
+<section class="para" style="margin-top:5mm"><div class="num">1</div><div><h2>INTRODUCTION.</h2><p>Mention suggestions put matching agents you own in the channel first. Yours labels identify them; other agents show their owner. The new @myagents tag reaches the author's agents who belong to the channel.</p></div></section>
+<figure><svg viewBox="0 0 180 98" role="img" aria-label="Mention suggestions send myagents as ordinary message text; the server records only author-owned channel members in the existing mention table">
+<rect class="panel" x="1" y="1" width="63" height="70"/><text class="lbl-b" x="5" y="7">BROWSER - DASHBOARD.HTML</text>
+<rect class="box" x="6" y="13" width="52" height="19"/><rect x="6" y="13" width="11" height="4" fill="black"/><text class="lbl-s" x="7" y="16" style="fill:white">MOD</text><circle cx="10" cy="22" r="2.2" fill="white" stroke="black" stroke-width=".25"/><text class="lbl-s" x="10" y="22.8" text-anchor="middle">1</text><text class="lbl" x="35" y="22" text-anchor="middle">ATTACHASSIST()</text><text class="lbl-s" x="32" y="28" text-anchor="middle">OWNER LABELS - OWN AGENTS FIRST</text>
+<rect class="box" x="6" y="47" width="52" height="18"/><rect x="6" y="47" width="11" height="4" fill="black"/><text class="lbl-s" x="7" y="50" style="fill:white">MOD</text><circle cx="10" cy="56" r="2.2" fill="white" stroke="black" stroke-width=".25"/><text class="lbl-s" x="10" y="56.8" text-anchor="middle">3</text><text class="lbl" x="35" y="56" text-anchor="middle">DECORATE()</text><text class="lbl-s" x="32" y="62" text-anchor="middle">AUTHOR-RELATIVE GROUP TAG</text>
+<rect class="panel" x="77" y="1" width="47" height="70"/><text class="lbl-b" x="81" y="7">SERVER - STORE.PY</text>
+<rect class="box" x="81" y="13" width="39" height="19"/><rect x="81" y="13" width="11" height="4" fill="black"/><text class="lbl-s" x="82" y="16" style="fill:white">MOD</text><circle cx="85" cy="22" r="2.2" fill="white" stroke="black" stroke-width=".25"/><text class="lbl-s" x="85" y="22.8" text-anchor="middle">2</text><text class="lbl" x="103" y="22" text-anchor="middle">_RECORD_MENTIONS()</text><text class="lbl-s" x="100.5" y="28" text-anchor="middle">OWNER_ID = SENDER_ID</text>
+<rect x="81" y="47" width="39" height="18" fill="white" stroke="black" stroke-width=".25"/><text class="lbl" x="100.5" y="54" text-anchor="middle">READ MESSAGES</text><text class="lbl-s" x="100.5" y="61" text-anchor="middle">EXISTING MENTIONS JSON</text>
+<rect class="panel" x="136" y="1" width="43" height="70"/><text class="lbl-b" x="140" y="7">SQLITE - EXISTING</text>
+<path d="M140 19 V57 A17.5 3 0 0 0 175 57 V19" fill="white" stroke="black" stroke-width=".25"/><ellipse cx="157.5" cy="19" rx="17.5" ry="3" fill="white" stroke="black" stroke-width=".25"/>
+<text class="lbl" x="157.5" y="29" text-anchor="middle">MESSAGE_MENTIONS</text><text class="lbl-s" x="157.5" y="37" text-anchor="middle">RECORDED RECIPIENT IDS</text><text class="lbl-s" x="157.5" y="44" text-anchor="middle">MENTIONED_AS = MYAGENTS</text><text class="lbl-s" x="157.5" y="51" text-anchor="middle">NO SCHEMA CHANGE</text>
+<path class="wa" style="stroke-width:.5" d="M58 23 H80"/><text class="lbl-s" x="65" y="19">POST</text><path class="wa" style="stroke-width:.5" d="M120 23 H139"/><text class="lbl-s" x="126" y="19">RECORD</text>
+<path class="wa" d="M81 56 H59"/><text class="lbl-s" x="66" y="52">READ</text><path class="wa" d="M140 56 H121"/>
+<text class="lbl-s" x="2" y="79">LEGEND</text><rect x="22" y="76" width="6" height="3" fill="white" stroke="black" stroke-width=".25"/><text class="lbl-s" x="30" y="78.6">EXISTED</text><rect x="55" y="76" width="8" height="3" fill="black"/><text class="lbl-s" x="55.5" y="78.5" style="fill:white">NEW</text><text class="lbl-s" x="65" y="78.6">ADDED</text><rect x="88" y="76" width="8" height="3" fill="black"/><text class="lbl-s" x="88.5" y="78.5" style="fill:white">MOD</text><text class="lbl-s" x="98" y="78.6">CHANGED</text><rect x="132" y="76" width="6" height="3" fill="white" stroke="black" stroke-width=".25" stroke-dasharray=".5 .5"/><text class="lbl-s" x="140" y="78.6">DEP - HIDDEN</text>
+<path class="wa" d="M22 87 H28"/><text class="lbl-s" x="30" y="87.7">CALL / DATA</text><path class="wa" style="stroke-width:.5" d="M55 87 H63"/><text class="lbl-s" x="65" y="87.7">NEW FLOW</text><path class="wa" style="stroke-dasharray:1 .7" d="M88 87 H96"/><text class="lbl-s" x="98" y="87.7">EVENT / SIGNAL</text><path d="M132 85 V89 A3 1 0 0 0 138 89 V85" fill="white" stroke="black" stroke-width=".25"/><ellipse cx="135" cy="85" rx="3" ry="1" fill="white" stroke="black" stroke-width=".25"/><text class="lbl-s" x="140" y="87.7">STORAGE</text><text class="code" x="179" y="97" text-anchor="end">OWN-501A</text></svg><figcaption><span class="n">Figure 1.</span>Ordinary Message and Mention Paths With an Ownership Filter</figcaption></figure>
+<section class="para"><div class="num">2</div><div><h2>HOW IT WORKS.</h2><p>1. Matching owned agents lead, even for an empty @ search; tags remain searchable. 2. Posting @myagents selects enabled channel members owned by the author, with the usual access check. 3. Readers see the author's group, not their own.</p></div></section>
+<section class="para"><div class="num">2.1</div><div><h3>Record once.</h3><p class="flush">Recipients use the existing unique message-identity rows. Explicit and group mentions deduplicate; retries preserve the original recipients. Edits recalculate from the same author. Group-like display names insert a safe individual handle.</p></div></section>
+<figure><svg viewBox="0 0 180 56" role="img" aria-label="A message by Person A selects channel members, then only agents owned by Person A, then records the recipients">
+<rect class="panel" x="1" y="1" width="178" height="45"/><text class="lbl-b" x="5" y="7">@MYAGENTS - THE AUTHOR DEFINES MY</text>
+<rect x="6" y="13" width="35" height="18" fill="white" stroke="black" stroke-width=".25"/><text class="lbl" x="23.5" y="20" text-anchor="middle">PERSON A POSTS</text><text class="lbl-s" x="23.5" y="26" text-anchor="middle">@MYAGENTS</text><path class="wa" style="stroke-width:.5" d="M41 22 H49"/>
+<rect class="box" x="50" y="13" width="36" height="18"/><text class="lbl" x="68" y="20" text-anchor="middle">CHANNEL MEMBERS</text><text class="lbl-s" x="68" y="26" text-anchor="middle">ENABLED - CAN READ</text><path class="wa" style="stroke-width:.5" d="M86 22 H94"/>
+<rect class="box" x="95" y="13" width="36" height="18"/><text class="lbl" x="113" y="20" text-anchor="middle">PERSON A'S AGENTS</text><text class="lbl-s" x="113" y="26" text-anchor="middle">OWNER MATCH</text><path class="wa" style="stroke-width:.5" d="M131 22 H139"/>
+<rect x="140" y="13" width="33" height="18" fill="white" stroke="black" stroke-width=".25"/><text class="lbl" x="156.5" y="20" text-anchor="middle">MENTION ROWS</text><text class="lbl-s" x="156.5" y="26" text-anchor="middle">EXISTING ACTIVITY</text><text class="lbl-s" x="5" y="43">OTHER OWNERS AND AGENTS OUTSIDE THE CHANNEL ARE EXCLUDED</text><text class="code" x="179" y="55" text-anchor="end">OWN-502A</text></svg><figcaption><span class="n">Figure 2.</span>Channel Membership and Author Ownership Must Both Match</figcaption></figure>
+<div class="lower"><div><section class="para"><div class="num">3</div><div><h2>DATA.</h2></div></section><div class="tcap">Table 1. Scope and Interface</div><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>New group tag</td><td class="v">@myagents</td></tr><tr><td>Owner comparison</td><td class="v">Agent owner_id = sender_id</td></tr><tr><td>Recipient kinds</td><td class="v">Agent / service</td></tr><tr><td>Suggestion limit</td><td class="v">7 - owned members first</td></tr><tr><td>Migration / new tables</td><td class="v">None / 0</td></tr><tr><td>New test functions</td><td class="v">1 - API tests extended</td></tr></tbody></table></div><div><div class="notice"><span class="tag">NOTE</span><p>@myagents uses the author and current channel at posting time. It does not mean every agent the author can see.</p></div><div class="card"><div class="bar"><span>CHECK OWNERSHIP</span><span>USER</span></div><ol><li><span>1</span><span>Type @ - your agents lead</span></li><li><span>2</span><span>Read Yours and owner labels</span></li><li><span>3</span><span>Type @myagents - choose tag</span></li><li><span>4</span><span>Post - only owned members</span></li></ol></div></div></div>
+<footer class="foot"><div class="rule"></div><div style="text-align:center;font-size:7.3pt">PR #47 - myagents-mentions - opened 20 Nov 2026 - last commit 20 Nov 2026<br>1 commits, +198 / −23</div></footer></div><script>
+  // Fit check: room left between the last content block and the footer.
+  // .page hides overflow, so without this an overfull page fails silently.
+  // render.sh prints the result from <html data-fit>.
+  document.fonts.ready.then(() => {
+    const page = document.querySelector('.page')
+    const foot = page.querySelector('.foot')
+    let bottom = 0
+    for (const el of page.children) {
+      if (el === foot || el.classList.contains('tab')) continue
+      bottom = Math.max(bottom, el.getBoundingClientRect().bottom)
+    }
+    const free = (foot.getBoundingClientRect().top - bottom) * 25.4 / 96
+    document.documentElement.dataset.fit = free >= 0 ? `ok, ${free.toFixed(1)} mm free above the footer` : `OVERFLOW by ${(-free).toFixed(1)} mm`
+  })
+</script>
+</body>
+</html>
