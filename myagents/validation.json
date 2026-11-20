@@ -1,11 +1,11 @@
 {
-  "source_sha": "377935d2b7954d6c417842fd382bc5053814f613",
+  "source_sha": "42c26e47b458c860947456d52c43c4eca94258f0",
   "full": {
-    "passed": 261,
+    "passed": 262,
     "live_excluded": 1,
-    "seconds": 190.87
+    "seconds": 197.98
   },
-  "new_browser_test_seconds": 4.64,
+  "new_browser_test_seconds": 4.9,
   "new_test_functions": 1,
   "extended_api_tests": [
     "group_mentions_reach_only_channel_members",
@@ -24,7 +24,10 @@
     "desktop keyboard and touch selection",
     "recipient-specific group highlighting",
     "JavaScript syntax",
-    "git diff --check"
+    "git diff --check",
+    "seven matching owned names retain exact/prefix group shortcuts",
+    "keyboard selected row visible in clipped mention and channel lists",
+    "current-main channel groups integration"
   ],
   "deployment": "not merged or deployed",
   "diagram": {
@@ -32,5 +35,20 @@
     "format": "A4",
     "colors": "black and white",
     "footer_clearance_mm": 4.8
-  }
+  },
+  "prior_full": {
+    "source_sha": "377935d2b7954d6c417842fd382bc5053814f613",
+    "passed": 261,
+    "live_excluded": 1,
+    "seconds": 190.87
+  },
+  "focused_before_integration": {
+    "passed": 21,
+    "seconds": 28.42
+  },
+  "review_fixes": {
+    "1": "Matching group tags remain after up to seven owned rows. Exact and prefix queries are covered.",
+    "2": "Every suggestion type scrolls the selected row into view; clipped mentions and channel lists covered."
+  },
+  "integrated_main": "40c67b353efc03fdc7a1b52ddb83490aefd7abbd"
 }
