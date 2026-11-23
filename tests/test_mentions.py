@@ -218,20 +218,29 @@ def test_upgrade_does_not_resurface_old_thread_notifications(env):
 
 
 def test_activity_unread_tab(env, tmp_path):
-    """Unread in Activity: only mentions, replies and DMs not read yet; remembered; follows reading; fits a phone."""
+    """Unread in Activity: every mention, reply and DM not read yet, however old; remembered; cleared only by
+    reads the server confirmed; the tabs never slide under Mark all as read; fits a phone."""
     import json
     import os
     import pytest
     pw = pytest.importorskip("playwright.sync_api")
     gen = env.op.create_channel("general")
+    busy = env.op.create_channel("busy")
     _, _, ana = env.human("ana")
     me_ident, token, me = env.human("me")
     root = me.post(gen["id"], "my question")
-    ana.post(gen["id"], "an answer", reply_to=root["id"])     # reply in my thread: unread
+    ana.post(gen["id"], "an answer", reply_to=root["id"])     # reply in my thread: unread, and old
+    last = None
+    for i in range(200):                                      # 200 newer mentions, all read
+        last = ana.post(busy["id"], f"@me ping {i}")
+    me.mark_read(busy["id"], last["seq"])
     ana.post(gen["id"], "hey @me look")                       # mention: unread
     dm = ana.open_dm(me_ident["id"])
     me.mark_read(dm["id"], ana.post(dm["id"], "psst")["seq"])  # DM already read
     ana.react(gen["id"], root["id"], "👍")                    # reactions have no read state
+    # the newest 200 notifications hide the old reply; the unread read finds it
+    assert "an answer" not in [m["body"] for m in me.activity(limit=200)]
+    assert [m["body"] for m in me.activity(limit=200, unread=True)] == ["hey @me look", "an answer"]
     with pw.sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
 
@@ -246,10 +255,10 @@ def test_activity_unread_tab(env, tmp_path):
         page = open_page(viewport={"width": 1160, "height": 820})
         tab = page.locator('[data-af="unread"]')
         pw.expect(tab).to_have_text("Unread2")
-        pw.expect(page.locator('[data-af="all"]')).to_have_text("All4")
         tab.click()
         rows = page.locator("#activity .act")
         pw.expect(rows).to_have_count(2)
+        pw.expect(rows.nth(1)).to_contain_text("an answer")
         assert rows.evaluate_all("rs => rs.every(r => r.classList.contains('unread'))")
         page.reload()                                          # the tab is remembered
         pw.expect(tab).to_have_class("on")
@@ -261,22 +270,39 @@ def test_activity_unread_tab(env, tmp_path):
         page.locator("#activity-open").click()
         pw.expect(tab).to_have_text("Unread1")
         pw.expect(rows).to_have_count(1)
+        # offline, opening an item reads nothing, so it stays unread here too
+        page.context.set_offline(True)
+        rows.first.click()
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread1")
         pw.expect(rows.first).to_contain_text("an answer")
+        page.context.set_offline(False)
+        page.reload()
+        pw.expect(tab).to_have_text("Unread1")
         page.locator("#act-read-all").click()
         pw.expect(tab).to_have_text("Unread0")
         pw.expect(page.locator("#activity .empty")).to_have_text("You're all caught up.")
-        assert not any(m["unread"] for m in me.activity())
+        assert me.activity(limit=200, unread=True) == []
 
-        # a phone: the tabs scroll sideways inside their row, Mark all as read sits below, nothing overflows
+        # in between (768 px) the tabs scroll inside their row and never sit under Mark all as read
         ana.post(gen["id"], "@me one more")
+        mid = open_page(viewport={"width": 768, "height": 900})
+        tabs, read_all = mid.locator(".af-tabs").bounding_box(), mid.locator("#act-read-all").bounding_box()
+        assert tabs["x"] + tabs["width"] <= read_all["x"]
+        dms = mid.locator('[data-af="dm"]')
+        dms.scroll_into_view_if_needed()
+        dms.click()
+        pw.expect(dms).to_have_attribute("aria-selected", "true")
+        assert len(me.activity(limit=200, unread=True)) == 1          # nothing was marked read
+        # a phone: Mark all as read gets its own row, nothing overflows
         phone = open_page(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
         ptab = phone.locator('[data-af="unread"]')
-        pw.expect(ptab).to_have_text("Unread1")
         ptab.tap()
+        pw.expect(ptab).to_have_text("Unread1")
         pw.expect(phone.locator("#activity .act")).to_have_count(1)
-        tabs = phone.locator(".af-tabs")
-        assert tabs.evaluate("t => t.scrollWidth > t.clientWidth")
+        ptabs = phone.locator(".af-tabs")
+        assert ptabs.evaluate("t => t.scrollWidth > t.clientWidth")
         assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
-        assert phone.locator("#act-read-all").bounding_box()["y"] >= tabs.bounding_box()["y"] + tabs.bounding_box()["height"]
+        assert phone.locator("#act-read-all").bounding_box()["y"] >= ptabs.bounding_box()["y"] + ptabs.bounding_box()["height"]
         phone.screenshot(path=str(tmp_path / "unread-phone.png"))
         browser.close()

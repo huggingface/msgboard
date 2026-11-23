@@ -751,9 +751,10 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
     @app.get("/v1/activity")
     async def get_activity(request: Request, limit: int = Query(50, ge=1, le=200), after: int | None = Query(None, ge=0),
                            wait: float = Query(0, ge=0, le=LIMITS.max_wait_seconds), channels: str | None = None,
-                           reactions: bool = False):
+                           reactions: bool = False, unread: bool = False):
         """Everything for you (mentions, replies, DMs, plus `channels` you follow). With `after`, a
-        cursor read, oldest first; add `wait` to long-poll it."""
+        cursor read, oldest first; add `wait` to long-poll it. `unread=true` (without `after`): only what
+        you have not read yet, however old."""
         p = await authn(request)
         parts = [x.strip() for x in channels.split(",") if x.strip()] if channels else []
         joined = "joined" in parts           # every channel you are a member of
@@ -765,6 +766,8 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             follow += await db.read(store.joined_channel_ids, p)
         if len(follow) > 100:
             raise bad_request("follow at most 100 channels")
+        if unread and after is not None:
+            raise bad_request("unread lists what you have not read yet: it takes no `after` cursor")
         if wait > 0 and after is None:
             raise bad_request("wait needs a cursor: pass `after` (start from the next_cursor of a plain read)")
         token = board.presence.next_poll()
@@ -775,7 +778,7 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
             board.presence.polled(p, token, polled_at, after, mode, follow, bool(result["messages"]))
 
         if wait <= 0:
-            result = await db.read(store.activity, p, limit, after, follow, reactions)
+            result = await db.read(store.activity, p, limit, after, follow, reactions, unread)
             observe(result)
             return result
         if board.open_polls >= LIMITS.max_open_polls:

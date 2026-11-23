@@ -2131,7 +2131,7 @@ def mark_all_read(conn, p: Principal, now: float) -> dict:
 
 
 def activity(conn, p: Principal, limit: int = 50, after: int | None = None, follow: list[int] | None = None,
-             reactions: bool = False) -> dict:
+             reactions: bool = False, unread: bool = False) -> dict:
     """Messages for me: mentions, replies in threads I am in, DMs to me, and (with `follow`) every
     message in those channels. My own messages never count.
 
@@ -2139,6 +2139,8 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     With `after`: messages with id > after, oldest first, for an agent that resumes from a saved
     cursor. Message ids grow with every post across the whole board, so `next_cursor` is one number.
     An exhausted page advances past unrelated messages too; a partial page stops at its last result.
+    With `unread` (and no `after`): only the ones I have not read yet, newest first, however far back they
+    are (walked in pages, at most ACTIVITY_UNREAD_SCAN messages), so the newest `limit` read ones never hide one.
     """
     limit = max(1, min(int(limit), 200))
     follow = list(dict.fromkeys(follow or []))
@@ -2153,17 +2155,58 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
     order = "DESC" if after is None else "ASC"
     # Capture the boundary before reading: a later post must remain available to the next poll.
     through = conn.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
-    rows = conn.execute(MESSAGE_SELECT + f"""
-        WHERE m.imported = 0 AND m.sender_id != :me AND m.id > :after AND m.id <= :through{scope} AND (
-            m.id IN (SELECT message_id FROM message_mentions WHERE principal_id = :me)
-            OR {FOLLOWED_REPLY}
-            OR {_dm_notification("(m.channel_id IN (SELECT c.id FROM channels c JOIN channel_members cm ON cm.channel_id = c.id WHERE c.kind = 'dm' AND cm.principal_id = :me))")}{followed})
-        ORDER BY m.id {order} LIMIT :limit""", {"me": p.id, "limit": limit + 1, "after": after or 0,
-                                               "through": through}).fetchall()
+
+    def fetch(n: int, upto: int) -> list:
+        return conn.execute(MESSAGE_SELECT + f"""
+            WHERE m.imported = 0 AND m.sender_id != :me AND m.id > :after AND m.id <= :through{scope} AND (
+                m.id IN (SELECT message_id FROM message_mentions WHERE principal_id = :me)
+                OR {FOLLOWED_REPLY}
+                OR {_dm_notification("(m.channel_id IN (SELECT c.id FROM channels c JOIN channel_members cm ON cm.channel_id = c.id WHERE c.kind = 'dm' AND cm.principal_id = :me))")}{followed})
+            ORDER BY m.id {order} LIMIT :limit""", {"me": p.id, "limit": n, "after": after or 0,
+                                                   "through": upto}).fetchall()
+
+    if unread and after is None:
+        messages, upto, scanned, has_more = [], through, 0, False
+        while True:
+            rows = fetch(200, upto)
+            page = [_message_json(r) for r in rows]
+            _attach_mentions(conn, page)
+            _annotate_activity(conn, p, page)
+            messages += [m for m in page if m["unread"]]
+            scanned += len(rows)
+            if len(messages) > limit:
+                has_more, messages = True, messages[:limit]
+                break
+            if len(rows) < 200 or scanned >= ACTIVITY_UNREAD_SCAN:
+                has_more = len(rows) == 200   # stopped at the cap with older notifications left unchecked
+                break
+            upto = page[-1]["id"] - 1
+        _attach_reactions(conn, messages, p.id)
+        return {"messages": messages, "next_cursor": through, "has_more": has_more}
+
+    rows = fetch(limit + 1, through)
     has_more = len(rows) > limit
     messages = [_message_json(r) for r in rows[:limit]]
     _attach_mentions(conn, messages)
     _attach_reactions(conn, messages, p.id)
+    _annotate_activity(conn, p, messages)
+    if after is None:
+        cursor = through   # "everything up to now"
+    elif has_more:
+        cursor = messages[-1]["id"]
+    else:
+        cursor = max(after, through)   # exhausted this range, including messages not for this caller
+    out = {"messages": messages, "next_cursor": cursor, "has_more": has_more}
+    if reactions and after is None:
+        out["reactions"] = _reactions_to_me(conn, p, scope, limit)
+    return out
+
+
+ACTIVITY_UNREAD_SCAN = 20000   # notifications an unread-only read walks back through, at most
+
+
+def _annotate_activity(conn, p: Principal, messages: list[dict]) -> None:
+    """Add `channel`, `reason` (why it is for me) and `unread` to activity messages."""
     my_threads = {r[0] for r in conn.execute(MY_THREADS.strip()[1:-1], {"me": p.id})} if messages else set()
     subscriptions = {r[0]: (r[1], r[2]) for r in conn.execute(
         "SELECT thread_id, subscribed, after_seq FROM thread_subscriptions WHERE principal_id = ?", (p.id,))} if messages else {}
@@ -2189,16 +2232,6 @@ def activity(conn, p: Principal, limit: int = 50, after: int | None = None, foll
             m["unread"] = m["seq"] > max(tr or 0, floors.get(cid, 0)) and (cid in reads or m["created_at"] > baseline)
         else:
             m["unread"] = m["seq"] > reads.get(cid, 0) and (cid in reads or m["created_at"] > baseline)
-    if after is None:
-        cursor = through   # "everything up to now"
-    elif has_more:
-        cursor = messages[-1]["id"]
-    else:
-        cursor = max(after, through)   # exhausted this range, including messages not for this caller
-    out = {"messages": messages, "next_cursor": cursor, "has_more": has_more}
-    if reactions and after is None:
-        out["reactions"] = _reactions_to_me(conn, p, scope, limit)
-    return out
 
 
 def joined_channel_ids(conn, p: Principal) -> list[int]:

@@ -615,13 +615,16 @@ button.fchip:hover { border-color: var(--ink); }
 .act-filters button.on span { color: var(--bg); opacity: .7; }
 .act-filters button.read-all { margin-left: auto; border: 1px solid var(--rule-2); }
 .act-filters button.read-all:disabled { opacity: .4; cursor: default; }
-.af-tabs { display: flex; min-width: 0; }
+.act-filters { column-gap: 12px; }
+/* the tabs shrink and scroll sideways when the row is too narrow: never under Mark all as read */
+.af-tabs { display: flex; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: none; }
+.af-tabs::-webkit-scrollbar { display: none; }
 .af-tabs button { flex: none; white-space: nowrap; }
+.act-filters .read-all { flex: none; }
 @media (max-width: 720px) {
   /* the tabs don't fit a phone: they scroll sideways, and Mark all as read gets its own row */
   .act-filters { flex-wrap: wrap; row-gap: 8px; padding: 10px 16px; }
-  .af-tabs { flex: 1 0 100%; overflow-x: auto; scrollbar-width: none; }
-  .af-tabs::-webkit-scrollbar { display: none; }
+  .af-tabs { flex: 1 0 100%; }
 }
 
 /* ---------- side panel content ---------- */
@@ -2235,6 +2238,14 @@ function showNoChannels() {
   $("messages").innerHTML = `<div class="empty">No channels you can read yet.</div>`;
   $("composer").classList.add("hidden");
 }
+// A read the server confirmed: what it covers stops being unread in Activity, before Activity reloads
+function activityRead(cid, seq, threadId = null) {
+  const res = state.activityData;
+  if (!res) return;
+  const covered = (m) => m.channel.id === cid && m.seq <= seq && (threadId ? m.thread_id === threadId : !m.thread_id);
+  res.messages.forEach((m) => { if (covered(m)) m.unread = false; });
+  if (res.unread) res.unread = res.unread.filter((m) => !covered(m));
+}
 // Read positions live on the server, so they follow you to other devices.
 function markSeen() {
   const c = state.current;
@@ -2244,7 +2255,7 @@ function markSeen() {
   if ((state.readSent[c.id] || 0) >= seq) return;
   state.readSent[c.id] = seq;
   api("POST", `/channels/${c.id}/read`, { body: { seq } })
-    .then((counts) => { c.for_me = counts.for_me; renderChannels(); })
+    .then((counts) => { c.for_me = counts.for_me; renderChannels(); activityRead(c.id, seq); })
     .catch(() => { state.readSent[c.id] = 0; });
 }
 function updateMeta(live) {
@@ -2354,7 +2365,7 @@ function markThreadSeen() {
   P.readSent = seq;
   if (root.replies) root.replies.for_me_unread = 0;
   api("POST", `/channels/${c.id}/threads/${root.id}/read`, { body: { seq } })
-    .then((counts) => { const ch = state.channels.find((x) => x.id === c.id); if (ch) Object.assign(ch, { for_me: counts.for_me }); renderChannels(); })
+    .then((counts) => { const ch = state.channels.find((x) => x.id === c.id); if (ch) Object.assign(ch, { for_me: counts.for_me }); renderChannels(); activityRead(c.id, seq, root.id); })
     .catch(() => { P.readSent = 0; });
   if (state.view === "chat") renderFeed(false);
 }
@@ -5122,7 +5133,11 @@ async function openActivity() {
   // show the last list right away and swap in the fresh one when it arrives
   if (state.activityData) renderActivity(); else $("activity").innerHTML = `<div class="empty">Loading…</div>`;
   let res;
-  try { res = await api("GET", "/activity?limit=200&reactions=true"); }
+  try {
+    // Unread comes from its own read: the newest 200 notifications can all be read while an older one isn't
+    const [all, unread] = await Promise.all([api("GET", "/activity?limit=200&reactions=true"), api("GET", "/activity?unread=true&limit=200")]);
+    res = { ...all, unread: unread.messages, unreadMore: unread.has_more };
+  }
   catch (e) { if (state.view === "activity" && !state.activityData) $("activity").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   if (state.view !== "activity") return;
   state.activityData = res;
@@ -5136,15 +5151,15 @@ const activityFilter = () => {
 };
 function renderActivity() {
   const res = state.activityData, f = activityFilter();
-  // Unread: mentions, replies and DMs not read yet (reactions have no read state)
-  const shows = (it) => f === "all" || (f === "unread" ? !!(it.m && it.m.unread) : it.kind === f);
-  // one time-ordered list: messages for me, and reactions others left on my messages
-  const items = [
+  // one time-ordered list: messages for me, and reactions others left on my messages; Unread is its own
+  // list (mentions, replies and DMs not read yet, however old; reactions have no read state)
+  const unread = res.unread || [];
+  const items = f === "unread" ? unread.map((m) => ({ kind: m.reason, at: m.created_at, m })) : [
     ...res.messages.map((m) => ({ kind: m.reason, at: m.created_at, m })),
     ...(res.reactions || []).map((g) => ({ kind: "reaction", at: g.last_at, g })),
-  ].filter(shows).sort((a, b) => b.at - a.at);
+  ].filter((it) => f === "all" || it.kind === f).sort((a, b) => b.at - a.at);
   const count = (k) => k === "all" ? res.messages.length + (res.reactions || []).length
-    : k === "unread" ? res.messages.filter((m) => m.unread).length
+    : k === "unread" ? unread.length + (res.unreadMore ? "+" : "")
     : k === "reaction" ? (res.reactions || []).length : res.messages.filter((m) => m.reason === k).length;
   const where = (c) => c.kind === "dm" ? `DM · ${esc(channelTitle(c))}` : `${c.kind === "private" ? "private · " : "#"}${esc(c.name)}`;
   const why = { mention: "mentioned you", reply: "replied", dm: "direct", channel: "in a channel you follow" };
@@ -5167,7 +5182,7 @@ function renderActivity() {
       `<button role="tab" data-af="${k}" class="${k === f ? "on" : ""}" aria-selected="${k === f}">${l}<span>${count(k)}</span></button>`).join("")}</div>
       <button class="read-all" id="act-read-all" ${res.messages.some((m) => m.unread) || state.channels.some((c) => c.for_me || c.unread) ? "" : "disabled"}>Mark all as read</button></div>` +
     (items.length ? items.map(row).join("") : `<div class="empty">${f === "all" ? "Nothing for you yet. Mentions, replies in your threads, DMs and reactions to your messages show up here."
-      : f === "unread" ? "You're all caught up." : f === "reaction" ? "Nobody has reacted to your messages yet." : "Nothing here yet."}</div>`);
+      : f === "unread" ? (res.unreadMore ? "Nothing unread in your recent notifications." : "You're all caught up.") : f === "reaction" ? "Nobody has reacted to your messages yet." : "Nothing here yet."}</div>`);
   hydrate($("activity"));
   const on = $("activity").querySelector(".af-tabs .on");
   if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });   // on a phone the row scrolls sideways
@@ -5179,6 +5194,7 @@ function renderActivity() {
     try {
       await api("POST", "/me/read-all");
       res.messages.forEach((m) => { m.unread = false; });
+      res.unread = []; res.unreadMore = false;
       state.channels.forEach((c) => { c.unread = 0; c.for_me = 0; });
       state.readSent = {};
       renderActivity(); renderChannels(); refreshChannels();
@@ -5193,8 +5209,7 @@ function renderActivity() {
   $("activity").querySelectorAll("[data-act-msg]").forEach((el) => el.onclick = (e) => {
     if (e.target.closest(".mention, .chan-link, a, .more")) return;   // those go to their own place
     const it = items.find((x) => (x.m || x.g.message).id === Number(el.dataset.actMsg));
-    if (it && it.m) it.m.unread = false;   // opening it reads it: it is gone from Unread when you come back
-    if (it) jumpTo(it.m || it.g.message);
+    if (it) jumpTo(it.m || it.g.message);   // the read it causes clears it here once the server confirms it
   });
 }
 $("activity-open").onclick = () => { $("app").classList.remove("nav"); openActivity(); };
