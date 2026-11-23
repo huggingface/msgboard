@@ -313,6 +313,22 @@ def test_activity_unread_tab(env, tmp_path):
         pw.expect(tab).to_have_text("Unread0")
         pw.expect(page.locator("#activity .empty")).to_have_text("You're all caught up.")
         assert me.activity(limit=200, unread=True) == []
+        # a read remembered for a channel never hides a later one that reuses its id
+        temp = env.op.create_channel("temp")
+        ana.post(temp["id"], "@me temp ping")
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread1")
+        with page.expect_response(lambda r: r.url.endswith(f"/channels/{temp['id']}/read")):
+            rows.first.click()                                 # read, and replaced before Activity reloads
+        env.op.delete_channel(temp["id"], "temp")
+        again = env.op.create_channel("temp-again")
+        assert again["id"] == temp["id"]                       # the id came back
+        fresh = ana.post(again["id"], "@me fresh")
+        assert fresh["seq"] == 1
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread1")
+        pw.expect(rows.first).to_contain_text("@me fresh")
+        me.mark_read(again["id"], fresh["seq"])
 
         # in between (768 px) the tabs scroll inside their row and never sit under Mark all as read
         ana.post(gen["id"], "@me one more")
