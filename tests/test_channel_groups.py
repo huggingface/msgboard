@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 
 import pytest
 
@@ -165,4 +166,79 @@ def test_channel_groups_desktop_touch_order_and_save_failures(env, tmp_path):
         pw.expect(mobile.locator("#dms li")).to_have_count(1)
         assert secret["id"] not in [c["id"] for c in reader.list_channels()]
         assert not errors
+        browser.close()
+
+
+def test_swipe_opens_and_closes_the_channel_list_on_phones(env, tmp_path):
+    """Phones, like Slack: swipe right pulls the channel list in, swipe left puts it away. Short, vertical,
+    cancelled swipes, swipes in places that already scroll sideways or edit text, and wide screens change nothing."""
+    pw = pytest.importorskip("playwright.sync_api")
+    _, token, owner = env.human("person-a")
+    chan = owner.create_channel("swipes")
+    msg = owner.post(chan["id"], "a message")
+    code = owner.post(chan["id"], "```\n" + "wide " * 120 + "\n```")
+    with pw.sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+
+        def open_page(**kwargs):
+            ctx = browser.new_context(**kwargs)
+            ctx.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+            ctx.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+            page = ctx.new_page()
+            page.goto(env.url + "/#swipes")
+            pw.expect(page.locator(f'#messages [data-mid="{code["id"]}"]')).to_be_visible()
+            return page, ctx.new_cdp_session(page)
+
+        def swipe(cdp, x0, y0, x1, y1, end="touchEnd"):
+            cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x0, "y": y0}]})
+            for i in range(1, 9):
+                cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [
+                    {"x": x0 + (x1 - x0) * i / 8, "y": y0 + (y1 - y0) * i / 8}]})
+            cdp.send("Input.dispatchTouchEvent", {"type": end, "touchPoints": []})
+
+        page, cdp = open_page(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        app, aside = page.locator("#app"), page.locator("aside")
+
+        def closed():   # not open, and done sliding away (it animates back for .15 s)
+            pw.expect(app).not_to_have_class(re.compile(r"\bnav\b"))
+            page.wait_for_function("document.querySelector('aside').getBoundingClientRect().right <= 0")
+        text = page.locator(f'#messages [data-mid="{msg["id"]}"] .body')
+        y = text.bounding_box()["y"] + 5
+        swipe(cdp, 40, y, 330, y)
+        pw.expect(app).to_have_class(re.compile(r"\bnav\b"))
+        page.screenshot(path=str(tmp_path / "swipe-open.png"))
+        swipe(cdp, 330, 400, 20, 400)
+        closed()
+        # nothing happens for: a short move, a mostly vertical one, a cancelled one (on empty space below the
+        # messages, since a tap on a message opens its thread)
+        for start, stop, end in [((40, 450), (55, 450), "touchEnd"), ((60, 450), (140, 700), "touchEnd"),
+                                 ((40, 450), (330, 450), "touchCancel")]:
+            swipe(cdp, *start, *stop, end=end)
+            closed()
+            assert aside.evaluate("a => a.style.transform === '' && a.style.transition === ''"), (start, stop, end)
+        # a second finger mid-swipe ends it: the list goes back, with no drag styles left behind
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": 40, "y": 450}]})
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": 200, "y": 450}]})
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": 200, "y": 450}, {"x": 250, "y": 600}]})
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+        closed()
+        assert aside.evaluate("a => a.style.transform === '' && a.style.transition === '' && a.style.boxShadow === ''")
+        # nor where sideways already means something: the message box, a wide code block, an open picker
+        box = page.locator("#composer textarea").bounding_box()
+        swipe(cdp, box["x"] + 20, box["y"] + 10, box["x"] + 300, box["y"] + 10)
+        closed()
+        pre = page.locator(f'#messages [data-mid="{code["id"]}"] pre')
+        pb = pre.bounding_box()
+        swipe(cdp, pb["x"] + 20, pb["y"] + 10, pb["x"] + 300, pb["y"] + 10)
+        closed()
+        page.locator(f'#messages [data-mid="{msg["id"]}"] .actions [data-react-pick]').tap()
+        pw.expect(page.locator(".react-pop")).to_be_visible()
+        swipe(cdp, 40, 450, 330, 450)
+        pw.expect(app).not_to_have_class(re.compile(r"\bnav\b"))
+        pw.expect(page.locator("#panel")).to_have_class(re.compile(r"\bhidden\b"))   # no stray taps either
+        # a wide screen keeps its sidebar: swipes do nothing there
+        wide, wide_cdp = open_page(viewport={"width": 1160, "height": 820}, has_touch=True)
+        swipe(wide_cdp, 400, 300, 900, 300)
+        pw.expect(wide.locator("#app")).not_to_have_class(re.compile(r"\bnav\b"))
+        assert wide.locator("aside").evaluate("a => a.style.transform === ''")
         browser.close()

@@ -143,7 +143,9 @@ a[data-internal] { font-weight: 600; }
 .react-pop .rquick button, .react-pop .emoji-grid button { width: 34px; height: 32px; border: 0; background: none; font-size: 20px; line-height: 1; padding: 0; }
 .react-pop .rquick button:hover, .react-pop .emoji-grid button:hover { background: var(--hover); box-shadow: inset 0 0 0 1px var(--rule-2); }
 .react-pop input { width: 100%; border: 0; border-bottom: 1px solid var(--rule); padding: 8px 10px; outline: none; background: transparent; }
-.react-pop .emoji-grid { height: 200px; }
+.react-pop { display: flex; flex-direction: column; }
+.react-pop .emoji-grid { height: 200px; flex: 0 1 auto; min-height: 0; }
+.react-pop .rquick, .react-pop input { flex: none; }
 .search-box { padding: 14px 16px 0; }
 .search-box input { width: 100%; border: 1px solid var(--rule-2); background: var(--bg); padding: 6px 9px; font-size: 13px; }
 .search-box input:focus { outline: 0; border-color: var(--ink); }
@@ -2567,15 +2569,25 @@ function openReactPicker(anchor, mid) {
     if (e.key === "Enter") { const first = grid.querySelector("[data-e]"); if (first) { closeReactPicker(); toggleReaction(mid, first.dataset.e); } }
   };
   pop.onclick = (e) => { const b = e.target.closest("[data-e]"); if (b) { closeReactPicker(); toggleReaction(mid, b.dataset.e); } };
-  // place it next to what was clicked, inside the window
-  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
-  pop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + "px";
-  pop.style.top = (r.bottom + 6 + h < window.innerHeight ? r.bottom + 6 : Math.max(8, r.top - h - 6)) + "px";
-  input.focus();
+  // place it next to what was clicked, inside the visible area (on a phone the keyboard shrinks it)
+  pop.place = () => {
+    const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    pop.style.maxHeight = Math.max(120, vh - 16) + "px";   // short of room, the emoji grid shrinks and scrolls
+    const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + "px";
+    pop.style.top = (r.bottom + 6 + h < vh ? r.bottom + 6 : Math.max(8, Math.min(r.top - h - 6, vh - h - 8))) + "px";
+  };
+  pop.place();
+  pop.width = window.innerWidth;
+  // a phone opens its keyboard on focus: there the search waits for a tap, so the picker opens in place
+  if (!mobileTextInput()) input.focus();
   document.addEventListener("mousedown", reactOutside, true);
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && reactPop) closeReactPicker(); });
-window.addEventListener("resize", closeReactPicker);
+// turning the device closes the picker; the keyboard opening or closing (height only) just moves it
+const reactResized = () => { if (reactPop) { if (window.innerWidth !== reactPop.width) closeReactPicker(); else reactPop.place(); } };
+window.addEventListener("resize", reactResized);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", reactResized);
 
 // ------------------------------------------------------------------ editing your own messages
 function applyEdit(m) {
@@ -6171,6 +6183,59 @@ document.addEventListener("drop", (e) => { if (hasFiles(e)) e.preventDefault(); 
 $("me-who").onclick = () => state.me && openProfile(state.me.id);
 $("analytics-open").onclick = () => { $("app").classList.remove("nav"); openAnalytics(); };
 $("menu").onclick = () => $("app").classList.toggle("nav");
+// Phones, like Slack: swipe right to pull the channel list in, swipe left to put it away. The list follows
+// the finger; letting go past a third of its width (or a flick) completes the move, anything less snaps back.
+(() => {
+  const app = $("app"), aside = document.querySelector("aside"), phone = window.matchMedia("(max-width: 720px)");
+  let g = null;   // the swipe in progress: start point, time, open-at-start, and "pending" / "swipe" / "off"
+  const scrollsSideways = (el) => {
+    for (; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
+    }
+    return false;
+  };
+  // where a sideways swipe already means something else, or would get in the way, it never starts
+  const blocked = (t) => !phone.matches || !aside || !(t instanceof Element)
+    || t.closest("textarea, input, select, [contenteditable=''], [contenteditable=true], #viewer, #tasks-list, .react-pop, .pop, [role=menu], dialog")
+    || document.querySelector(".react-pop, .pop, [role=menu], dialog[open], #viewer:not(.hidden)")
+    || String(window.getSelection() || "").trim() || scrollsSideways(t);
+  const width = () => aside.getBoundingClientRect().width || 300;
+  const reset = () => { aside.style.transition = ""; aside.style.transform = ""; aside.style.boxShadow = ""; };
+  document.addEventListener("touchstart", (e) => {
+    if (g && g.mode === "swipe") reset();   // a second finger ends the swipe: the list goes back where it was
+    g = null;
+    if (e.touches.length !== 1 || blocked(e.target)) return;
+    const t = e.touches[0];
+    g = { x: t.clientX, y: t.clientY, at: performance.now(), open: app.classList.contains("nav"), mode: "pending", dx: 0 };
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!g || g.mode === "off") return;
+    if (e.touches.length !== 1) { if (g.mode === "swipe") reset(); g = null; return; }
+    const t = e.touches[0], dx = t.clientX - g.x, dy = t.clientY - g.y;
+    if (g.mode === "pending") {
+      if (Math.hypot(dx, dy) < 10) return;   // a finger always wobbles a little
+      // only a clearly sideways move, in the direction that does something, becomes a swipe
+      g.mode = Math.abs(dx) > 1.5 * Math.abs(dy) && (g.open ? dx < 0 : dx > 0) ? "swipe" : "off";
+      if (g.mode === "off") return;
+      aside.style.transition = "none";
+    }
+    e.preventDefault();   // the page doesn't scroll under a swipe
+    const w = width();
+    g.dx = g.open ? Math.max(-w, Math.min(0, dx)) : Math.max(0, Math.min(w, dx));
+    const shown = g.open ? w + g.dx : g.dx;   // how much of the list is on screen
+    aside.style.transform = `translateX(${shown - w}px)`;
+    aside.style.boxShadow = `0 0 0 100vmax rgba(0,0,0,${(0.3 * shown / w).toFixed(3)})`;
+  }, { passive: false });
+  const end = (cancelled) => {
+    const s = g; g = null;
+    if (!s || s.mode !== "swipe") return;
+    const w = width(), moved = Math.abs(s.dx), fast = moved > 20 && moved / Math.max(1, performance.now() - s.at) > 0.5;
+    reset();
+    if (!cancelled && (moved > w / 3 || fast)) app.classList.toggle("nav", !s.open);
+  };
+  document.addEventListener("touchend", () => end(false));
+  document.addEventListener("touchcancel", () => end(true));
+})();
 $("app").addEventListener("click", (e) => {
   if (!$("app").classList.contains("nav") || e.target.closest("aside, #menu")) return;
   e.preventDefault(); e.stopPropagation(); $("app").classList.remove("nav");
