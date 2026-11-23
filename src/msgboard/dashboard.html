@@ -2238,22 +2238,19 @@ function showNoChannels() {
   $("messages").innerHTML = `<div class="empty">No channels you can read yet.</div>`;
   $("composer").classList.add("hidden");
 }
-// Reads the server confirmed ("channel" or "channel:thread" -> seq, numbered as they land): what they cover is
-// not unread in Activity, including in a list whose fetch started before the read landed. A fetch that started
-// after a read already reflects it, so that read is dropped then (a deleted channel's id can come back).
-const confirmedReads = new Map();
-let readsLanded = 0;
-const readKey = (cid, threadId) => threadId ? `${cid}:${threadId}` : String(cid);
-function applyConfirmedReads(res, since = 0) {
-  const covered = (m) => { const r = confirmedReads.get(readKey(m.channel.id, m.thread_id)); return !!r && r.n > since && m.seq <= r.seq; };
-  res.messages.forEach((m) => { if (covered(m)) m.unread = false; });
-  if (res.unread) res.unread = res.unread.filter((m) => !covered(m));
-}
+// A read the server confirmed: what it covers stops being unread in the Activity list on hand. An Activity answer
+// still on its way may predate the read, so it is superseded: on Activity a fresh one is fetched, elsewhere the next
+// visit fetches anyway. Nothing is remembered, so an old read can never hide a later message.
 function activityRead(cid, seq, threadId = null) {
-  confirmedReads.set(readKey(cid, threadId), { seq, n: ++readsLanded });
-  if (!state.activityData) return;
-  applyConfirmedReads(state.activityData);
-  if (state.view === "activity") renderActivity();   // back on Activity before the read came back
+  const res = state.activityData;
+  if (res) {
+    const covered = (m) => m.channel.id === cid && m.seq <= seq && (threadId ? m.thread_id === threadId : !m.thread_id);
+    res.messages.forEach((m) => { if (covered(m)) m.unread = false; });
+    if (res.unread) res.unread = res.unread.filter((m) => !covered(m));
+  }
+  if (state.view !== "activity") { activityLoads++; return; }
+  if (res) renderActivity();
+  loadActivity();
 }
 // Read positions live on the server, so they follow you to other devices.
 function markSeen() {
@@ -5141,17 +5138,20 @@ async function openActivity() {
   $("ch-meta").textContent = ""; $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
   // show the last list right away and swap in the fresh one when it arrives
   if (state.activityData) renderActivity(); else $("activity").innerHTML = `<div class="empty">Loading…</div>`;
+  loadActivity();
+}
+// Fetch Activity. Only the newest request may land: an older answer arriving late never replaces a newer one.
+let activityLoads = 0;
+async function loadActivity() {
+  const mine = ++activityLoads;
   let res;
-  const since = readsLanded;   // reads that land after this point may be missing from the answer
   try {
     // Unread comes from its own read: the newest 200 notifications can all be read while an older one isn't
     const [all, unread] = await Promise.all([api("GET", "/activity?limit=200&reactions=true"), api("GET", "/activity?unread=true&limit=200")]);
     res = { ...all, unread: unread.messages, unreadMore: unread.has_more };
-    applyConfirmedReads(res, since);
-    for (const [k, r] of confirmedReads) if (r.n <= since) confirmedReads.delete(k);   // the server has those now
   }
-  catch (e) { if (state.view === "activity" && !state.activityData) $("activity").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-  if (state.view !== "activity") return;
+  catch (e) { if (mine === activityLoads && state.view === "activity" && !state.activityData) $("activity").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  if (mine !== activityLoads || state.view !== "activity") return;
   state.activityData = res;
   renderActivity();
 }

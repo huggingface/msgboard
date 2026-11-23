@@ -287,7 +287,7 @@ def test_activity_unread_tab(env, tmp_path):
         pw.expect(tab).to_have_text("Unread2")
         read, url = open_held("@me again", busy["id"])        # 2. the read lands while the reload is on its way
         late = []
-        page.route("**/activity?unread=true*", lambda route: late.append((route, route.fetch())))
+        page.route("**/activity?unread=true*", lambda route: late.append((route, route.fetch())) if not late else route.continue_())
         page.locator("#activity-open").click()
         for _ in range(100):
             if late:
@@ -308,6 +308,25 @@ def test_activity_unread_tab(env, tmp_path):
         pw.expect(rows.first).to_contain_text("an answer")
         page.context.set_offline(False)
         page.reload()
+        pw.expect(tab).to_have_text("Unread1")
+        # an older Activity answer arriving after a newer one never replaces it
+        late_ping = ana.post(gen["id"], "@me late")
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread2")
+        stale = []
+        page.route("**/activity?unread=true*", lambda route: stale.append((route, route.fetch())) if not stale else route.continue_())
+        page.locator("#activity-open").click()                # reload A: answered now, held back
+        for _ in range(100):
+            if stale:
+                break
+            page.wait_for_timeout(50)
+        me.mark_read(gen["id"], late_ping["seq"])             # read elsewhere (another device)
+        page.locator("#activity-open").click()                # reload B lands first
+        pw.expect(tab).to_have_text("Unread1")
+        with page.expect_response(lambda r: "/activity?unread=true" in r.url):
+            stale[0][0].fulfill(response=stale[0][1])         # A, from before the read, arrives last
+        page.unroute("**/activity?unread=true*")
+        page.evaluate("() => new Promise((done) => setTimeout(done, 0))")   # let it be handled
         pw.expect(tab).to_have_text("Unread1")
         page.locator("#act-read-all").click()
         pw.expect(tab).to_have_text("Unread0")
