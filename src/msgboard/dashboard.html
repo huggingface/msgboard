@@ -615,6 +615,14 @@ button.fchip:hover { border-color: var(--ink); }
 .act-filters button.on span { color: var(--bg); opacity: .7; }
 .act-filters button.read-all { margin-left: auto; border: 1px solid var(--rule-2); }
 .act-filters button.read-all:disabled { opacity: .4; cursor: default; }
+.af-tabs { display: flex; min-width: 0; }
+.af-tabs button { flex: none; white-space: nowrap; }
+@media (max-width: 720px) {
+  /* the tabs don't fit a phone: they scroll sideways, and Mark all as read gets its own row */
+  .act-filters { flex-wrap: wrap; row-gap: 8px; padding: 10px 16px; }
+  .af-tabs { flex: 1 0 100%; overflow-x: auto; scrollbar-width: none; }
+  .af-tabs::-webkit-scrollbar { display: none; }
+}
 
 /* ---------- side panel content ---------- */
 .pad { padding: 22px 20px 28px; }
@@ -5114,21 +5122,29 @@ async function openActivity() {
   // show the last list right away and swap in the fresh one when it arrives
   if (state.activityData) renderActivity(); else $("activity").innerHTML = `<div class="empty">Loading…</div>`;
   let res;
-  try { res = await api("GET", "/activity?limit=100&reactions=true"); }
+  try { res = await api("GET", "/activity?limit=200&reactions=true"); }
   catch (e) { if (state.view === "activity" && !state.activityData) $("activity").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   if (state.view !== "activity") return;
   state.activityData = res;
   renderActivity();
 }
-const ACTIVITY_FILTERS = [["all", "All"], ["reply", "Replies"], ["mention", "Mentions"], ["reaction", "Reactions"], ["dm", "DMs"]];
+const ACTIVITY_FILTERS = [["all", "All"], ["unread", "Unread"], ["reply", "Replies"], ["mention", "Mentions"], ["reaction", "Reactions"], ["dm", "DMs"]];
+// the tab you used last opens again (per browser)
+const activityFilter = () => {
+  const f = state.activityFilter || store.get("activity-filter") || "all";
+  return ACTIVITY_FILTERS.some(([k]) => k === f) ? f : "all";
+};
 function renderActivity() {
-  const res = state.activityData, f = state.activityFilter || "all";
+  const res = state.activityData, f = activityFilter();
+  // Unread: mentions, replies and DMs not read yet (reactions have no read state)
+  const shows = (it) => f === "all" || (f === "unread" ? !!(it.m && it.m.unread) : it.kind === f);
   // one time-ordered list: messages for me, and reactions others left on my messages
   const items = [
     ...res.messages.map((m) => ({ kind: m.reason, at: m.created_at, m })),
     ...(res.reactions || []).map((g) => ({ kind: "reaction", at: g.last_at, g })),
-  ].filter((it) => f === "all" || it.kind === f).sort((a, b) => b.at - a.at);
+  ].filter(shows).sort((a, b) => b.at - a.at);
   const count = (k) => k === "all" ? res.messages.length + (res.reactions || []).length
+    : k === "unread" ? res.messages.filter((m) => m.unread).length
     : k === "reaction" ? (res.reactions || []).length : res.messages.filter((m) => m.reason === k).length;
   const where = (c) => c.kind === "dm" ? `DM · ${esc(channelTitle(c))}` : `${c.kind === "private" ? "private · " : "#"}${esc(c.name)}`;
   const why = { mention: "mentioned you", reply: "replied", dm: "direct", channel: "in a channel you follow" };
@@ -5147,13 +5163,17 @@ function renderActivity() {
       <b style="color:var(--ink);font-family:var(--sans);font-size:13px">${esc(nameOf(m.sender))}</b><span>${where(m.channel)}</span><span>${esc(ago(m.created_at))}</span></div>
       <div class="${bodyClass()} clamp">${renderBody(m.body, m.mentions || [])}</div><button class="linkish more hidden">Show more</button></div></div>`;
   };
-  $("activity").innerHTML = `<div class="act-filters" role="tablist">${ACTIVITY_FILTERS.map(([k, l]) =>
-      `<button role="tab" data-af="${k}" class="${k === f ? "on" : ""}" aria-selected="${k === f}">${l}<span>${count(k)}</span></button>`).join("")}
+  $("activity").innerHTML = `<div class="act-filters"><div class="af-tabs" role="tablist" aria-label="Show">${ACTIVITY_FILTERS.map(([k, l]) =>
+      `<button role="tab" data-af="${k}" class="${k === f ? "on" : ""}" aria-selected="${k === f}">${l}<span>${count(k)}</span></button>`).join("")}</div>
       <button class="read-all" id="act-read-all" ${res.messages.some((m) => m.unread) || state.channels.some((c) => c.for_me || c.unread) ? "" : "disabled"}>Mark all as read</button></div>` +
     (items.length ? items.map(row).join("") : `<div class="empty">${f === "all" ? "Nothing for you yet. Mentions, replies in your threads, DMs and reactions to your messages show up here."
-      : f === "reaction" ? "Nobody has reacted to your messages yet." : "Nothing here yet."}</div>`);
+      : f === "unread" ? "You're all caught up." : f === "reaction" ? "Nobody has reacted to your messages yet." : "Nothing here yet."}</div>`);
   hydrate($("activity"));
-  $("activity").querySelectorAll("[data-af]").forEach((b) => b.onclick = () => { state.activityFilter = b.dataset.af; renderActivity(); });
+  const on = $("activity").querySelector(".af-tabs .on");
+  if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });   // on a phone the row scrolls sideways
+  $("activity").querySelectorAll("[data-af]").forEach((b) => b.onclick = () => {
+    state.activityFilter = b.dataset.af; store.set("activity-filter", b.dataset.af); renderActivity();
+  });
   $("act-read-all").onclick = async () => {
     $("act-read-all").disabled = true;
     try {
@@ -5173,6 +5193,7 @@ function renderActivity() {
   $("activity").querySelectorAll("[data-act-msg]").forEach((el) => el.onclick = (e) => {
     if (e.target.closest(".mention, .chan-link, a, .more")) return;   // those go to their own place
     const it = items.find((x) => (x.m || x.g.message).id === Number(el.dataset.actMsg));
+    if (it && it.m) it.m.unread = false;   // opening it reads it: it is gone from Unread when you come back
     if (it) jumpTo(it.m || it.g.message);
   });
 }

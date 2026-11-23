@@ -215,3 +215,68 @@ def test_upgrade_does_not_resurface_old_thread_notifications(env):
     ana2 = env.client(ana.token)
     ana2.post(gen["id"], "new answer", reply_to=root["id"])
     assert by_name(me, "general")["for_me"] == 1                       # a new one is for me until the thread is read
+
+
+def test_activity_unread_tab(env, tmp_path):
+    """Unread in Activity: only mentions, replies and DMs not read yet; remembered; follows reading; fits a phone."""
+    import json
+    import os
+    import pytest
+    pw = pytest.importorskip("playwright.sync_api")
+    gen = env.op.create_channel("general")
+    _, _, ana = env.human("ana")
+    me_ident, token, me = env.human("me")
+    root = me.post(gen["id"], "my question")
+    ana.post(gen["id"], "an answer", reply_to=root["id"])     # reply in my thread: unread
+    ana.post(gen["id"], "hey @me look")                       # mention: unread
+    dm = ana.open_dm(me_ident["id"])
+    me.mark_read(dm["id"], ana.post(dm["id"], "psst")["seq"])  # DM already read
+    ana.react(gen["id"], root["id"], "👍")                    # reactions have no read state
+    with pw.sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+
+        def open_page(**kwargs):
+            ctx = browser.new_context(**kwargs)
+            ctx.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+            ctx.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+            page = ctx.new_page()
+            page.goto(env.url + "/#activity")
+            return page
+
+        page = open_page(viewport={"width": 1160, "height": 820})
+        tab = page.locator('[data-af="unread"]')
+        pw.expect(tab).to_have_text("Unread2")
+        pw.expect(page.locator('[data-af="all"]')).to_have_text("All4")
+        tab.click()
+        rows = page.locator("#activity .act")
+        pw.expect(rows).to_have_count(2)
+        assert rows.evaluate_all("rs => rs.every(r => r.classList.contains('unread'))")
+        page.reload()                                          # the tab is remembered
+        pw.expect(tab).to_have_class("on")
+        pw.expect(rows).to_have_count(2)
+        page.screenshot(path=str(tmp_path / "unread-desktop.png"))
+        # opening the mention reads it: it is gone from Unread when you come back
+        with page.expect_response(lambda r: r.request.method == "POST" and r.url.endswith(f"/channels/{gen['id']}/read")):
+            rows.filter(has_text="hey @me look").click()
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread1")
+        pw.expect(rows).to_have_count(1)
+        pw.expect(rows.first).to_contain_text("an answer")
+        page.locator("#act-read-all").click()
+        pw.expect(tab).to_have_text("Unread0")
+        pw.expect(page.locator("#activity .empty")).to_have_text("You're all caught up.")
+        assert not any(m["unread"] for m in me.activity())
+
+        # a phone: the tabs scroll sideways inside their row, Mark all as read sits below, nothing overflows
+        ana.post(gen["id"], "@me one more")
+        phone = open_page(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        ptab = phone.locator('[data-af="unread"]')
+        pw.expect(ptab).to_have_text("Unread1")
+        ptab.tap()
+        pw.expect(phone.locator("#activity .act")).to_have_count(1)
+        tabs = phone.locator(".af-tabs")
+        assert tabs.evaluate("t => t.scrollWidth > t.clientWidth")
+        assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert phone.locator("#act-read-all").bounding_box()["y"] >= tabs.bounding_box()["y"] + tabs.bounding_box()["height"]
+        phone.screenshot(path=str(tmp_path / "unread-phone.png"))
+        browser.close()
