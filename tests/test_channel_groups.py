@@ -216,6 +216,13 @@ def test_swipe_opens_and_closes_the_channel_list_on_phones(env, tmp_path):
             swipe(cdp, *start, *stop, end=end)
             closed()
             assert aside.evaluate("a => a.style.transform === '' && a.style.transition === ''"), (start, stop, end)
+        # a second finger mid-swipe ends it: the list goes back, with no drag styles left behind
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": 40, "y": 450}]})
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": 200, "y": 450}]})
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": 200, "y": 450}, {"x": 250, "y": 600}]})
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+        closed()
+        assert aside.evaluate("a => a.style.transform === '' && a.style.transition === '' && a.style.boxShadow === ''")
         # nor where sideways already means something: the message box, a wide code block, an open picker
         box = page.locator("#composer textarea").bounding_box()
         swipe(cdp, box["x"] + 20, box["y"] + 10, box["x"] + 300, box["y"] + 10)

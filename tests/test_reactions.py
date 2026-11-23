@@ -80,15 +80,19 @@ def test_reaction_picker_on_a_phone(env, tmp_path):
         page.locator(f'#messages [data-mid="{msg["id"]}"] .actions [data-react-pick]').tap()
         pw.expect(pop).to_be_visible()
         assert not page.evaluate("document.activeElement.matches('.react-pop input')")   # no keyboard on open
-        page.set_viewport_size({"width": 390, "height": 480})     # the keyboard opens anyway (search tapped)
+        page.set_viewport_size({"width": 390, "height": 200})     # the keyboard opens anyway (search tapped)
         pop.locator("input").tap()
-        pop.locator("input").fill("rocket")
+        pop.locator("input").fill("heart")
         pw.expect(pop).to_be_visible()
+        box = pop.bounding_box()
+        assert box["y"] >= 0 and box["y"] + box["height"] <= 200   # it shrinks to fit; the grid scrolls
         page.screenshot(path=str(tmp_path / "react-phone.png"))
-        pop.locator(".emoji-grid [data-e]").first.tap()
+        last = pop.locator(".emoji-grid [data-e]").last
+        emoji = last.get_attribute("data-e")
+        last.tap()                                                # reachable: scrolled into view in the grid
         pw.expect(pop).not_to_be_visible()
-        pw.expect(page.locator(f'#messages [data-mid="{msg["id"]}"] .rchip[data-react="🚀"]')).to_be_visible()
-        assert [r["emoji"] for r in ana.read(chan["id"])["messages"][0]["reactions"]] == ["🚀"]
+        pw.expect(page.locator(f'#messages [data-mid="{msg["id"]}"] .rchip[data-react="{emoji}"]')).to_be_visible()
+        assert [r["emoji"] for r in ana.read(chan["id"])["messages"][0]["reactions"]] == [emoji]
         # the quick row works with one tap too; turning the phone (a width change) still closes it
         page.set_viewport_size({"width": 390, "height": 844})
         page.locator(f'#messages [data-mid="{msg["id"]}"] .actions [data-react-pick]').tap()
