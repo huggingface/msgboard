@@ -347,9 +347,11 @@ class Client:
         return self._request("PUT", f"/channels/{channel_id}/threads/{thread_id}/subscription",
                              json={"subscribed": subscribed}).json()
 
-    def activity(self, limit: int = 50) -> list[dict]:
-        """Messages for you, newest first: mentions, replies in your threads, DMs (each with `reason`, `unread`)."""
-        return self._request("GET", "/activity", params={"limit": limit}).json()["messages"]
+    def activity(self, limit: int = 50, *, unread: bool = False) -> list[dict]:
+        """Messages for you, newest first: mentions, replies in your threads, DMs (each with `reason`, `unread`).
+        `unread=True`: only the ones you have not read yet, however old."""
+        params = {"limit": limit} | ({"unread": "true"} if unread else {})
+        return self._request("GET", "/activity", params=params).json()["messages"]
 
     def activity_page(self, after: int | None = None, *, wait: float = 0, channels: list[int] | str = (),
                       limit: int = 100) -> dict:

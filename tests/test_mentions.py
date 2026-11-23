@@ -215,3 +215,159 @@ def test_upgrade_does_not_resurface_old_thread_notifications(env):
     ana2 = env.client(ana.token)
     ana2.post(gen["id"], "new answer", reply_to=root["id"])
     assert by_name(me, "general")["for_me"] == 1                       # a new one is for me until the thread is read
+
+
+def test_activity_unread_tab(env, tmp_path):
+    """Unread in Activity: every mention, reply and DM not read yet, however old; remembered; cleared only by
+    reads the server confirmed; the tabs never slide under Mark all as read; fits a phone."""
+    import json
+    import os
+    import pytest
+    pw = pytest.importorskip("playwright.sync_api")
+    gen = env.op.create_channel("general")
+    busy = env.op.create_channel("busy")
+    _, _, ana = env.human("ana")
+    me_ident, token, me = env.human("me")
+    root = me.post(gen["id"], "my question")
+    ana.post(gen["id"], "an answer", reply_to=root["id"])     # reply in my thread: unread, and old
+    last = None
+    for i in range(200):                                      # 200 newer mentions, all read
+        last = ana.post(busy["id"], f"@me ping {i}")
+    me.mark_read(busy["id"], last["seq"])
+    ana.post(busy["id"], "@me again")                         # mention: unread
+    ana.post(gen["id"], "hey @me look")                       # mention: unread
+    dm = ana.open_dm(me_ident["id"])
+    me.mark_read(dm["id"], ana.post(dm["id"], "psst")["seq"])  # DM already read
+    ana.react(gen["id"], root["id"], "👍")                    # reactions have no read state
+    # the newest 200 notifications hide the old reply; the unread read finds it
+    assert "an answer" not in [m["body"] for m in me.activity(limit=200)]
+    assert [m["body"] for m in me.activity(limit=200, unread=True)] == ["hey @me look", "@me again", "an answer"]
+    with pw.sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+
+        def open_page(**kwargs):
+            ctx = browser.new_context(**kwargs)
+            ctx.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+            ctx.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+            page = ctx.new_page()
+            page.goto(env.url + "/#activity")
+            return page
+
+        page = open_page(viewport={"width": 1160, "height": 820})
+        tab = page.locator('[data-af="unread"]')
+        pw.expect(tab).to_have_text("Unread3")
+        tab.click()
+        rows = page.locator("#activity .act")
+        pw.expect(rows).to_have_count(3)
+        pw.expect(rows.nth(2)).to_contain_text("an answer")
+        assert rows.evaluate_all("rs => rs.every(r => r.classList.contains('unread'))")
+        page.reload()                                          # the tab is remembered
+        pw.expect(tab).to_have_class("on")
+        pw.expect(rows).to_have_count(3)
+        page.screenshot(path=str(tmp_path / "unread-desktop.png"))
+        # opening an item reads it; it leaves Unread once the server confirms that read, whichever arrives
+        # first: Activity's own reload, or the read (both are held here to force each order)
+        def open_held(text, channel_id):
+            held = []
+            url = f"**/channels/{channel_id}/read"
+            page.route(url, lambda route: held.append(route))
+            rows.filter(has_text=text).click()
+            for _ in range(100):
+                if held:
+                    break
+                page.wait_for_timeout(50)
+            assert held
+            return held[0], url
+
+        read, url = open_held("hey @me look", gen["id"])       # 1. Activity reloads first, then the read lands
+        with page.expect_response(lambda r: "/activity?unread=true" in r.url):
+            page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread3")
+        read.continue_(); page.unroute(url)
+        pw.expect(tab).to_have_text("Unread2")
+        read, url = open_held("@me again", busy["id"])        # 2. the read lands while the reload is on its way
+        late = []
+        page.route("**/activity?unread=true*", lambda route: late.append((route, route.fetch())) if not late else route.continue_())
+        page.locator("#activity-open").click()
+        for _ in range(100):
+            if late:
+                break
+            page.wait_for_timeout(50)
+        with page.expect_response(lambda r: r.url.endswith(f"/channels/{busy['id']}/read")):
+            read.continue_()
+        page.unroute(url)
+        late[0][0].fulfill(response=late[0][1])               # answered before the read: it still says unread
+        page.unroute("**/activity?unread=true*")
+        pw.expect(tab).to_have_text("Unread1")
+        pw.expect(rows).to_have_count(1)
+        # offline, opening an item reads nothing, so it stays unread here too
+        page.context.set_offline(True)
+        rows.first.click()
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread1")
+        pw.expect(rows.first).to_contain_text("an answer")
+        page.context.set_offline(False)
+        page.reload()
+        pw.expect(tab).to_have_text("Unread1")
+        # an older Activity answer arriving after a newer one never replaces it
+        late_ping = ana.post(gen["id"], "@me late")
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread2")
+        stale = []
+        page.route("**/activity?unread=true*", lambda route: stale.append((route, route.fetch())) if not stale else route.continue_())
+        page.locator("#activity-open").click()                # reload A: answered now, held back
+        for _ in range(100):
+            if stale:
+                break
+            page.wait_for_timeout(50)
+        me.mark_read(gen["id"], late_ping["seq"])             # read elsewhere (another device)
+        page.locator("#activity-open").click()                # reload B lands first
+        pw.expect(tab).to_have_text("Unread1")
+        with page.expect_response(lambda r: "/activity?unread=true" in r.url):
+            stale[0][0].fulfill(response=stale[0][1])         # A, from before the read, arrives last
+        page.unroute("**/activity?unread=true*")
+        page.evaluate("() => new Promise((done) => setTimeout(done, 0))")   # let it be handled
+        pw.expect(tab).to_have_text("Unread1")
+        page.locator("#act-read-all").click()
+        pw.expect(tab).to_have_text("Unread0")
+        pw.expect(page.locator("#activity .empty")).to_have_text("You're all caught up.")
+        assert me.activity(limit=200, unread=True) == []
+        # a read remembered for a channel never hides a later one that reuses its id
+        temp = env.op.create_channel("temp")
+        ana.post(temp["id"], "@me temp ping")
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread1")
+        with page.expect_response(lambda r: r.url.endswith(f"/channels/{temp['id']}/read")):
+            rows.first.click()                                 # read, and replaced before Activity reloads
+        env.op.delete_channel(temp["id"], "temp")
+        again = env.op.create_channel("temp-again")
+        assert again["id"] == temp["id"]                       # the id came back
+        fresh = ana.post(again["id"], "@me fresh")
+        assert fresh["seq"] == 1
+        page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread1")
+        pw.expect(rows.first).to_contain_text("@me fresh")
+        me.mark_read(again["id"], fresh["seq"])
+
+        # in between (768 px) the tabs scroll inside their row and never sit under Mark all as read
+        ana.post(gen["id"], "@me one more")
+        mid = open_page(viewport={"width": 768, "height": 900})
+        tabs, read_all = mid.locator(".af-tabs").bounding_box(), mid.locator("#act-read-all").bounding_box()
+        assert tabs["x"] + tabs["width"] <= read_all["x"]
+        dms = mid.locator('[data-af="dm"]')
+        dms.scroll_into_view_if_needed()
+        dms.click()
+        pw.expect(dms).to_have_attribute("aria-selected", "true")
+        assert len(me.activity(limit=200, unread=True)) == 1          # nothing was marked read
+        # a phone: Mark all as read gets its own row, nothing overflows
+        phone = open_page(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        ptab = phone.locator('[data-af="unread"]')
+        ptab.tap()
+        pw.expect(ptab).to_have_text("Unread1")
+        pw.expect(phone.locator("#activity .act")).to_have_count(1)
+        ptabs = phone.locator(".af-tabs")
+        assert ptabs.evaluate("t => t.scrollWidth > t.clientWidth")
+        assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert phone.locator("#act-read-all").bounding_box()["y"] >= ptabs.bounding_box()["y"] + ptabs.bounding_box()["height"]
+        phone.screenshot(path=str(tmp_path / "unread-phone.png"))
+        browser.close()
