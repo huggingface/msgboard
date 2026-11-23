@@ -392,6 +392,11 @@ button.fchip:hover { border-color: var(--ink); }
 /* the grid track is fixed to the window, so long content (a 40-page PDF) scrolls inside the panel instead of stretching it */
 .v-panel { width: min(1100px, 100%); height: min(86vh, 100%); min-height: 0; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--ink); }
 .v-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+/* beside an open thread the viewer can be narrow: its controls wrap instead of spilling over the thread */
+#viewer.beside-thread { overflow: hidden; }
+#viewer.beside-thread .v-panel { max-width: 100%; min-width: 0; }
+#viewer.beside-thread .v-head { flex-wrap: wrap; gap: 8px; }
+#viewer.beside-thread .v-title { min-width: 0; flex: 1 1 160px; }
 .v-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
 .v-title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .v-title .mono { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
@@ -3015,6 +3020,14 @@ async function renderPdf(body, blob, id, zoom = 1, loaded = null) {
     };
     z.step = (dir) => z.apply(nextStep(z.scale, dir));
     zoomControls(true); setZoomLabel();
+    // zoom is relative to the viewer's width: when that changes (window, thread opened/closed/resized), render again
+    if (viewer.resize) viewer.resize.disconnect();
+    let lastW = body.clientWidth;
+    viewer.resize = new ResizeObserver(() => {
+      if (viewer.zoom !== z || !body.isConnected || body.clientWidth === lastW) return;
+      lastW = body.clientWidth; z.apply(z.fit ? "fit" : z.scale);
+    });
+    viewer.resize.observe(body);
   }
   const first = await doc.getPage(1), base = first.getViewport({ scale: 1 });
   const width = Math.round(Math.min(body.clientWidth - 40, 980) * zoom), scale = width / base.width, dpr = window.devicePixelRatio || 1;
@@ -3143,7 +3156,8 @@ $("viewer").addEventListener("click", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   if ($("viewer").classList.contains("hidden")) return;
-  if (e.target.closest && e.target.closest("#panel") && e.key !== "Escape") return;   // typing in the thread beside it
+  // keys typed elsewhere (the thread beside it, a reaction or emoji search, any text box) are not for the viewer
+  if (e.key !== "Escape" && e.target.closest && e.target.closest("#panel, input, textarea, select, [contenteditable]")) return;
   if (e.key === "Escape") { e.stopImmediatePropagation(); closeViewer(); }
   else if (e.key === "ArrowLeft") $("v-prev").click();
   else if (e.key === "ArrowRight") $("v-next").click();
