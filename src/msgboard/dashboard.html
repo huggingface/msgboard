@@ -2878,7 +2878,9 @@ function openViewer(list, index) {
 // (on phones the thread fills the screen, so the viewer still covers everything)
 function fitViewer() {
   const v = $("viewer"), p = $("panel");
-  const beside = !v.classList.contains("hidden") && !p.classList.contains("hidden") && window.innerWidth > 720;
+  // only when there is real room left for the file; a very wide thread gets the usual full-screen viewer
+  const beside = !v.classList.contains("hidden") && !p.classList.contains("hidden") && window.innerWidth > 720
+    && p.getBoundingClientRect().left >= 420;
   v.style.right = beside ? Math.max(0, window.innerWidth - p.getBoundingClientRect().left) + "px" : "";
   v.classList.toggle("beside-thread", beside);
   v.setAttribute("aria-modal", beside ? "false" : "true");
