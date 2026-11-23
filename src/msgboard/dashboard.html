@@ -394,6 +394,11 @@ button.fchip:hover { border-color: var(--ink); }
 /* the grid track is fixed to the window, so long content (a 40-page PDF) scrolls inside the panel instead of stretching it */
 .v-panel { width: min(1100px, 100%); height: min(86vh, 100%); min-height: 0; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--ink); }
 .v-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+/* beside an open thread the viewer can be narrow: its controls wrap instead of spilling over the thread */
+#viewer.beside-thread { overflow: hidden; }
+#viewer.beside-thread .v-panel { max-width: 100%; min-width: 0; }
+#viewer.beside-thread .v-head { flex-wrap: wrap; gap: 8px; }
+#viewer.beside-thread .v-title { min-width: 0; flex: 1 1 160px; }
 .v-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
 .v-title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .v-title .mono { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
@@ -2903,9 +2908,21 @@ async function download(id) {
 const viewer = { list: [], index: 0, urls: [] };
 function openViewer(list, index) {
   viewer.list = list; viewer.index = index;
-  $("viewer").classList.remove("hidden");
+  $("viewer").classList.remove("hidden"); fitViewer();
   showInViewer();
 }
+// With a thread open, the viewer covers only the sidebar and channel, so the thread stays usable beside it
+// (on phones the thread fills the screen, so the viewer still covers everything)
+function fitViewer() {
+  const v = $("viewer"), p = $("panel");
+  // only when there is real room left for the file; a very wide thread gets the usual full-screen viewer
+  const beside = !v.classList.contains("hidden") && !p.classList.contains("hidden") && window.innerWidth > 720
+    && p.getBoundingClientRect().left >= 420;
+  v.style.right = beside ? Math.max(0, window.innerWidth - p.getBoundingClientRect().left) + "px" : "";
+  v.classList.toggle("beside-thread", beside);
+  v.setAttribute("aria-modal", beside ? "false" : "true");
+}
+window.addEventListener("resize", fitViewer);
 function closeViewer() {
   $("viewer").classList.add("hidden"); $("viewer").classList.remove("img-mode"); $("v-body").innerHTML = "";
   viewer.urls.forEach((u) => URL.revokeObjectURL(u)); viewer.urls = [];
@@ -3042,6 +3059,14 @@ async function renderPdf(body, blob, id, zoom = 1, loaded = null) {
     };
     z.step = (dir) => z.apply(nextStep(z.scale, dir));
     zoomControls(true); setZoomLabel();
+    // zoom is relative to the viewer's width: when that changes (window, thread opened/closed/resized), render again
+    if (viewer.resize) viewer.resize.disconnect();
+    let lastW = body.clientWidth;
+    viewer.resize = new ResizeObserver(() => {
+      if (viewer.zoom !== z || !body.isConnected || body.clientWidth === lastW) return;
+      lastW = body.clientWidth; z.apply(z.fit ? "fit" : z.scale);
+    });
+    viewer.resize.observe(body);
   }
   const first = await doc.getPage(1), base = first.getViewport({ scale: 1 });
   const width = Math.round(Math.min(body.clientWidth - 40, 980) * zoom), scale = width / base.width, dpr = window.devicePixelRatio || 1;
@@ -3170,6 +3195,8 @@ $("viewer").addEventListener("click", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   if ($("viewer").classList.contains("hidden")) return;
+  // keys typed elsewhere (the thread beside it, a reaction or emoji search, any text box) are not for the viewer
+  if (e.key !== "Escape" && e.target.closest && e.target.closest("#panel, input, textarea, select, [contenteditable]")) return;
   if (e.key === "Escape") { e.stopImmediatePropagation(); closeViewer(); }
   else if (e.key === "ArrowLeft") $("v-prev").click();
   else if (e.key === "ArrowRight") $("v-next").click();
@@ -4531,7 +4558,7 @@ window.addEventListener("focus", () => refreshSubscriptions());
 
 // ------------------------------------------------------------------ side panel: thread, profile, members
 function openPanel(kind, title, sub) {
-  $("panel").classList.remove("hidden"); $("app").classList.add("with-panel");
+  $("panel").classList.remove("hidden"); $("app").classList.add("with-panel"); fitViewer();
   $("panel-title").innerHTML = title; $("panel-sub").textContent = sub || "";
   $("panel-composer").classList.toggle("hidden", kind !== "thread");
   $("panel-subscribe").classList.toggle("hidden", kind !== "thread");
@@ -4540,7 +4567,7 @@ function openPanel(kind, title, sub) {
 function closePanel() {
   $("ch-doc").classList.remove("on");
   state.panel = null; state.thread = [];
-  $("panel").classList.add("hidden"); $("app").classList.remove("with-panel");
+  $("panel").classList.add("hidden"); $("app").classList.remove("with-panel"); fitViewer();
   if (state.current && state.view === "chat") renderFeed(false);
 }
 $("panel-close").onclick = closePanel;
@@ -4742,7 +4769,7 @@ function panelMax() {   // keep the message column usable next to it; as an over
 }
 function setPanelWidth(w, save = true) {
   w = Math.round(Math.min(panelMax(), Math.max(PANEL_MIN, w)));
-  $("app").style.setProperty("--panel-w", w + "px");
+  $("app").style.setProperty("--panel-w", w + "px"); fitViewer();
   $("panel-resize").setAttribute("aria-valuenow", w);
   if (save) store.set("panelWidth", String(w));
   return w;
