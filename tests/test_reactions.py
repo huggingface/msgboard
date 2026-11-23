@@ -58,3 +58,44 @@ def test_reactions_to_my_messages_show_in_activity(env):
     assert len(r) == 1 and r[0]["message"]["body"] == "proposal: ship friday"
     assert [(x["emoji"], x["by"]["external_id"]) for x in r[0]["reactions"]] == [("✅", "bot"), ("👍", "bob")]
     assert "reactions" not in env.http(ana.token).get("/activity").json()
+
+
+def test_reaction_picker_on_a_phone(env, tmp_path):
+    """On a phone the picker must stay open until an emoji is chosen: opening it pops no keyboard,
+    and the keyboard (which shrinks the window) or a scroll never closes it."""
+    import json
+    import os
+    pw = pytest.importorskip("playwright.sync_api")
+    _, token, ana = env.human("ana")
+    chan = ana.create_channel("phone")
+    msg = ana.post(chan["id"], "react to me")
+    with pw.sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+        ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        ctx.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+        ctx.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+        page = ctx.new_page()
+        page.goto(env.url + "/#phone")
+        pop = page.get_by_role("dialog", name="Add reaction")
+        page.locator(f'#messages [data-mid="{msg["id"]}"] .actions [data-react-pick]').tap()
+        pw.expect(pop).to_be_visible()
+        assert not page.evaluate("document.activeElement.matches('.react-pop input')")   # no keyboard on open
+        page.set_viewport_size({"width": 390, "height": 480})     # the keyboard opens anyway (search tapped)
+        pop.locator("input").tap()
+        pop.locator("input").fill("rocket")
+        pw.expect(pop).to_be_visible()
+        page.screenshot(path=str(tmp_path / "react-phone.png"))
+        pop.locator(".emoji-grid [data-e]").first.tap()
+        pw.expect(pop).not_to_be_visible()
+        pw.expect(page.locator(f'#messages [data-mid="{msg["id"]}"] .rchip[data-react="🚀"]')).to_be_visible()
+        assert [r["emoji"] for r in ana.read(chan["id"])["messages"][0]["reactions"]] == ["🚀"]
+        # the quick row works with one tap too; turning the phone (a width change) still closes it
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.locator(f'#messages [data-mid="{msg["id"]}"] .actions [data-react-pick]').tap()
+        pop.locator(".rquick [data-e]").first.tap()
+        pw.expect(pop).not_to_be_visible()
+        assert len(ana.read(chan["id"])["messages"][0]["reactions"]) == 2
+        page.locator(f'#messages [data-mid="{msg["id"]}"] .actions [data-react-pick]').tap()
+        page.set_viewport_size({"width": 844, "height": 390})
+        pw.expect(pop).not_to_be_visible()
+        browser.close()

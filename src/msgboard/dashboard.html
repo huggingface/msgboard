@@ -2542,15 +2542,24 @@ function openReactPicker(anchor, mid) {
     if (e.key === "Enter") { const first = grid.querySelector("[data-e]"); if (first) { closeReactPicker(); toggleReaction(mid, first.dataset.e); } }
   };
   pop.onclick = (e) => { const b = e.target.closest("[data-e]"); if (b) { closeReactPicker(); toggleReaction(mid, b.dataset.e); } };
-  // place it next to what was clicked, inside the window
-  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
-  pop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + "px";
-  pop.style.top = (r.bottom + 6 + h < window.innerHeight ? r.bottom + 6 : Math.max(8, r.top - h - 6)) + "px";
-  input.focus();
+  // place it next to what was clicked, inside the visible area (on a phone the keyboard shrinks it)
+  pop.place = () => {
+    const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + "px";
+    pop.style.top = (r.bottom + 6 + h < vh ? r.bottom + 6 : Math.max(8, Math.min(r.top - h - 6, vh - h - 8))) + "px";
+  };
+  pop.place();
+  pop.width = window.innerWidth;
+  // a phone opens its keyboard on focus: there the search waits for a tap, so the picker opens in place
+  if (!mobileTextInput()) input.focus();
   document.addEventListener("mousedown", reactOutside, true);
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && reactPop) closeReactPicker(); });
-window.addEventListener("resize", closeReactPicker);
+// turning the device closes the picker; the keyboard opening or closing (height only) just moves it
+const reactResized = () => { if (reactPop) { if (window.innerWidth !== reactPop.width) closeReactPicker(); else reactPop.place(); } };
+window.addEventListener("resize", reactResized);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", reactResized);
 
 // ------------------------------------------------------------------ editing your own messages
 function applyEdit(m) {
