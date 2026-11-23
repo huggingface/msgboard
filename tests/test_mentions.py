@@ -234,13 +234,14 @@ def test_activity_unread_tab(env, tmp_path):
     for i in range(200):                                      # 200 newer mentions, all read
         last = ana.post(busy["id"], f"@me ping {i}")
     me.mark_read(busy["id"], last["seq"])
+    ana.post(busy["id"], "@me again")                         # mention: unread
     ana.post(gen["id"], "hey @me look")                       # mention: unread
     dm = ana.open_dm(me_ident["id"])
     me.mark_read(dm["id"], ana.post(dm["id"], "psst")["seq"])  # DM already read
     ana.react(gen["id"], root["id"], "👍")                    # reactions have no read state
     # the newest 200 notifications hide the old reply; the unread read finds it
     assert "an answer" not in [m["body"] for m in me.activity(limit=200)]
-    assert [m["body"] for m in me.activity(limit=200, unread=True)] == ["hey @me look", "an answer"]
+    assert [m["body"] for m in me.activity(limit=200, unread=True)] == ["hey @me look", "@me again", "an answer"]
     with pw.sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
 
@@ -254,20 +255,49 @@ def test_activity_unread_tab(env, tmp_path):
 
         page = open_page(viewport={"width": 1160, "height": 820})
         tab = page.locator('[data-af="unread"]')
-        pw.expect(tab).to_have_text("Unread2")
+        pw.expect(tab).to_have_text("Unread3")
         tab.click()
         rows = page.locator("#activity .act")
-        pw.expect(rows).to_have_count(2)
-        pw.expect(rows.nth(1)).to_contain_text("an answer")
+        pw.expect(rows).to_have_count(3)
+        pw.expect(rows.nth(2)).to_contain_text("an answer")
         assert rows.evaluate_all("rs => rs.every(r => r.classList.contains('unread'))")
         page.reload()                                          # the tab is remembered
         pw.expect(tab).to_have_class("on")
-        pw.expect(rows).to_have_count(2)
+        pw.expect(rows).to_have_count(3)
         page.screenshot(path=str(tmp_path / "unread-desktop.png"))
-        # opening the mention reads it: it is gone from Unread when you come back
-        with page.expect_response(lambda r: r.request.method == "POST" and r.url.endswith(f"/channels/{gen['id']}/read")):
-            rows.filter(has_text="hey @me look").click()
+        # opening an item reads it; it leaves Unread once the server confirms that read, whichever arrives
+        # first: Activity's own reload, or the read (both are held here to force each order)
+        def open_held(text, channel_id):
+            held = []
+            url = f"**/channels/{channel_id}/read"
+            page.route(url, lambda route: held.append(route))
+            rows.filter(has_text=text).click()
+            for _ in range(100):
+                if held:
+                    break
+                page.wait_for_timeout(50)
+            assert held
+            return held[0], url
+
+        read, url = open_held("hey @me look", gen["id"])       # 1. Activity reloads first, then the read lands
+        with page.expect_response(lambda r: "/activity?unread=true" in r.url):
+            page.locator("#activity-open").click()
+        pw.expect(tab).to_have_text("Unread3")
+        read.continue_(); page.unroute(url)
+        pw.expect(tab).to_have_text("Unread2")
+        read, url = open_held("@me again", busy["id"])        # 2. the read lands while the reload is on its way
+        late = []
+        page.route("**/activity?unread=true*", lambda route: late.append((route, route.fetch())))
         page.locator("#activity-open").click()
+        for _ in range(100):
+            if late:
+                break
+            page.wait_for_timeout(50)
+        with page.expect_response(lambda r: r.url.endswith(f"/channels/{busy['id']}/read")):
+            read.continue_()
+        page.unroute(url)
+        late[0][0].fulfill(response=late[0][1])               # answered before the read: it still says unread
+        page.unroute("**/activity?unread=true*")
         pw.expect(tab).to_have_text("Unread1")
         pw.expect(rows).to_have_count(1)
         # offline, opening an item reads nothing, so it stays unread here too

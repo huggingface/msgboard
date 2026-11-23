@@ -2238,13 +2238,20 @@ function showNoChannels() {
   $("messages").innerHTML = `<div class="empty">No channels you can read yet.</div>`;
   $("composer").classList.add("hidden");
 }
-// A read the server confirmed: what it covers stops being unread in Activity, before Activity reloads
-function activityRead(cid, seq, threadId = null) {
-  const res = state.activityData;
-  if (!res) return;
-  const covered = (m) => m.channel.id === cid && m.seq <= seq && (threadId ? m.thread_id === threadId : !m.thread_id);
+// Reads the server confirmed ("channel" or "channel:thread" -> seq): what they cover is not unread in Activity,
+// even in a list fetched while the read was still on its way
+const confirmedReads = new Map();
+function applyConfirmedReads(res) {
+  const covered = (m) => m.seq <= (confirmedReads.get(m.thread_id ? `${m.channel.id}:${m.thread_id}` : String(m.channel.id)) || 0);
   res.messages.forEach((m) => { if (covered(m)) m.unread = false; });
   if (res.unread) res.unread = res.unread.filter((m) => !covered(m));
+}
+function activityRead(cid, seq, threadId = null) {
+  const key = threadId ? `${cid}:${threadId}` : String(cid);
+  confirmedReads.set(key, Math.max(seq, confirmedReads.get(key) || 0));
+  if (!state.activityData) return;
+  applyConfirmedReads(state.activityData);
+  if (state.view === "activity") renderActivity();   // back on Activity before the read came back
 }
 // Read positions live on the server, so they follow you to other devices.
 function markSeen() {
@@ -5137,6 +5144,7 @@ async function openActivity() {
     // Unread comes from its own read: the newest 200 notifications can all be read while an older one isn't
     const [all, unread] = await Promise.all([api("GET", "/activity?limit=200&reactions=true"), api("GET", "/activity?unread=true&limit=200")]);
     res = { ...all, unread: unread.messages, unreadMore: unread.has_more };
+    applyConfirmedReads(res);
   }
   catch (e) { if (state.view === "activity" && !state.activityData) $("activity").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   if (state.view !== "activity") return;
