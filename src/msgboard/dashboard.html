@@ -6132,6 +6132,58 @@ document.addEventListener("drop", (e) => { if (hasFiles(e)) e.preventDefault(); 
 $("me-who").onclick = () => state.me && openProfile(state.me.id);
 $("analytics-open").onclick = () => { $("app").classList.remove("nav"); openAnalytics(); };
 $("menu").onclick = () => $("app").classList.toggle("nav");
+// Phones, like Slack: swipe right to pull the channel list in, swipe left to put it away. The list follows
+// the finger; letting go past a third of its width (or a flick) completes the move, anything less snaps back.
+(() => {
+  const app = $("app"), aside = document.querySelector("aside"), phone = window.matchMedia("(max-width: 720px)");
+  let g = null;   // the swipe in progress: start point, time, open-at-start, and "pending" / "swipe" / "off"
+  const scrollsSideways = (el) => {
+    for (; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
+    }
+    return false;
+  };
+  // where a sideways swipe already means something else, or would get in the way, it never starts
+  const blocked = (t) => !phone.matches || !aside || !(t instanceof Element)
+    || t.closest("textarea, input, select, [contenteditable=''], [contenteditable=true], #viewer, #tasks-list, .react-pop, .pop, [role=menu], dialog")
+    || document.querySelector(".react-pop, .pop, [role=menu], dialog[open], #viewer:not(.hidden)")
+    || String(window.getSelection() || "").trim() || scrollsSideways(t);
+  const width = () => aside.getBoundingClientRect().width || 300;
+  const reset = () => { aside.style.transition = ""; aside.style.transform = ""; aside.style.boxShadow = ""; };
+  document.addEventListener("touchstart", (e) => {
+    g = null;
+    if (e.touches.length !== 1 || blocked(e.target)) return;
+    const t = e.touches[0];
+    g = { x: t.clientX, y: t.clientY, at: performance.now(), open: app.classList.contains("nav"), mode: "pending", dx: 0 };
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!g || g.mode === "off") return;
+    if (e.touches.length !== 1) { if (g.mode === "swipe") reset(); g = null; return; }
+    const t = e.touches[0], dx = t.clientX - g.x, dy = t.clientY - g.y;
+    if (g.mode === "pending") {
+      if (Math.hypot(dx, dy) < 10) return;   // a finger always wobbles a little
+      // only a clearly sideways move, in the direction that does something, becomes a swipe
+      g.mode = Math.abs(dx) > 1.5 * Math.abs(dy) && (g.open ? dx < 0 : dx > 0) ? "swipe" : "off";
+      if (g.mode === "off") return;
+      aside.style.transition = "none";
+    }
+    e.preventDefault();   // the page doesn't scroll under a swipe
+    const w = width();
+    g.dx = g.open ? Math.max(-w, Math.min(0, dx)) : Math.max(0, Math.min(w, dx));
+    const shown = g.open ? w + g.dx : g.dx;   // how much of the list is on screen
+    aside.style.transform = `translateX(${shown - w}px)`;
+    aside.style.boxShadow = `0 0 0 100vmax rgba(0,0,0,${(0.3 * shown / w).toFixed(3)})`;
+  }, { passive: false });
+  const end = (cancelled) => {
+    const s = g; g = null;
+    if (!s || s.mode !== "swipe") return;
+    const w = width(), moved = Math.abs(s.dx), fast = moved > 20 && moved / Math.max(1, performance.now() - s.at) > 0.5;
+    reset();
+    if (!cancelled && (moved > w / 3 || fast)) app.classList.toggle("nav", !s.open);
+  };
+  document.addEventListener("touchend", () => end(false));
+  document.addEventListener("touchcancel", () => end(true));
+})();
 $("app").addEventListener("click", (e) => {
   if (!$("app").classList.contains("nav") || e.target.closest("aside, #menu")) return;
   e.preventDefault(); e.stopPropagation(); $("app").classList.remove("nav");

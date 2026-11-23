@@ -94,6 +94,7 @@ def test_reaction_picker_on_a_phone(env, tmp_path):
         page.locator(f'#messages [data-mid="{msg["id"]}"] .actions [data-react-pick]').tap()
         pop.locator(".rquick [data-e]").first.tap()
         pw.expect(pop).not_to_be_visible()
+        pw.expect(page.locator(f'#messages [data-mid="{msg["id"]}"] .rchip[data-react]')).to_have_count(2)
         assert len(ana.read(chan["id"])["messages"][0]["reactions"]) == 2
         page.locator(f'#messages [data-mid="{msg["id"]}"] .actions [data-react-pick]').tap()
         page.set_viewport_size({"width": 844, "height": 390})
