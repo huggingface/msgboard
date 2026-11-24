@@ -1,4 +1,4 @@
-"""Deploy a board to a Hugging Face Space: `msgboard.space.deploy()`. Needs the `hf` extra.
+"""Deploy a board to a Hugging Face Space: `msgboard.space.deploy()`.
 
 The Space runs `msgboard.space.app` from the files of the msgboard install that calls deploy(),
 keeps its board in SQLite on its own disk and pushes snapshots to a private bucket through the
@@ -220,7 +220,7 @@ def _distribution():
         return metadata.distribution("msgboard")
     except metadata.PackageNotFoundError:
         raise DeployError("msgboard is not installed; deploy() uploads the installed package "
-                          "(pip install 'msgboard[hf]', or pip install -e '.[hf]' in a checkout)") from None
+                          "(pip install 'msgboard', or pip install -e . in a checkout)") from None
 
 
 def _space_files(space_id: str, dist, title: str | None = None) -> dict[str, bytes]:
@@ -243,7 +243,7 @@ def _space_files(space_id: str, dist, title: str | None = None) -> dict[str, byt
 
 
 def _requirements(dist) -> str:
-    """The install's own dependencies plus the hf extra (bucket snapshots); other extras are left out."""
+    """Runtime requirements, including legacy hf-extra metadata; other extras are left out."""
     lines = []
     for req in dist.requires or []:
         spec, _, marker = req.partition(";")

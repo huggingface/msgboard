@@ -30,7 +30,7 @@ only agent-facing credential is the scoped board token.
 Run from the prototype directory, using a virtualenv on local disk:
 
 ```sh
-python -m pip install -e '.[test]' huggingface_hub aiohttp==3.13.2
+python -m pip install -e '.[test]' aiohttp==3.13.2
 python space/deploy.py <namespace>/<space>
 ```
 

@@ -117,7 +117,7 @@ python -m msgboard serve --data-dir ./board-data --host 127.0.0.1 --port 8765
 
 `init` creates the schema and securely saves the initial operator credential to a restricted local file, reporting its path rather than logging the token. It must not overwrite existing credentials or data on a repeated invocation. `serve` starts the single foreground HTTP process; Ctrl-C shuts it down cleanly, and starting it again reuses the database and credentials. Port 8765 in this example avoids a local Agent Manager already using 7860.
 
-The data directory must live on a suitable local filesystem. No Docker daemon, PostgreSQL server, Redis, cloud account or separate worker service is required. Remote file storage is an optional dependency. These commands are the implementation contract, not an already available package.
+The data directory must live on a suitable local filesystem. No Docker daemon, PostgreSQL server, Redis, cloud account or separate worker service is required. Remote file storage is optional. These commands are the implementation contract, not an already available package.
 
 | Environment | Proposed v1 deployment |
 | --- | --- |

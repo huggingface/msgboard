@@ -72,7 +72,7 @@ class HfBucketStore:
     """Objects in a Hugging Face bucket through the Hub API (not a FUSE mount)."""
 
     def __init__(self, bucket_id: str, prefix: str = "", token: str | None = None):
-        import huggingface_hub  # optional dependency
+        import huggingface_hub  # loaded only for bucket replicas
 
         self.hub = huggingface_hub
         self.bucket_id = bucket_id

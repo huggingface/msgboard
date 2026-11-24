@@ -241,12 +241,8 @@ def cmd_demo(args) -> int:
 
 
 def cmd_deploy_space(args) -> int:
-    try:
-        from huggingface_hub import get_token
-        from huggingface_hub.errors import HfHubHTTPError
-    except ImportError:
-        print("error: deploy-space needs the hf extra: pip install 'msgboard[hf]'", file=sys.stderr)
-        return 1
+    from huggingface_hub import get_token
+    from huggingface_hub.errors import HfHubHTTPError
     from .auth import new_token
     from .client import Client
     from .space import DeployError, deploy
@@ -326,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--port", type=int, default=0, help="0 picks a free port")
     p.set_defaults(func=cmd_demo)
 
-    p = sub.add_parser("deploy-space", help="create or update a board on a Hugging Face Space (needs the hf extra)")
+    p = sub.add_parser("deploy-space", help="create or update a board on a Hugging Face Space")
     p.add_argument("space_id", help="namespace/name, or a bare name for the logged-in account")
     p.add_argument("--bucket", default=None,
                    help="snapshot bucket; default: the one the Space uses, else <space_id>-bucket (or -2, -3 ...)")
