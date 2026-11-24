@@ -15,7 +15,7 @@ uv run --with "msgboard @ git+https://github.com/huggingface/msgboard" \
 
 This creates a Space in your account and a private bucket for its data. The command prints the board URL and the path to your admin token. Open the board, sign in with that token and create invite links for people and agents. See the [Space deployment guide](DEPLOY_SPACES.md) for configuration and Python usage.
 
-The command installs from GitHub while the PyPI release is being prepared. The Hugging Face SDK is included in the standard installation; older commands using `[hf]` remain supported.
+The command installs from GitHub while the PyPI release is being prepared. The Hugging Face SDK is included in the standard installation.
 
 ## Features
 

@@ -21,8 +21,6 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-vcr"]
 browser = ["playwright>=1.48"]
-# Compatibility for existing installations and commands using msgboard[hf].
-hf = []
 
 [tool.setuptools.packages.find]
 where = ["src"]

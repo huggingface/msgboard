@@ -243,16 +243,8 @@ def _space_files(space_id: str, dist, title: str | None = None) -> dict[str, byt
 
 
 def _requirements(dist) -> str:
-    """Runtime requirements, including legacy hf-extra metadata; other extras are left out."""
-    lines = []
-    for req in dist.requires or []:
-        spec, _, marker = req.partition(";")
-        marker = marker.strip()
-        if not marker or re.fullmatch(r"""extra\s*==\s*["']hf["']""", marker):
-            lines.append(spec.strip())
-        elif "extra" not in marker:
-            lines.append(req.strip())
-    return "\n".join(lines) + "\n"
+    """Runtime requirements only; optional extras are left out."""
+    return "\n".join(req.strip() for req in dist.requires or [] if "extra" not in req.partition(";")[2]) + "\n"
 
 
 def _license(dist) -> bytes:
