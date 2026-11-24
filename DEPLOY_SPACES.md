@@ -57,7 +57,7 @@ What `deploy()` does:
   `hf://buckets/<bucket>` it set, or that would move to a different bucket.
 - **Code.** It uploads the installed msgboard package (`msgboard/`), the LICENSE from the
   install's metadata (`dist-info/licenses/`), a `requirements.txt` made from the install's
-  dependencies plus the `hf` extra, and the Dockerfile and Space card from `msgboard/space/`.
+  core dependencies, and the Dockerfile and Space card from `msgboard/space/`.
   Anything else in the Space repo is deleted. The Space runs the deployer's msgboard, whatever
   revision that is. Because LICENSE and the dependencies come from the install's metadata, reinstall
   an older or stale editable install (`pip install -e .`) before deploying: its metadata can
