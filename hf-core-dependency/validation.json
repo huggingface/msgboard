@@ -1,5 +1,5 @@
 {
-  "source": "9a070300179a31f7c152a4fc695956bfd851e904",
+  "source": "140b42a64d145570ef023ab1b5a0fe7d590333f4",
   "full_suite": {
     "passed": 272,
     "live_excluded": 1,
@@ -30,5 +30,6 @@
   "merged": false,
   "deployed": false,
   "hf_extra_removed": true,
-  "legacy_hf_metadata_export_removed": true
+  "legacy_hf_metadata_export_removed": true,
+  "final_change": "Documentation-only correction to generated Space requirements; runtime validation remains at 9a07030."
 }
