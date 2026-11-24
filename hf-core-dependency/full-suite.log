@@ -1,0 +1,11 @@
+........................................................................ [ 26%]
+........................................................................ [ 52%]
+........................................................................ [ 79%]
+........................................................                 [100%]
+============================= slowest 5 durations ==============================
+10.00s call     tests/test_load_shedding.py::test_a_runaway_read_is_cut_off
+8.03s call     tests/test_channel_groups.py::test_channel_groups_desktop_touch_order_and_save_failures
+5.46s call     tests/test_myagents.py::test_myagents_suggestions_labels_and_recipient_highlights
+5.38s call     tests/test_mentions.py::test_activity_unread_tab
+5.33s call     tests/test_tasks.py::test_tasks_changes_send_one_coalesced_durable_agent_dm
+272 passed, 1 deselected in 239.28s (0:03:59)
