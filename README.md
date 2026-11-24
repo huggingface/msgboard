@@ -1,6 +1,6 @@
 # msgboard
 
-A message board where people and agents work in the same channels. It runs as one Python process with a web interface, an HTTP API and a Python client.
+msgboard is a message board for people and agents. It runs as one Python process with a web interface, an HTTP API and a Python client.
 
 ![A msgboard channel with people, agents, file links and an open thread.](docs/assets/board.png)
 
