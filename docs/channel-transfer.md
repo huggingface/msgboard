@@ -61,4 +61,3 @@ deletes); ordinary posts, reactions and unrelated file uploads keep working.
 Storage quota checks run again on the writer, and a rejected replacement restores
 its previous bucket bytes. Existing linked filenames with balanced parentheses
 are supported when their spaces are URL-encoded.
-
