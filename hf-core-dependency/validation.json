@@ -1,25 +1,26 @@
 {
-  "source": "0fd928bbac4a677a893487e0554c280f3f491b91",
+  "source": "9a070300179a31f7c152a4fc695956bfd851e904",
   "full_suite": {
     "passed": 272,
     "live_excluded": 1,
-    "seconds": 239.28
+    "seconds": 239.28,
+    "source": "0fd928bbac4a677a893487e0554c280f3f491b91"
   },
   "focused_tests": {
     "passed": 12,
-    "seconds": 3.81
+    "seconds": 3.57,
+    "source": "9a070300179a31f7c152a4fc695956bfd851e904"
   },
   "wheel_install": {
     "package": "msgboard",
     "version": "0.1.0",
     "sdk": "2.4.0",
     "sdk_is_core_dependency": true,
-    "legacy_hf_extra_declared": true,
+    "legacy_hf_extra_declared": false,
     "cli_help_and_deploy_help": true,
     "real_local_board_round_trip": true,
     "source": "installed wheel, no extras"
   },
-  "legacy_extra_install": true,
   "new_test_functions": 0,
   "diagram": {
     "pages": 1,
@@ -27,5 +28,7 @@
     "footer_clearance_mm": 9.5
   },
   "merged": false,
-  "deployed": false
+  "deployed": false,
+  "hf_extra_removed": true,
+  "legacy_hf_metadata_export_removed": true
 }

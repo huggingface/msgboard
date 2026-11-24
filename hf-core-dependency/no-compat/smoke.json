@@ -1,0 +1,10 @@
+{
+  "package": "msgboard",
+  "version": "0.1.0",
+  "sdk": "2.4.0",
+  "sdk_is_core_dependency": true,
+  "legacy_hf_extra_declared": false,
+  "cli_help_and_deploy_help": true,
+  "real_local_board_round_trip": true,
+  "source": "installed wheel, no extras"
+}

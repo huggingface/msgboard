@@ -1,0 +1,95 @@
+Building wheel...
+running egg_info
+writing src/msgboard.egg-info/PKG-INFO
+writing dependency_links to src/msgboard.egg-info/dependency_links.txt
+writing requirements to src/msgboard.egg-info/requires.txt
+writing top-level names to src/msgboard.egg-info/top_level.txt
+reading manifest file 'src/msgboard.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'src/msgboard.egg-info/SOURCES.txt'
+running bdist_wheel
+running build
+running build_py
+copying src/msgboard/space/hub.py -> build/lib/msgboard/space
+running egg_info
+writing src/msgboard.egg-info/PKG-INFO
+writing dependency_links to src/msgboard.egg-info/dependency_links.txt
+writing requirements to src/msgboard.egg-info/requires.txt
+writing top-level names to src/msgboard.egg-info/top_level.txt
+reading manifest file 'src/msgboard.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'src/msgboard.egg-info/SOURCES.txt'
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/msgboard
+copying build/lib/msgboard/__init__.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/__main__.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/analytics.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/auth.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/blobs.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/cli.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/client.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/config.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/db.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/demo.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/demo_agent.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/errors.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/guide.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/local.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/presence.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/replicate.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/reservations.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/server.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/store.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/tasks.py -> build/bdist.linux-x86_64/wheel/./msgboard
+copying build/lib/msgboard/transfer.py -> build/bdist.linux-x86_64/wheel/./msgboard
+creating build/bdist.linux-x86_64/wheel/msgboard/space
+copying build/lib/msgboard/space/__init__.py -> build/bdist.linux-x86_64/wheel/./msgboard/space
+copying build/lib/msgboard/space/accounts.py -> build/bdist.linux-x86_64/wheel/./msgboard/space
+copying build/lib/msgboard/space/app.py -> build/bdist.linux-x86_64/wheel/./msgboard/space
+copying build/lib/msgboard/space/Dockerfile -> build/bdist.linux-x86_64/wheel/./msgboard/space
+copying build/lib/msgboard/space/README.md -> build/bdist.linux-x86_64/wheel/./msgboard/space
+copying build/lib/msgboard/space/hub.py -> build/bdist.linux-x86_64/wheel/./msgboard/space
+copying build/lib/msgboard/dashboard.html -> build/bdist.linux-x86_64/wheel/./msgboard
+running install_egg_info
+Copying src/msgboard.egg-info to build/bdist.linux-x86_64/wheel/./msgboard-0.1.0-py3.11.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/msgboard-0.1.0.dist-info/WHEEL
+creating '/home/node/local/tmp/hf-core-no-compat-dist/.tmp-sniee566/msgboard-0.1.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'msgboard/__init__.py'
+adding 'msgboard/__main__.py'
+adding 'msgboard/analytics.py'
+adding 'msgboard/auth.py'
+adding 'msgboard/blobs.py'
+adding 'msgboard/cli.py'
+adding 'msgboard/client.py'
+adding 'msgboard/config.py'
+adding 'msgboard/dashboard.html'
+adding 'msgboard/db.py'
+adding 'msgboard/demo.py'
+adding 'msgboard/demo_agent.py'
+adding 'msgboard/errors.py'
+adding 'msgboard/guide.py'
+adding 'msgboard/local.py'
+adding 'msgboard/presence.py'
+adding 'msgboard/replicate.py'
+adding 'msgboard/reservations.py'
+adding 'msgboard/server.py'
+adding 'msgboard/store.py'
+adding 'msgboard/tasks.py'
+adding 'msgboard/transfer.py'
+adding 'msgboard/space/Dockerfile'
+adding 'msgboard/space/README.md'
+adding 'msgboard/space/__init__.py'
+adding 'msgboard/space/accounts.py'
+adding 'msgboard/space/app.py'
+adding 'msgboard/space/hub.py'
+adding 'msgboard-0.1.0.dist-info/licenses/LICENSE'
+adding 'msgboard-0.1.0.dist-info/METADATA'
+adding 'msgboard-0.1.0.dist-info/WHEEL'
+adding 'msgboard-0.1.0.dist-info/top_level.txt'
+adding 'msgboard-0.1.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+Successfully built /home/node/local/tmp/hf-core-no-compat-dist/msgboard-0.1.0-py3-none-any.whl
