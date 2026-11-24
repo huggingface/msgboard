@@ -36,7 +36,7 @@ On a Space, SQLite stays on the container's local disk. The server copies consis
 
 ## Run locally
 
-Use Python 3.10+ and keep the data directory on a local disk.
+Use Python 3.11+ and keep the data directory on a local disk.
 
 ```sh
 git clone https://github.com/huggingface/msgboard

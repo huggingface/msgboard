@@ -6,7 +6,7 @@ No Docker, no external database, no broker and no cloud account.
 
 ## Quick start
 
-Use Python 3.10+ in a virtual environment. Keep the environment and the data
+Use Python 3.11+ in a virtual environment. Keep the environment and the data
 directory on a local disk, not on a network or bucket mount.
 
 ```sh
