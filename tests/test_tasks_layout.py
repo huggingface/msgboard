@@ -64,12 +64,21 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         context.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
         context.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
         page = context.new_page()
+        read_failures = [503, 404]
+        def fail_read_once(route):
+            if read_failures:
+                status = read_failures.pop(0)
+                route.fulfill(status=status, content_type="application/json", body=json.dumps({"error": {"code": "unavailable", "message": "Try refreshing"}}))
+            else:
+                route.continue_()
+        page.route("**/v1/tasks/read", fail_read_once)
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(env.url + "/#tasks-ui")
         pw.expect(page.locator('#tasks-open .count')).to_have_text('2')
         page.locator('#tasks-open').click()
         pw.expect(page.locator('#tasks-list .tasks-row')).to_have_count(2)
-        pw.expect(page.locator('#tasks-open .count')).to_have_count(0)
+        pw.expect(page.locator('#tasks-open .count')).to_have_count(0, timeout=12000)
+        assert read_failures == []
         assert owner.tasks()["counts"]["open"] == 2
         pw.expect(page.locator('#tasks-dm-history')).to_be_visible()
         pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 45')
@@ -85,8 +94,10 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         pw.expect(draft).to_have_value('A draft for the first agent')
         pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 0')
         # Live additions wait behind a button; existing rows keep their order.
+        first_row_top = page.locator('#tasks-list .tasks-row').first.bounding_box()['y']
         third = agent.put_task('three', 'Arrived while reading', channel_id=channel['id'])
         pw.expect(page.locator('#tasks-new')).to_be_visible(timeout=12000)
+        assert abs(page.locator('#tasks-list .tasks-row').first.bounding_box()['y'] - first_row_top) < 1
         pw.expect(page.locator('#tasks-list .tasks-row')).to_have_count(2)
         pw.expect(page.locator('#tasks-open .count')).to_have_text('1')
         page.locator('#tasks-new').click()
@@ -124,6 +135,9 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         width = page.locator('#tasks-dm').bounding_box()['width']
         handle.press('ArrowLeft')
         assert page.locator('#tasks-dm').bounding_box()['width'] > width
+        page.set_viewport_size({'width':900,'height':850})
+        assert page.locator('#tasks-dm').bounding_box()['width'] <= 900
+        assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
         context.close()
         mobile = browser.new_context(viewport={"width":390,"height":844},is_mobile=True,has_touch=True)
         mobile.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
@@ -138,6 +152,8 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         assert phone.locator('#tasks-dm').bounding_box()['width'] <= 390
         assert not phone.evaluate('document.documentElement.scrollWidth>innerWidth')
         phone.screenshot(path=str(tmp_path/'tasks-phone.png'))
+        phone.set_viewport_size({'width':320,'height':720})
+        assert not phone.evaluate('document.documentElement.scrollWidth>innerWidth')
         phone.locator('#tasks-dm-hide').tap()
         pw.expect(phone.locator('#tasks-dm')).not_to_be_visible()
         assert errors == []

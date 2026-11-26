@@ -924,12 +924,18 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 #tasks-dm-composer .cbox .bar { flex: 1 0 100%; padding-left: 10px; }
 #tasks-dm.collapsed { display: none; }
 #tasks-dm-new { align-self: center; margin: 0 0 4px; }
-#tasks-new { margin: 12px 0 0; }
+.tasks-toolbar { display: flex; gap: 8px; align-items: flex-start; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+.tasks-toolbar #tasks-sort { flex: 1; padding-bottom: 0; border-bottom: 0; }
+#tasks-new { flex: none; min-height: 28px; font-size: 11px; margin: 0; }
+@media (max-width: 420px) { .tasks-toolbar { gap: 6px; } .tasks-toolbar #tasks-sort { gap: 4px; } .tasks-toolbar #tasks-sort button, #tasks-new { padding: 5px 6px; font-size: 10px; } }
 .tasks-new-dot { display: inline-block; width: 5px; height: 5px; background: var(--ink); border-radius: 50%; margin: 0 7px 2px 0; }
 #personal-preferences h3 { font-size: 14px; margin: 22px 0 10px; }
 #personal-preferences .show-private { font: 13px var(--sans); padding: 0; color: var(--ink); }
 #personal-preferences .small { max-width: 560px; }
-@media (max-width: 1050px) and (min-width: 721px) { #tasks { --tasks-agent-width: 320px; } }
+@media (max-width: 1050px) and (min-width: 721px) {
+  #tasks-dm { position: absolute; inset: 0; width: 100%; border-left: 0; z-index: 4; }
+  #tasks-dm-resize { display: none; }
+}
 #tasks-dialog { width: min(730px, calc(100% - 32px)); max-height: calc(var(--vvh, 100dvh) - 32px); padding: 26px 28px 18px; overflow-y: auto; }
 #tasks-item-close { position: absolute; top: 10px; right: 12px; font-size: 22px; background: transparent; border: 0; padding: 0 5px; color: var(--ink-2); z-index: 1; }
 #tasks-dialog .tasks-proposal { padding: 0; }
@@ -1059,8 +1065,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <section id="tasks" class="hidden" aria-label="Personal tasks">
       <button id="tasks-agent-tab" class="btn ghost small" aria-label="Show Agent panel" aria-expanded="true">Agent</button>
       <div id="tasks-scroll" class="scroll"><div class="tasks-page">
-        <nav id="tasks-sort" aria-label="Order tasks"></nav>
-        <button id="tasks-new" class="btn ghost small hidden" type="button"></button>
+        <div class="tasks-toolbar"><button id="tasks-new" class="btn ghost small hidden" type="button"></button><nav id="tasks-sort" aria-label="Order tasks"></nav></div>
         <p id="tasks-error" class="err hidden" role="status"></p>
         <div id="tasks-list" aria-label="Tasks items"></div>
         <footer class="tasks-summary"><span id="tasks-count"></span><span aria-hidden="true">|</span><span id="tasks-archived-count"></span><span aria-hidden="true">|</span><label><input type="checkbox" id="tasks-show-archived"> Show archived</label></footer>
@@ -3628,7 +3633,9 @@ async function tasksRefresh() {
     q.items = data.items.filter((i) => !pending.has(i.id)); q.counts = data.counts; q.orderVersion = data.order_version;
     q.acceptNew = false;
     $("tasks-new").classList.toggle("hidden", !q.pending.length);
-    $("tasks-new").textContent = q.pending.length + (q.pending.length === 1 ? " new task" : " new tasks") + " - Show";
+    $("tasks-new").textContent = q.pending.length + " new";
+    $("tasks-new").title = q.pending.length + (q.pending.length === 1 ? " new task" : " new tasks") + " - Show";
+    $("tasks-new").setAttribute("aria-label", $("tasks-new").title);
     const signature = JSON.stringify([q.sort, q.direction, q.items]);
     if (signature !== q.signature) { q.signature = signature; tasksRenderList(); }
     $("tasks-count").textContent = `${data.counts.open} ${data.counts.open === 1 ? "item" : "items"}`;
@@ -3677,13 +3684,20 @@ async function tasksMarkSeen(ids = []) {
     await api("POST", "/tasks/read", { body: { ids: batch } });
     if (state.me?.id !== principal) return;
     for (const item of q.items) if (batch.includes(item.id)) item.unread = false;
-    for (const row of $("tasks-list").querySelectorAll("[data-qid]")) if (batch.includes(Number(row.dataset.qid))) { row.dataset.unread = "false"; row.querySelector(".tasks-new-dot")?.remove(); }
+    for (const row of $("tasks-list").querySelectorAll(".tasks-row[data-qid]")) if (batch.includes(Number(row.dataset.qid))) { row.dataset.unread = "false"; row.querySelector(".tasks-new-dot")?.remove(); }
     refreshTasksBadge();
-  } catch {
+  } catch (e) {
     failed = true;
     if (state.me?.id === principal) {
-      batch.forEach((id) => q.seenPending.add(id));
-      setTimeout(() => { if (state.me?.id === principal && state.view === "tasks") tasksMarkSeen(); }, 5000);
+      if (e.status >= 400 && e.status < 500 && e.status !== 429) {
+        // A task can lose visibility after rendering. Refetch rather than let
+        // one unavailable ID poison every later acknowledgment batch.
+        q.signature = "";
+        tasksRefresh();
+      } else {
+        batch.forEach((id) => q.seenPending.add(id));
+        setTimeout(() => { if (state.me?.id === principal && state.view === "tasks") tasksMarkSeen(); }, 5000);
+      }
     }
   } finally { q.seenBusy = false; if (!failed && q.seenPending.size) tasksMarkSeen(); }
 }

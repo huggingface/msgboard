@@ -520,14 +520,16 @@ def test_task_attention_is_personal_durable_and_independent_of_completion(env):
         assert owner.tasks_unread() == 2
     assert owner.mark_tasks_read([]) == 2
     assert owner.mark_tasks_read([first["id"], first["id"]]) == 1
-    assert owner.mark_tasks_read([first["id"]]) == 1
+    third = agent.put_task("new-arrival", "Arrived after the old list was read")
+    assert owner.mark_tasks_read([first["id"]]) == 2
     assert owner.task(first["id"])["version"] == first["version"]
     assert owner.task(first["id"])["state"] == "open"
     updated = agent.put_task("first", "Updated first question", base_version=first["version"])
     assert updated["unread"] is False
-    assert owner.tasks_unread() == 1  # an edit is not a newly added item
+    assert owner.tasks_unread() == 2  # only the second task and new arrival are unread
     agent.task_action(second["id"], "done", second["version"])
-    assert owner.tasks_unread() == 0
+    assert owner.tasks_unread() == 1
+    assert owner.mark_tasks_read([third["id"]]) == 0
     closed = owner.task(second["id"])
     owner.task_action(second["id"], "restore", closed["version"])
     assert owner.tasks_unread() == 0
