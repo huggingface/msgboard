@@ -1,0 +1,15 @@
+pages: 1
+page 1: 209.9 x 297.0 mm (A4)
+  colours: 2 (black and white only)
+  fonts: LetterGothicCode-B, LetterGothicCode-R, LiberationSans, LiberationSerif, LiberationSerif-Bold, RoutedGothic, RoutedGothicNarrow
+tiles: /home/node/local/tmp/blue-ui-5195/review-diagram
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-band1-left-0-89mm.png
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-band1-right-0-89mm.png
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-band2-left-69-159mm.png
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-band2-right-69-159mm.png
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-band3-left-139-228mm.png
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-band3-right-139-228mm.png
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-band4-left-208-297mm.png
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-band4-right-208-297mm.png
+  /home/node/local/tmp/blue-ui-5195/review-diagram/p1-overview.png
+ok

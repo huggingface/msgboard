@@ -1,44 +1,91 @@
 {
-  "source": "324f18139a345137b39f814586a20d10584a524f",
+  "source": "602c5b7cdfbfdca88c4c9f6af702338408b2b5be",
   "base": "00a98fedbbe5d24326d16e320cb50ae00346eb3a",
   "full_suite": {
-    "source": "dba2e6e3cf15d6eb06ad3f9b0d06532dff139d56",
+    "mode": "two serial file batches, complete disjoint coverage",
+    "source": "602c5b7cdfbfdca88c4c9f6af702338408b2b5be",
     "passed": 274,
     "failed": 1,
     "excluded_live": 1,
-    "seconds": 236.89,
+    "seconds": 261.8,
+    "batches": [
+      {
+        "source": "602c5b7cdfbfdca88c4c9f6af702338408b2b5be",
+        "files": [
+          "tests/test_agent_loop.py",
+          "tests/test_analytics.py",
+          "tests/test_attachments.py",
+          "tests/test_auth.py",
+          "tests/test_avatars.py",
+          "tests/test_channel_groups.py",
+          "tests/test_channel_info.py",
+          "tests/test_channel_participation.py",
+          "tests/test_channel_queries.py",
+          "tests/test_default_general.py",
+          "tests/test_docs.py",
+          "tests/test_downloads.py",
+          "tests/test_edits.py",
+          "tests/test_emoji_shortcuts.py",
+          "tests/test_guest_storage_links.py",
+          "tests/test_guests.py",
+          "tests/test_init.py",
+          "tests/test_link_button.py",
+          "tests/test_load_shedding.py",
+          "tests/test_members.py"
+        ],
+        "exit_code": 1,
+        "seconds": 113.43
+      },
+      {
+        "source": "602c5b7cdfbfdca88c4c9f6af702338408b2b5be",
+        "files": [
+          "tests/test_mentions.py",
+          "tests/test_message_ids.py",
+          "tests/test_messages.py",
+          "tests/test_myagents.py",
+          "tests/test_ownership.py",
+          "tests/test_presence.py",
+          "tests/test_reactions.py",
+          "tests/test_replicate.py",
+          "tests/test_search.py",
+          "tests/test_space.py",
+          "tests/test_space_accounts.py",
+          "tests/test_space_deploy.py",
+          "tests/test_storage.py",
+          "tests/test_suspend.py",
+          "tests/test_tasks.py",
+          "tests/test_tasks_layout.py",
+          "tests/test_thread_subscriptions.py",
+          "tests/test_threads_profiles.py",
+          "tests/test_transfer.py",
+          "tests/test_transfer_concurrency.py"
+        ],
+        "exit_code": 0,
+        "seconds": 148.37
+      }
+    ],
     "failure": "test_swipe_opens_and_closes_the_channel_list_on_phones",
     "baseline_failure_confirmed": true,
     "baseline_seconds": 8.76
   },
-  "affected_suite": {
-    "passed": 22,
-    "seconds": 35.6,
-    "source": "dba2e6e"
-  },
-  "followup_suite": {
+  "focused_review_checks": {
     "passed": 20,
-    "seconds": 29.78,
-    "scope": "Tasks API and browser after read-error handling"
+    "seconds": 54.39,
+    "new_test_functions": 0,
+    "note": "Existing tests extended; the complete final-head run includes the final UI follow-ups."
   },
-  "final_checks": {
-    "source": "324f18139a345137b39f814586a20d10584a524f",
-    "passed": 3,
-    "seconds": 13.8,
-    "scope": "Personal durable task attention API; Tasks sidebar/history/drafts/settings/read failures; main-feed thread positioning"
-  },
-  "new_test_functions": 3,
-  "extended_existing_tests": [
-    "task source visibility",
-    "v30 migration through current schema"
+  "addressed_review_findings": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
   ],
-  "browser_viewports": [
-    1440,
-    900,
-    390,
-    320
-  ],
+  "review_status": "author fixes pushed; independent re-review requested",
+  "review_url": "https://github.com/huggingface/msgboard/pull/56#issuecomment-7194221818",
   "schema": 33,
+  "new_feature_test_functions_total": 3,
   "diagram": {
     "pages": 1,
     "pure_black_white": true,
@@ -46,5 +93,11 @@
   },
   "merged": false,
   "deployed": false,
-  "note": "Full suite was not repeated after focused read-retry and layout follow-ups; their affected behaviours were rerun."
+  "interrupted_attempt": {
+    "source": "cc871f4",
+    "exit_code": 143,
+    "summary_available": false,
+    "log": "review-fixes/full-suite.log"
+  },
+  "screenshots": "Retained approved layout screenshots; fixes do not change layout."
 }

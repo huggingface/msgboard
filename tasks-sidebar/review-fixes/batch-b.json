@@ -1,0 +1,27 @@
+{
+  "source": "602c5b7cdfbfdca88c4c9f6af702338408b2b5be",
+  "files": [
+    "tests/test_mentions.py",
+    "tests/test_message_ids.py",
+    "tests/test_messages.py",
+    "tests/test_myagents.py",
+    "tests/test_ownership.py",
+    "tests/test_presence.py",
+    "tests/test_reactions.py",
+    "tests/test_replicate.py",
+    "tests/test_search.py",
+    "tests/test_space.py",
+    "tests/test_space_accounts.py",
+    "tests/test_space_deploy.py",
+    "tests/test_storage.py",
+    "tests/test_suspend.py",
+    "tests/test_tasks.py",
+    "tests/test_tasks_layout.py",
+    "tests/test_thread_subscriptions.py",
+    "tests/test_threads_profiles.py",
+    "tests/test_transfer.py",
+    "tests/test_transfer_concurrency.py"
+  ],
+  "exit_code": 0,
+  "seconds": 148.37
+}

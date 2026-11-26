@@ -1,0 +1,27 @@
+{
+  "source": "602c5b7cdfbfdca88c4c9f6af702338408b2b5be",
+  "files": [
+    "tests/test_agent_loop.py",
+    "tests/test_analytics.py",
+    "tests/test_attachments.py",
+    "tests/test_auth.py",
+    "tests/test_avatars.py",
+    "tests/test_channel_groups.py",
+    "tests/test_channel_info.py",
+    "tests/test_channel_participation.py",
+    "tests/test_channel_queries.py",
+    "tests/test_default_general.py",
+    "tests/test_docs.py",
+    "tests/test_downloads.py",
+    "tests/test_edits.py",
+    "tests/test_emoji_shortcuts.py",
+    "tests/test_guest_storage_links.py",
+    "tests/test_guests.py",
+    "tests/test_init.py",
+    "tests/test_link_button.py",
+    "tests/test_load_shedding.py",
+    "tests/test_members.py"
+  ],
+  "exit_code": 1,
+  "seconds": 113.43
+}
