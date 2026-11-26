@@ -1,0 +1,50 @@
+{
+  "source": "324f18139a345137b39f814586a20d10584a524f",
+  "base": "00a98fedbbe5d24326d16e320cb50ae00346eb3a",
+  "full_suite": {
+    "source": "dba2e6e3cf15d6eb06ad3f9b0d06532dff139d56",
+    "passed": 274,
+    "failed": 1,
+    "excluded_live": 1,
+    "seconds": 236.89,
+    "failure": "test_swipe_opens_and_closes_the_channel_list_on_phones",
+    "baseline_failure_confirmed": true,
+    "baseline_seconds": 8.76
+  },
+  "affected_suite": {
+    "passed": 22,
+    "seconds": 35.6,
+    "source": "dba2e6e"
+  },
+  "followup_suite": {
+    "passed": 20,
+    "seconds": 29.78,
+    "scope": "Tasks API and browser after read-error handling"
+  },
+  "final_checks": {
+    "source": "324f18139a345137b39f814586a20d10584a524f",
+    "passed": 3,
+    "seconds": 13.8,
+    "scope": "Personal durable task attention API; Tasks sidebar/history/drafts/settings/read failures; main-feed thread positioning"
+  },
+  "new_test_functions": 3,
+  "extended_existing_tests": [
+    "task source visibility",
+    "v30 migration through current schema"
+  ],
+  "browser_viewports": [
+    1440,
+    900,
+    390,
+    320
+  ],
+  "schema": 33,
+  "diagram": {
+    "pages": 1,
+    "pure_black_white": true,
+    "footer_clearance_mm": 8.7
+  },
+  "merged": false,
+  "deployed": false,
+  "note": "Full suite was not repeated after focused read-retry and layout follow-ups; their affected behaviours were rerun."
+}

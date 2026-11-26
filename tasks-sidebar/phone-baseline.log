@@ -1,0 +1,19 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_swipe_opens_and_closes_the_channel_list_on_phones ____________
+tests/test_channel_groups.py:229: in test_swipe_opens_and_closes_the_channel_list_on_phones
+    closed()
+tests/test_channel_groups.py:203: in closed
+    pw.expect(app).not_to_have_class(re.compile(r"\bnav\b"))
+E   AssertionError: Locator expected not to have class 're.compile('\\bnav\\b')'
+E   Actual value: None
+E   Error: element(s) not found 
+E   Call log:
+E     - Expect "not_to_have_class" locator("#app") with timeout 5000ms
+E     - waiting for locator("#app")
+---------------------------- Captured stdout setup -----------------------------
+Created board in /tmp/pytest-of-node/pytest-13/test_swipe_opens_and_closes_th0/board (schema v32).
+Operator token saved to /tmp/pytest-of-node/pytest-13/test_swipe_opens_and_closes_th0/board/operator.token (mode 0600). Keep it secret; open the dashboard with it to create invite links.
+=========================== short test summary info ============================
+FAILED tests/test_channel_groups.py::test_swipe_opens_and_closes_the_channel_list_on_phones
+1 failed in 8.76s

@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_thread_panel_preserves_channel_reading_position _____________
+tests/test_tasks_layout.py:43: in test_thread_panel_preserves_channel_reading_position
+    page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
+../../envs/msgboard-cx/lib/python3.11/site-packages/playwright/sync_api/_generated.py:21268: in wait_for_function
+    self._sync(
+../../envs/msgboard-cx/lib/python3.11/site-packages/playwright/_impl/page.py:1609: in wait_for_function
+    return await self._main_frame.wait_for_function(
+../../envs/msgboard-cx/lib/python3.11/site-packages/playwright/_impl/frame.py:1209: in wait_for_function
+    result = await self._channel.waitForFunction(
+../../envs/msgboard-cx/lib/python3.11/site-packages/playwright/_impl/channel_owner.py:398: in _mapped
+    return mapper(await awaitable)
+                  ^^^^^^^^^^^^^^^
+../../envs/msgboard-cx/lib/python3.11/site-packages/playwright/_impl/channel_owner.py:387: in finish
+    raise e from None
+../../envs/msgboard-cx/lib/python3.11/site-packages/playwright/_impl/channel_owner.py:352: in finish
+    result = await zone.run_async(lambda: awaitable)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../envs/msgboard-cx/lib/python3.11/site-packages/playwright/_impl/utils/zones.py:58: in run_async
+    return await func()
+           ^^^^^^^^^^^^
+E   playwright._impl._errors.TimeoutError: Page.wait_for_function: Timeout 30000ms exceeded.
+---------------------------- Captured stdout setup -----------------------------
+Created board in /tmp/pytest-of-node/pytest-9/test_thread_panel_preserves_ch0/board (schema v32).
+Operator token saved to /tmp/pytest-of-node/pytest-9/test_thread_panel_preserves_ch0/board/operator.token (mode 0600). Keep it secret; open the dashboard with it to create invite links.
+=========================== short test summary info ============================
+FAILED tests/test_tasks_layout.py::test_thread_panel_preserves_channel_reading_position
+1 failed in 32.37s
