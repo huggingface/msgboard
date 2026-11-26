@@ -1,5 +1,5 @@
 {
-  "source": "602c5b7cdfbfdca88c4c9f6af702338408b2b5be",
+  "source": "ddcd4389f969a1197f8f5a49ffdbe3b419c360d8",
   "base": "00a98fedbbe5d24326d16e320cb50ae00346eb3a",
   "full_suite": {
     "mode": "two serial file batches, complete disjoint coverage",
@@ -66,7 +66,8 @@
     ],
     "failure": "test_swipe_opens_and_closes_the_channel_list_on_phones",
     "baseline_failure_confirmed": true,
-    "baseline_seconds": 8.76
+    "baseline_seconds": 8.76,
+    "note": "Retained complete 602c5b7 run; no repeat after two focused UI timing fixes."
   },
   "focused_review_checks": {
     "passed": 20,
@@ -80,9 +81,11 @@
     3,
     4,
     5,
-    6
+    6,
+    7,
+    8
   ],
-  "review_status": "author fixes pushed; independent re-review requested",
+  "review_status": "Review #2 confirms #1\u2013#6 fixed and mergeable; author addressed #7/#8, requesting same-comment recheck",
   "review_url": "https://github.com/huggingface/msgboard/pull/56#issuecomment-7194221818",
   "schema": 33,
   "new_feature_test_functions_total": 3,
@@ -99,5 +102,20 @@
     "summary_available": false,
     "log": "review-fixes/full-suite.log"
   },
-  "screenshots": "Retained approved layout screenshots; fixes do not change layout."
+  "screenshots": "Retained approved layout screenshots; fixes do not change layout.",
+  "independently_confirmed_fixed": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "review2_ui_checks": {
+    "source": "ddcd4389f969a1197f8f5a49ffdbe3b419c360d8",
+    "passed": 2,
+    "seconds": 45.09,
+    "new_test_functions": 0,
+    "scope": "Response-time new-reply indicator; delayed task list beneath New channel; all earlier UI regression checks retained"
+  }
 }
