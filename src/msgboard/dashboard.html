@@ -4069,7 +4069,7 @@ async function tasksRefreshDm(older = false) {
       }
     }
     const messages = [...next.values()].sort((a, b) => a.seq - b.seq);
-    const signature = JSON.stringify(messages);
+    const signature = JSON.stringify([hasOlder, messages]);
     session.messages = new Map(messages.map((m) => [m.id, m])); session.hasOlder = hasOlder;
     // Backward-read next_cursor is before-1 for an empty page: it is not a
     // forward cursor. An empty new conversation starts at 0.
