@@ -49,6 +49,18 @@ input:focus, select:focus { border-color: var(--ink); }
 select { background: var(--bg); }
 code.box { display: block; font: 12px/1.5 var(--mono); background: var(--panel); border: 1px solid var(--rule); padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
+/* Idle scrollbars keep their width; keyboard focus and native forced-colour bars remain usable. */
+.nav-scroll, .scroll { scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; }
+.nav-scroll:hover, .nav-scroll:focus-within, .nav-scroll.scrolling,
+.scroll:hover, .scroll:focus-within, .scroll.scrolling { scrollbar-color: var(--rule-2) transparent; }
+.nav-scroll::-webkit-scrollbar, .scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.nav-scroll::-webkit-scrollbar-thumb, .scroll::-webkit-scrollbar-thumb { background: transparent; }
+.nav-scroll:hover::-webkit-scrollbar-thumb, .nav-scroll:focus-within::-webkit-scrollbar-thumb, .nav-scroll.scrolling::-webkit-scrollbar-thumb,
+.scroll:hover::-webkit-scrollbar-thumb, .scroll:focus-within::-webkit-scrollbar-thumb, .scroll.scrolling::-webkit-scrollbar-thumb { background: var(--rule-2); }
+#scroll { overflow-anchor: none; } /* keepAnchor owns feed anchoring across redraws and panel reflow */
+@media (prefers-reduced-motion: no-preference) { .nav-scroll, .scroll { transition: scrollbar-color .15s; } }
+@media (forced-colors: active) { .nav-scroll, .scroll { scrollbar-color: auto; } }
+
 /* ---------- login / join ---------- */
 #login { min-height: 100%; display: grid; place-items: center; padding: 24px 16px; }
 .login-box { width: 100%; max-width: 440px; border-top: 2px solid var(--ink); padding-top: 18px; }
@@ -892,23 +904,38 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
 .tasks-summary label { display: flex; align-items: center; gap: 7px; }
 .tasks-summary input { margin: 0; }
 #tasks-error { margin: 12px 0; }
-#tasks-dm { flex: none; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 28px; background: var(--bg); }
-#tasks-dm-content { position: relative; border-top: 1px solid var(--rule-2); display: flex; flex-direction: column; }
-#tasks-dm-resize { position: absolute; top: -6px; left: 0; right: 0; height: 12px; cursor: ns-resize; touch-action: none; outline: none; z-index: 2; }
-#tasks-dm-resize:focus-visible::after { content: ""; position: absolute; top: 5px; left: 0; right: 0; border-top: 1px solid var(--ink); }
-#tasks-dm-content.resized #tasks-dm-messages { flex: 1; min-height: 0; max-height: none; }
-#tasks-dm-content.resized #tasks-dm-composer .cbox { overflow-y: auto; }
+#tasks { position: relative; flex-direction: row; --tasks-agent-width: 380px; }
+#tasks-scroll { flex: 1; min-width: 0; }
+#tasks-agent-tab { position: absolute; right: 28px; top: -43px; z-index: 1; }
+#tasks-dm { flex: 0 0 var(--tasks-agent-width); width: var(--tasks-agent-width); min-width: 0; min-height: 0; border-left: 1px solid var(--rule); background: var(--bg); }
+#tasks-dm-content { position: relative; height: 100%; min-height: 0; display: flex; flex-direction: column; }
+#tasks-dm-resize { position: absolute; top: 0; bottom: 0; left: -5px; width: 10px; cursor: col-resize; touch-action: none; outline: none; z-index: 2; }
+#tasks-dm-resize:focus-visible { border-left: 1px solid var(--ink); }
 .tasks-dm-head, #tasks-dm-composer { flex: none; }
-.tasks-dm-head { display: flex; gap: 10px; align-items: center; padding: 12px 0 0; font-size: 12px; }
-.tasks-dm-head select { min-width: 138px; max-width: 70%; font-size: 12px; padding: 5px 24px 5px 9px; }
-#tasks-dm-hide { margin-left: auto; font-size: 11px; }
-#tasks-dm-messages { max-height: 125px; overflow-y: auto; padding: 6px 0; }
+.tasks-dm-head { display: flex; gap: 8px; align-items: center; padding: 12px 16px; font-size: 12px; border-bottom: 1px solid var(--rule); }
+.tasks-dm-head select { flex: 1; min-width: 0; font-size: 12px; padding: 5px 24px 5px 9px; }
+#tasks-dm-hide { background: none; border: 0; padding: 0 3px; font-size: 22px; line-height: 1; }
+#tasks-dm-history { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 16px; }
+#tasks-dm-older { display: block; margin: 0 auto 10px; }
 #tasks-dm-messages .msg { font-size: 13px; padding-left: 0; padding-right: 0; }
 #tasks-dm-messages .msg .body { font-size: inherit; }
-#tasks-dm-composer { border-top: 0; padding: 10px 0 16px; }
-#tasks-dm.collapsed { border: 0; }
-#tasks-dm.collapsed #tasks-dm-content { display: none; }
-#tasks-agent-tab { display: flex; gap: 10px; align-items: center; padding: 9px 13px; border: 1px solid var(--rule-2); border-bottom: 0; background: var(--bg); font-size: 12px; margin-left: auto; }
+#tasks-dm-composer { border-top: 0; padding: 10px 12px 16px; }
+#tasks-dm-composer .cbox textarea { flex-basis: 100%; min-height: 50px; }
+#tasks-dm-composer .cbox .bar { flex: 1 0 100%; padding-left: 10px; }
+#tasks-dm.collapsed { display: none; }
+#tasks-dm-new { align-self: center; margin: 0 0 4px; }
+.tasks-toolbar { display: flex; gap: 8px; align-items: flex-start; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+.tasks-toolbar #tasks-sort { flex: 1; padding-bottom: 0; border-bottom: 0; }
+#tasks-new { flex: none; min-height: 28px; font-size: 11px; margin: 0; }
+@media (max-width: 420px) { .tasks-toolbar { gap: 6px; } .tasks-toolbar #tasks-sort { gap: 4px; } .tasks-toolbar #tasks-sort button, #tasks-new { padding: 5px 6px; font-size: 10px; } }
+.tasks-new-dot { display: inline-block; width: 5px; height: 5px; background: var(--ink); border-radius: 50%; margin: 0 7px 2px 0; }
+#personal-preferences h3 { font-size: 14px; margin: 22px 0 10px; }
+#personal-preferences .show-private { font: 13px var(--sans); padding: 0; color: var(--ink); }
+#personal-preferences .small { max-width: 560px; }
+@media (max-width: 1050px) and (min-width: 721px) {
+  #tasks-dm { position: absolute; inset: 0; width: 100%; border-left: 0; z-index: 4; }
+  #tasks-dm-resize { display: none; }
+}
 #tasks-dialog { width: min(730px, calc(100% - 32px)); max-height: calc(var(--vvh, 100dvh) - 32px); padding: 26px 28px 18px; overflow-y: auto; }
 #tasks-item-close { position: absolute; top: 10px; right: 12px; font-size: 22px; background: transparent; border: 0; padding: 0 5px; color: var(--ink-2); z-index: 1; }
 #tasks-dialog .tasks-proposal { padding: 0; }
@@ -944,9 +971,11 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
   #tasks-item-title { font-size: 15px; }
   #tasks-dialog .tasks-description { font-size: 13px; }
   .tasks-source .msg, .tasks-source .msg.first { padding: 8px 10px; }
-  #tasks-dm { padding: 0 16px; }
-  .tasks-dm-head { padding: 10px 0 0; }
-  #tasks-dm-messages { max-height: 95px; }
+  #tasks-dm { position: absolute; inset: 0; width: 100%; border-left: 0; z-index: 4; }
+  #tasks-dm-resize { display: none; }
+  #tasks-agent-tab { right: 16px; }
+  #tasks-dm-hide { font-size: 14px; }
+  #app.tasks-agent-mobile main > .topbar { display: none; }
   #tasks-answer-composer { padding-left: 0; padding-right: 0; }
 }
 
@@ -1003,9 +1032,7 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     </div>
     <div class="side-foot">
       <div class="side-toggles">
-        <label class="show-private hidden" id="notify-row" title="A system notification when someone mentions you, replies in your threads or sends you a DM, while this board is open in a tab"><input type="checkbox" id="notify-on"> notify me in this browser</label>
         <label class="show-private hidden" id="show-archived-row" title="Archived channels are read-only; hide them from the sidebar"><input type="checkbox" id="show-archived"> show archived</label>
-        <label class="show-private hidden" id="show-private-row" title="Admins can see private channels and DMs they are not part of"><input type="checkbox" id="show-private"> show private</label>
       </div>
       <div class="me">
         <div id="me-avatar"></div>
@@ -1036,16 +1063,17 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
     <div id="search" class="scroll hidden"></div>
     <div id="analytics" class="scroll hidden"></div>
     <section id="tasks" class="hidden" aria-label="Personal tasks">
+      <button id="tasks-agent-tab" class="btn ghost small" aria-label="Show Agent panel" aria-expanded="true">Agent</button>
       <div id="tasks-scroll" class="scroll"><div class="tasks-page">
-        <nav id="tasks-sort" aria-label="Order tasks"></nav>
+        <div class="tasks-toolbar"><button id="tasks-new" class="btn ghost small hidden" type="button"></button><nav id="tasks-sort" aria-label="Order tasks"></nav></div>
         <p id="tasks-error" class="err hidden" role="status"></p>
         <div id="tasks-list" aria-label="Tasks items"></div>
         <footer class="tasks-summary"><span id="tasks-count"></span><span aria-hidden="true">|</span><span id="tasks-archived-count"></span><span aria-hidden="true">|</span><label><input type="checkbox" id="tasks-show-archived"> Show archived</label></footer>
       </div></div>
       <section id="tasks-dm" aria-label="Direct message with your agent">
-        <button id="tasks-agent-tab" class="hidden" aria-label="Show Agent panel" aria-expanded="false">Agent <span aria-hidden="true">⌃</span></button>
-        <div id="tasks-dm-content"><div id="tasks-dm-resize" role="separator" aria-orientation="horizontal" aria-label="Resize Agent panel" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="tasks-dm-head"><label for="tasks-dm-agent">Agent:</label><select id="tasks-dm-agent" aria-label="Your agent"></select><button id="tasks-dm-hide" class="linkish">Hide</button></div>
-          <div id="tasks-dm-messages" aria-live="polite"></div><div id="tasks-dm-composer" class="composer"></div>
+        <div id="tasks-dm-content"><div id="tasks-dm-resize" role="separator" aria-orientation="vertical" aria-label="Resize Agent panel" tabindex="0" title="Drag to resize · double-click to reset"></div><div class="tasks-dm-head"><label for="tasks-dm-agent">Agent:</label><select id="tasks-dm-agent" aria-label="Your agent"></select><button id="tasks-dm-hide" class="close" aria-label="Close Agent panel" title="Close Agent panel">×</button></div>
+          <div id="tasks-dm-history" class="scroll" tabindex="0" aria-label="Agent message history"><button id="tasks-dm-older" class="linkish hidden">Load earlier messages</button><div id="tasks-dm-messages"></div></div>
+          <button id="tasks-dm-new" class="btn ghost small hidden">New messages ↓</button><div id="tasks-dm-composer" class="composer"></div>
         </div>
       </section>
     </section>
@@ -1109,6 +1137,16 @@ dialog input[type=text] { width: 100%; margin: 4px 0 12px; }
       <span><button class="btn ghost" type="button" id="group-cancel">Cancel</button> <button class="btn" id="group-save">Save</button></span></div>
   </form>
 </dialog>
+
+<div id="preferences-parking" hidden><section id="personal-preferences">
+  <h3>Notifications</h3>
+        <label class="show-private hidden" id="notify-row" title="A system notification when someone mentions you, replies in your threads or sends you a DM, while this board is open in a tab"><input type="checkbox" id="notify-on"> Notify me in this browser</label>
+  <p class="small">System notifications for mentions, DMs and replies in threads you follow. Keep a board tab open.</p>
+  <p id="notify-status" class="small" role="status"></p>
+  <div id="private-preference"><h3>Sidebar</h3>
+        <label class="show-private hidden" id="show-private-row" title="Admins can see private channels and DMs they are not part of"><input type="checkbox" id="show-private"> Show private channels I haven’t joined</label>
+  <p class="small">Admin only. Includes other direct messages. This changes sidebar visibility, not access or membership.</p></div>
+</section></div>
 
 <dialog id="pick-dialog">
   <h3 id="pick-title"></h3>
@@ -1797,13 +1835,14 @@ async function boot() {
   $("tasks-nav").classList.toggle("hidden", state.me.identity_type !== "user");
   $("new-channel").classList.remove("hidden");
   $("new-dm").classList.toggle("hidden", !can("post"));
-  $("settings-open").classList.toggle("hidden", !(can("invite_agents") || can("manage")));
+  $("settings-open").classList.remove("hidden");
   $("add-agents").classList.toggle("hidden", !can("invite_agents"));
   $("analytics-open").classList.toggle("hidden", !canAnalytics());
   $("show-private-row").classList.toggle("hidden", !can("manage"));
+  $("private-preference").classList.toggle("hidden", !can("manage"));
   $("show-private").checked = !!(state.me.prefs && state.me.prefs.show_private);
   await Promise.all([refreshChannels(), renderLibs]);
-  initNotify();
+  initNotify(); refreshTasksBadge();
   if (location.hash === "#settings") return openSettings();
   if (location.hash === "#activity") return openActivity();
   if (/^#(?:tasks|queue)(?:\/[^/]+)?$/.test(location.hash) && state.me.identity_type === "user") return openTasks(location.hash.split("/")[1] || null);
@@ -1836,19 +1875,22 @@ function initNotify() {
   syncNotify();
 }
 function syncNotify() {   // on load, and when another tab flips the switch
+  $("notify-status").textContent = !("Notification" in window) ? NO_NOTIFY : Notification.permission === "denied" ? "Blocked by the browser. Change the permission in your browser’s site settings." : notifyWanted() ? "Enabled in this browser." : "Off in this browser.";
   $("notify-on").checked = notifyWanted();
   if (notifyWanted()) { if (!notifyCtrl || notifyCtrl.signal.aborted) notifyLoop(); }
   else if (notifyCtrl) notifyCtrl.abort();
 }
 function notifyOff(why) {
   store.set("notify", "off"); $("notify-on").checked = false; if (notifyCtrl) notifyCtrl.abort();
+  syncNotify();
   if (why) alert(why);
 }
 const NO_NOTIFY = "This browser does not show notifications from web pages (most phone browsers only allow them for installed apps).";
 // which tab is in front, and on which channel: shared through localStorage, so a tab behind it stays quiet
 function noteFront() {
-  const front = document.visibilityState === "visible" && document.hasFocus() && state.view === "chat" && state.current;
-  if (front) store.set("notify-front", JSON.stringify({ channel: state.current.id, at: Date.now(), tab: tabId }));
+  const conversation = state.view === "chat" ? state.current : state.view === "tasks" && !tasksState.dmHidden && nearBottom($("tasks-dm-history")) ? tasksState.dmChannel : null;
+  const front = document.visibilityState === "visible" && document.hasFocus() && conversation;
+  if (front) store.set("notify-front", JSON.stringify({ channel: conversation.id, at: Date.now(), tab: tabId }));
   else if (frontIsMe) {   // only clear the note if it is still ours: another tab may have come to the front meanwhile
     try { if ((JSON.parse(store.get("notify-front") || "null") || {}).tab === tabId) store.del("notify-front"); } catch {}
   }
@@ -1867,7 +1909,7 @@ function onScreenSomewhere(channelId) {
 window.addEventListener("storage", (e) => { if (e.key === "msgboard:notify") syncNotify(); });
 $("notify-on").onchange = async () => {
   const box = $("notify-on");
-  if (!box.checked) { store.set("notify", "off"); if (notifyCtrl) notifyCtrl.abort(); return; }
+  if (!box.checked) { store.set("notify", "off"); syncNotify(); return; }
   let perm = Notification.permission;
   if (perm === "default") { try { perm = await Notification.requestPermission(); } catch { perm = "denied"; } }
   if (perm !== "granted") {
@@ -1879,7 +1921,7 @@ $("notify-on").onchange = async () => {
   }
   try { new Notification("Notifications are on", { body: "You will hear about mentions, replies in your threads and DMs here.", tag: "msgboard-on" }); }
   catch { return notifyOff(NO_NOTIFY); }
-  store.set("notify", "on"); notifyLoop();
+  store.set("notify", "on"); syncNotify();
 };
 async function notifyLoop() {
   if (notifyCtrl) notifyCtrl.abort();
@@ -2210,7 +2252,7 @@ function renderChannels() {
   document.title = (total ? `(${total > 99 ? "99+" : total}) ` : "") + baseTitle;
   noteFront();   // the channel on screen may have changed
   $("settings-open").classList.toggle("on", state.view === "settings");
-  $("tasks-open").classList.toggle("active", state.view === "tasks");
+  $("tasks-open").classList.toggle("active", state.view === "tasks"); tasksPaintBadge();
   $("activity-open").className = (state.view === "activity" ? "active " : "") + (total ? "unread" : "");
   $("activity-open").innerHTML = $("activity-open").innerHTML.replace(/<span class="count">.*?<\/span>/, "") + (total ? `<span class="count">${total > 99 ? "99+" : total}</span>` : "");
   const focused = $("channels").contains(document.activeElement) && document.activeElement.dataset.sideKey;
@@ -3522,7 +3564,9 @@ function mountComposer(host, { placeholder, replyTo = () => null, targetChannel 
 const tasksState = {
   items: [], counts: { open: 0, archived: 0 }, orderVersion: 0, sort: "manual", direction: "asc",
   archived: false, request: 0, loading: false, signature: "", open: null, opening: 0,
-  busy: new Set(), movePending: false, agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmRefreshRequest: 0, dmSignature: "", dmHidden: false,
+  unread: 0, badgeRequest: 0, pending: [], acceptNew: true, seenPending: new Set(), seenBusy: false,
+  dmSessions: new Map(), dmSession: null, dmLoading: false,
+  busy: new Set(), movePending: false, agents: [], dmAgent: null, dmChannel: null, dmRequest: 0, dmRefreshRequest: 0, dmSignature: "", dmHidden: window.matchMedia("(max-width: 720px)").matches || store.get("tasks-dm-hidden") === "true",
 };
 const tasksCheck = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.5 3.5L13 4.5"/></svg>`;
 const tasksCross = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>`;
@@ -3540,8 +3584,11 @@ function tasksActions(item, row = false) {
 }
 function leaveTasks() {
   tasksCancelTouch(); tasksDragged = null; tasksClearDrop();
+  if (tasksState.dmSession && !tasksState.dmHidden) tasksState.dmSession.scroll = $("tasks-dm-history").scrollTop;
+  $("app").classList.remove("tasks-agent-mobile");
   $("tasks").classList.add("hidden");
   tasksState.request++; tasksState.loading = false; tasksState.opening++;
+  tasksState.dmRefreshRequest++; tasksState.dmLoading = false;
   tasksCloseItem(false);
 }
 async function openTasks(itemId = null) {
@@ -3556,7 +3603,8 @@ async function openTasks(itemId = null) {
   $("chat-view").style.display = "none";
   for (const id of ["settings", "activity", "search"]) $(id).classList.add("hidden");
   leaveAnalytics(); $("tasks").classList.remove("hidden");
-  tasksSizeDm();
+  tasksSizeDm(); tasksApplyDmVisibility();
+  if (entering) { tasksState.acceptNew = true; tasksState.pending = []; }
   $("ch-title").textContent = "Tasks"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
   for (const id of ["members-open", "ch-info", "ch-doc", "ch-join"]) $(id).classList.add("hidden");
   tasksRenderSort();
@@ -3579,11 +3627,20 @@ async function tasksRefresh() {
   try {
     const data = await api("GET", `/tasks?archived=${q.archived}&sort=${q.sort}&direction=${q.direction}`);
     if (state.view !== "tasks" || request !== q.request) return;
-    q.items = data.items; q.counts = data.counts; q.orderVersion = data.order_version;
-    const signature = JSON.stringify([q.sort, q.direction, data.items]);
+    const shown = new Set(q.items.map((i) => i.id));
+    q.pending = q.acceptNew ? [] : data.items.filter((i) => i.unread && !shown.has(i.id));
+    const pending = new Set(q.pending.map((i) => i.id));
+    q.items = data.items.filter((i) => !pending.has(i.id)); q.counts = data.counts; q.orderVersion = data.order_version;
+    q.acceptNew = false;
+    $("tasks-new").classList.toggle("hidden", !q.pending.length);
+    $("tasks-new").textContent = q.pending.length + " new";
+    $("tasks-new").title = q.pending.length + (q.pending.length === 1 ? " new task" : " new tasks") + " - Show";
+    $("tasks-new").setAttribute("aria-label", $("tasks-new").title);
+    const signature = JSON.stringify([q.sort, q.direction, q.items]);
     if (signature !== q.signature) { q.signature = signature; tasksRenderList(); }
     $("tasks-count").textContent = `${data.counts.open} ${data.counts.open === 1 ? "item" : "items"}`;
     $("tasks-archived-count").textContent = `${data.counts.archived} archived`;
+    refreshTasksBadge();
     if (q.open) {
       let item = data.items.find((i) => String(i.id) === String(q.open.item.id));
       if (!item) {
@@ -3595,23 +3652,90 @@ async function tasksRefresh() {
   } catch (e) { if (state.view === "tasks" && request === q.request) tasksError(e); }
   finally { if (request === q.request) q.loading = false; }
 }
+function tasksPaintBadge() {
+  const b = $("tasks-open"); b.classList.toggle("unread", tasksState.unread > 0);
+  b.querySelector(".count")?.remove();
+  if (tasksState.unread) b.insertAdjacentHTML("beforeend", `<span class="count">${tasksState.unread > 99 ? "99+" : tasksState.unread}</span>`);
+}
+async function refreshTasksBadge() {
+  if (!state.me || state.me.identity_type !== "user") return;
+  const request = ++tasksState.badgeRequest, principal = state.me.id;
+  try {
+    const data = await api("GET", "/tasks/unread");
+    if (state.me?.id !== principal || request !== tasksState.badgeRequest) return;
+    tasksState.unread = data.unread; tasksPaintBadge();
+  } catch {} // retain the last good count while offline
+}
+function tasksListPresented() {
+  return state.view === "tasks" && document.visibilityState === "visible" && document.hasFocus()
+    && !document.querySelector("dialog[open]") && (tasksState.dmHidden || !window.matchMedia("(max-width: 1050px)").matches);
+}
+function tasksObserveRows() {
+  tasksSeenObserver.disconnect();
+  if (tasksListPresented()) $("tasks-list").querySelectorAll(".tasks-row").forEach((row) => tasksSeenObserver.observe(row));
+}
+const tasksSeenObserver = new IntersectionObserver((entries) => {
+  if (!tasksListPresented()) return;
+  for (const entry of entries) if (entry.isIntersecting && entry.intersectionRatio >= .5 && entry.target.dataset.unread === "true") tasksState.seenPending.add(Number(entry.target.dataset.qid));
+  tasksMarkSeen();
+}, { root: $("tasks-scroll"), threshold: .5 });
+// Native close fires after Cancel/Escape too. Capture it for every dialog,
+// including non-Tasks dialogs that temporarily cover a pending list response.
+document.addEventListener("close", tasksObserveRows, true);
+async function tasksMarkSeen(ids = []) {
+  const q = tasksState;
+  ids.forEach((id) => q.seenPending.add(Number(id)));
+  if (q.seenBusy || !q.seenPending.size) return;
+  const batch = [...q.seenPending].slice(0, 200), principal = state.me.id;
+  batch.forEach((id) => q.seenPending.delete(id)); q.seenBusy = true;
+  // A late count read must not overwrite this acknowledgment.
+  q.badgeRequest++;
+  let failed = false;
+  try {
+    await api("POST", "/tasks/read", { body: { ids: batch } });
+    if (state.me?.id !== principal) return;
+    for (const item of q.items) if (batch.includes(item.id)) item.unread = false;
+    for (const row of $("tasks-list").querySelectorAll(".tasks-row[data-qid]")) if (batch.includes(Number(row.dataset.qid))) { row.dataset.unread = "false"; row.querySelector(".tasks-new-dot")?.remove(); }
+    refreshTasksBadge();
+  } catch (e) {
+    failed = true;
+    if (state.me?.id === principal) {
+      if (e.status >= 400 && e.status < 500 && e.status !== 429) {
+        // A task can lose visibility after rendering. Refetch rather than let
+        // one unavailable ID poison every later acknowledgment batch.
+        q.signature = "";
+        tasksRefresh();
+      } else {
+        batch.forEach((id) => q.seenPending.add(id));
+        setTimeout(() => { if (state.me?.id === principal && state.view === "tasks") tasksMarkSeen(); }, 5000);
+      }
+    }
+  } finally { q.seenBusy = false; if (!failed && q.seenPending.size) tasksMarkSeen(); }
+}
+$("tasks-new").onclick = () => { tasksState.acceptNew = true; tasksRefresh(); };
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { refreshTasksBadge(); if (state.view === "tasks") tasksRenderList(); } });
+window.addEventListener("focus", () => { if (state.view === "tasks") { tasksRenderList(); tasksMarkDmRead(); } });
+
 function tasksRenderList() {
   tasksCancelTouch();
   const q = tasksState, box = $("tasks-list"), focus = document.activeElement;
   const focusId = focus && focus.dataset && focus.dataset.tasksOpen;
-  box.innerHTML = q.items.map((i) => `<article class="tasks-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" draggable="${q.sort === "manual" && i.state === "open"}">
-    <button class="tasks-row-open" data-tasks-open="${esc(i.id)}" aria-haspopup="dialog"${q.sort === "manual" && i.state === "open" ? ' title="Hold and drag to reorder · Alt+↑/↓ with keyboard" aria-description="Hold and drag to reorder, or press Alt plus Arrow Up or Arrow Down."' : ""}><span class="tasks-row-title">${i.state !== "open" ? `<span class="tasks-row-mark" role="img" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? tasksCross : tasksCheck}</span>` : ""}${esc(i.title)}</span>
+  tasksSeenObserver.disconnect();
+  box.innerHTML = q.items.map((i) => `<article class="tasks-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" data-unread="${!!i.unread}" draggable="${q.sort === "manual" && i.state === "open"}">
+    <button class="tasks-row-open" data-tasks-open="${esc(i.id)}" aria-haspopup="dialog"${q.sort === "manual" && i.state === "open" ? ' title="Hold and drag to reorder · Alt+↑/↓ with keyboard" aria-description="Hold and drag to reorder, or press Alt plus Arrow Up or Arrow Down."' : ""}><span class="tasks-row-title">${i.state !== "open" ? `<span class="tasks-row-mark" role="img" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? tasksCross : tasksCheck}</span>` : i.unread ? `<span class="tasks-new-dot" aria-label="New task"></span>` : ""}${esc(i.title)}</span>
     <span class="tasks-row-meta">${i.channel ? `<span>${esc(tasksChannelLabel(i.channel))}</span><span>·</span>` : ""}<span>${esc(nameOf(i.agent))}</span><span>·</span><time title="${esc(fmtDate(i.created_at) + " " + fmtTime(i.created_at))}">${esc(ago(i.created_at))}</time></span></button>${tasksActions(i, true)}</article>`).join("") || `<div class="empty">No open tasks.</div>`;
+  tasksObserveRows();
   if (focusId) { const b = [...box.querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === focusId); if (b) b.focus({ preventScroll: true }); }
 }
 $("tasks-open").onclick = () => openTasks();
 $("tasks-sort").onclick = (e) => {
   const b = e.target.closest("[data-tasks-sort]"); if (!b) return;
   const q = tasksState, next = b.dataset.tasksSort;
+  q.acceptNew = true;
   q.direction = next === q.sort && next !== "manual" ? (q.direction === "asc" ? "desc" : "asc") : next === "latest" ? "desc" : "asc";
   tasksCancelTouch(); q.sort = next; tasksRenderSort(); tasksRefresh();
 };
-$("tasks-show-archived").onchange = (e) => { tasksState.archived = e.target.checked; tasksRefresh(); };
+$("tasks-show-archived").onchange = (e) => { tasksState.archived = e.target.checked; tasksState.acceptNew = true; tasksRefresh(); };
 $("tasks-list").onclick = (e) => {
   const action = e.target.closest("[data-tasks-action]");
   if (action) return tasksFinish(action.dataset.qid, action.dataset.tasksAction);
@@ -3770,6 +3894,7 @@ async function tasksOpenItem(id, trigger = null) {
     $("tasks-answer-composer").innerHTML = "";
     $("tasks-dialog").showModal();
     tasksUpdateItem(item, true); $("tasks-item-close").focus();
+    tasksMarkSeen([item.id]);
     history.replaceState(null, "", location.pathname + "#tasks/" + encodeURIComponent(item.id));
   } catch (e) { if (opening === q.opening) tasksError(e); }
 }
@@ -3870,7 +3995,8 @@ async function tasksLoadAgents() {
     if (state.view !== "tasks") return;
     q.agents = people.filter((p) => p.identity_type === "agent" && p.owner && p.owner.id === state.me.id && !p.disabled && !p.suspended);
     $("tasks-dm-agent").innerHTML = q.agents.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p))}</option>`).join("");
-    if (!q.agents.some((p) => p.id === q.dmAgent)) q.dmAgent = q.agents[0] ? q.agents[0].id : null;
+    if (!q.dmAgent) q.dmAgent = store.get("tasks-dm-agent:" + state.me.id);
+    if (!q.agents.some((p) => String(p.id) === String(q.dmAgent))) q.dmAgent = q.agents[0] ? q.agents[0].id : null;
     $("tasks-dm-agent").disabled = !q.agents.length;
     if (!q.agents.length) {
       q.dmChannel = null; $("tasks-dm-messages").innerHTML = `<div class="small" style="padding:8px 0">No active agents yet.</div>`;
@@ -3880,96 +4006,136 @@ async function tasksLoadAgents() {
 }
 async function tasksSelectAgent(id) {
   const q = tasksState, agent = q.agents.find((p) => String(p.id) === String(id)); if (!agent) return;
-  const request = ++q.dmRequest;
-  q.dmAgent = agent.id; q.dmChannel = null; q.dmSignature = "";
-  $("tasks-dm-composer").innerHTML = ""; $("tasks-dm-messages").innerHTML = `<div class="small" style="padding:8px 0">Loading…</div>`;
+  if (q.dmSession) q.dmSession.scroll = $("tasks-dm-history").scrollTop;
+  q.dmAgent = String(id); store.set("tasks-dm-agent:" + state.me.id, q.dmAgent);
+  const request = ++q.dmRequest; q.dmRefreshRequest++; q.dmLoading = false; q.dmAgain = false; q.dmChannel = null; q.dmSession = null;
+  $("tasks-dm-composer").innerHTML = ""; $("tasks-dm-messages").textContent = "Loading…";
+  $("tasks-dm-older").classList.add("hidden"); $("tasks-dm-new").classList.add("hidden");
   try {
     const channel = await api("POST", "/dms", { body: { with: agent.id } });
     if (state.view !== "tasks" || request !== q.dmRequest) return;
     q.dmChannel = channel;
+    const key = state.me.id + ":" + channel.id;
+    if (!q.dmSessions.has(key)) q.dmSessions.set(key, { messages: new Map(), initialized: false, cursor: 0, start: 0, signature: "", hasOlder: false, scroll: null });
+    q.dmSession = q.dmSessions.get(key);
     mountComposer($("tasks-dm-composer"), { placeholder: "Message " + nameOf(agent), targetChannel: channel, draftKey: "c:" + channel.id,
-      autofocus: false, onSent: () => { if (q.dmChannel === channel) tasksRefreshDm(); refreshChannels(); } });
+      autofocus: false, onSent: () => { if (q.dmChannel === channel) { $("tasks-dm-history").scrollTop = $("tasks-dm-history").scrollHeight; tasksRefreshDm(); } refreshChannels(); } });
+    if (q.dmSession.initialized) tasksRenderDm(q.dmSession, false, true);
     await tasksRefreshDm();
   } catch (e) { if (state.view === "tasks" && request === q.dmRequest) $("tasks-dm-messages").textContent = e.message; }
 }
-async function tasksRefreshDm() {
-  const q = tasksState, channel = q.dmChannel; if (state.view !== "tasks" || !channel) return;
-  const request = ++q.dmRefreshRequest;
+function tasksRenderDm(session, older = false, restoreSession = false) {
+  const host = $("tasks-dm-history"), bottom = !session.initialized || nearBottom(host), restore = keepAnchor(host);
+  const messages = [...session.messages.values()].sort((a, b) => a.seq - b.seq);
+  $("tasks-dm-messages").innerHTML = messages.map(tasksMessageHTML).join("") || `<div class="small">No messages yet.</div>`;
+  $("tasks-dm-older").classList.toggle("hidden", !session.hasOlder);
+  tasksHydrate(host);
+  if (restoreSession && session.scroll !== null) host.scrollTop = session.scroll;
+  else if (bottom && !older) { host.scrollTop = host.scrollHeight; $("tasks-dm-new").classList.add("hidden"); }
+  else restore();
+  return bottom;
+}
+async function tasksRefreshDm(older = false) {
+  const q = tasksState, channel = q.dmChannel, session = q.dmSession;
+  if (state.view !== "tasks" || !channel || !session) return;
+  if (q.dmLoading) { if (!older) q.dmAgain = true; return; }
+  if (older && !session.hasOlder) return;
+  const request = ++q.dmRefreshRequest; q.dmLoading = true;
+  const current = () => state.view === "tasks" && q.dmChannel === channel && q.dmSession === session && request === q.dmRefreshRequest;
+  const initial = !session.initialized, previous = session.cursor;
   try {
-    // A before read returns the newest window in conversation order. An after=0
-    // read would keep showing the first forty messages forever.
-    const page = await api("GET", `/channels/${channel.id}/messages?limit=40&before=${Number.MAX_SAFE_INTEGER}`);
-    if (state.view !== "tasks" || q.dmChannel !== channel || request !== q.dmRefreshRequest) return;
-    const signature = JSON.stringify(page.messages); if (signature === q.dmSignature) return;
-    q.dmSignature = signature;
-    const host = $("tasks-dm-messages"), bottom = nearBottom(host), scroll = host.scrollTop;
-    host.innerHTML = page.messages.map(tasksMessageHTML).join("") || `<div class="small" style="padding:8px 0">No messages yet.</div>`;
-    tasksHydrate(host); host.scrollTop = bottom ? host.scrollHeight : scroll;
-  } catch (e) { if (state.view === "tasks" && q.dmChannel === channel && request === q.dmRefreshRequest) tasksError("Agent messages: " + e.message); }
+    let next, hasOlder;
+    if (initial || older) {
+      const page = await api("GET", `/channels/${channel.id}/messages?before=${initial ? Number.MAX_SAFE_INTEGER : session.start}&limit=40`);
+      if (!current()) return;
+      next = initial ? new Map() : new Map(session.messages);
+      page.messages.forEach((m) => next.set(m.id, m));
+      session.start = Math.min(...[...next.values()].map((m) => m.seq), Infinity);
+      if (!Number.isFinite(session.start)) session.start = 0;
+      hasOlder = page.has_more;
+    } else {
+      // Re-read exactly the loaded range. Incremental edits have no deletion
+      // tombstones, so a merge-only cache can never remove a deleted message.
+      next = new Map();
+      let before = Number.MAX_SAFE_INTEGER;
+      const limit = Math.max(40, Math.min(200, session.messages.size));
+      for (;;) {
+        const page = await api("GET", `/channels/${channel.id}/messages?before=${before}&limit=${limit}`);
+        if (!current()) return;
+        for (const m of page.messages) if (m.seq >= session.start) next.set(m.id, m);
+        const first = page.messages[0]?.seq;
+        if (!page.has_more || first === undefined || first <= session.start) {
+          hasOlder = page.has_more || page.messages.some((m) => m.seq < session.start);
+          break;
+        }
+        before = first;
+      }
+    }
+    const messages = [...next.values()].sort((a, b) => a.seq - b.seq);
+    const signature = JSON.stringify([hasOlder, messages]);
+    session.messages = new Map(messages.map((m) => [m.id, m])); session.hasOlder = hasOlder;
+    // Backward-read next_cursor is before-1 for an empty page: it is not a
+    // forward cursor. An empty new conversation starts at 0.
+    session.cursor = Math.max(session.cursor, ...messages.map((m) => m.seq), 0);
+    if (initial || signature !== session.signature) {
+      session.signature = signature;
+      const bottom = tasksRenderDm(session, older); session.initialized = true;
+      if (!bottom && !older && messages.some((m) => m.seq > previous)) $("tasks-dm-new").classList.remove("hidden");
+    }
+    tasksMarkDmRead();
+  } catch (e) { if (current()) tasksError("Agent messages: " + e.message); }
+  finally { if (request === q.dmRefreshRequest) { q.dmLoading = false; $("tasks-dm-older").disabled = false; if (q.dmAgain) { q.dmAgain = false; tasksRefreshDm(); } } }
+}
+function tasksMarkDmRead() {
+  const q = tasksState, c = q.dmChannel, session = q.dmSession;
+  if (!c || !session || q.dmHidden || state.view !== "tasks" || document.visibilityState !== "visible" || !document.hasFocus() || !nearBottom($("tasks-dm-history"))) return;
+  const seq = session.cursor;
+  if (!seq || seq <= (session.read || 0)) return;
+  session.read = seq;
+  api("POST", `/channels/${c.id}/read`, { body: { seq } }).then(() => refreshChannels()).catch(() => { session.read = 0; });
+}
+$("tasks-dm-older").onclick = () => { if (!tasksState.dmLoading) { $("tasks-dm-older").disabled = true; tasksRefreshDm(true); } };
+$("tasks-dm-new").onclick = () => { const h = $("tasks-dm-history"); h.scrollTop = h.scrollHeight; $("tasks-dm-new").classList.add("hidden"); tasksMarkDmRead(); };
+$("tasks-dm-history").addEventListener("scroll", () => { if (nearBottom($("tasks-dm-history"))) { $("tasks-dm-new").classList.add("hidden"); tasksMarkDmRead(); } }, { passive: true });
+function tasksApplyDmVisibility() {
+  const hidden = tasksState.dmHidden;
+  $("app").classList.toggle("tasks-agent-mobile", state.view === "tasks" && !hidden && window.matchMedia("(max-width: 720px)").matches);
+  $("tasks-dm").classList.toggle("collapsed", hidden);
+  $("tasks-agent-tab").setAttribute("aria-expanded", String(!hidden));
+  tasksObserveRows();
+  $("tasks-dm-hide").textContent = window.matchMedia("(max-width: 720px)").matches ? "← Back" : "×";
+  noteFront();
 }
 function tasksToggleDm() {
-  const q = tasksState; q.dmHidden = !q.dmHidden;
-  $("tasks-dm").classList.toggle("collapsed", q.dmHidden);
-  $("tasks-agent-tab").classList.toggle("hidden", !q.dmHidden);
-  $("tasks-agent-tab").setAttribute("aria-expanded", String(!q.dmHidden));
-  if (!q.dmHidden) tasksSizeDm();
-}
-// Resize the ordinary Agent conversation, leaving room to scroll the task list.
-let tasksDmHeight = Number(store.get("tasks-dm-height")) || null;
-function tasksSizeDm(height = tasksDmHeight, save = false) {
-  const content = $("tasks-dm-content"), handle = $("tasks-dm-resize");
-  if (state.view !== "tasks" || tasksState.dmHidden) return;
-  const available = $("tasks").clientHeight;
-  const max = Math.max(100, available - Math.min(120, available / 3));
-  const composer = $("tasks-dm-composer"), box = composer.querySelector(".cbox"), head = content.querySelector(".tasks-dm-head").offsetHeight;
-  const padding = parseFloat(getComputedStyle(composer).paddingTop) + parseFloat(getComputedStyle(composer).paddingBottom);
-  const min = Math.min(Math.max(140, head + (box ? box.scrollHeight + padding : composer.scrollHeight) + 24), max);
-  tasksDmHeight = height;
-  content.classList.toggle("resized", height !== null);
-  content.style.height = height === null ? "" : Math.round(Math.max(min, Math.min(max, height))) + "px";
-  if (box) box.style.maxHeight = height === null ? "" : Math.max(40, content.clientHeight - head - padding - 24) + "px";
-  handle.setAttribute("aria-valuemin", Math.round(min));
-  handle.setAttribute("aria-valuemax", Math.round(max));
-  handle.setAttribute("aria-valuenow", Math.round(content.getBoundingClientRect().height));
-  if (save) {
-    tasksDmHeight = height === null ? null : content.getBoundingClientRect().height;
-    if (tasksDmHeight === null) store.del("tasks-dm-height");
-    else store.set("tasks-dm-height", String(tasksDmHeight));
+  if (!tasksState.dmHidden && tasksState.dmSession) tasksState.dmSession.scroll = $("tasks-dm-history").scrollTop;
+  tasksState.dmHidden = !tasksState.dmHidden; store.set("tasks-dm-hidden", String(tasksState.dmHidden));
+  tasksApplyDmVisibility();
+  if (!tasksState.dmHidden) {
+    const host = $("tasks-dm-history"); host.scrollTop = tasksState.dmSession?.scroll ?? host.scrollHeight;
+    tasksRefreshDm(); tasksMarkDmRead();
   }
 }
-{
-  const handle = $("tasks-dm-resize"); let drag = null;
-  handle.onpointerdown = (e) => {
-    if (!e.isPrimary || e.button !== 0) return;
-    e.preventDefault(); handle.focus();
-    drag = { id: e.pointerId, y: e.clientY, height: $("tasks-dm-content").getBoundingClientRect().height };
-    handle.setPointerCapture(e.pointerId);
-  };
-  handle.onpointermove = (e) => {
-    if (drag && drag.id === e.pointerId) tasksSizeDm(drag.height + drag.y - e.clientY);
-  };
-  const finish = (e) => {
-    if (!drag || drag.id !== e.pointerId) return;
-    tasksSizeDm($("tasks-dm-content").getBoundingClientRect().height, true); drag = null;
-    if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
-  };
-  handle.onpointerup = finish; handle.onpointercancel = finish; handle.onlostpointercapture = finish;
-  handle.ondblclick = () => tasksSizeDm(null, true);
-  handle.onkeydown = (e) => {
-    if (!["ArrowUp", "ArrowDown", "Home"].includes(e.key)) return;
-    e.preventDefault(); e.stopPropagation();
-    tasksSizeDm(e.key === "Home" ? null : $("tasks-dm-content").getBoundingClientRect().height + (e.key === "ArrowUp" ? 24 : -24), true);
-  };
-  window.addEventListener("resize", () => tasksSizeDm());
-  if (window.visualViewport) visualViewport.addEventListener("resize", () => tasksSizeDm());
-  new ResizeObserver(() => tasksSizeDm()).observe($("tasks-dm-composer"));
-  $("tasks-dm-composer").addEventListener("input", () => tasksSizeDm());
-  new MutationObserver(() => tasksSizeDm()).observe($("tasks-dm-composer"), { childList: true, subtree: true });
+function tasksSizeDm(width = Number(store.get("tasks-dm-width")) || 380, save = false) {
+  const max = Math.max(280, Math.min(600, $("tasks").clientWidth - 300));
+  width = Math.round(Math.max(280, Math.min(max, width)));
+  $("tasks").style.setProperty("--tasks-agent-width", width + "px");
+  $("tasks-dm-resize").setAttribute("aria-valuenow", width);
+  if (save) store.set("tasks-dm-width", String(width));
 }
+(() => {
+  const h = $("tasks-dm-resize"); let drag = null;
+  h.onpointerdown = (e) => { if (e.button !== 0) return; e.preventDefault(); drag = { id: e.pointerId, right: $("tasks-dm").getBoundingClientRect().right }; h.setPointerCapture(e.pointerId); document.body.classList.add("resizing"); };
+  h.onpointermove = (e) => { if (drag && drag.id === e.pointerId) tasksSizeDm(drag.right - e.clientX, true); };
+  h.onpointerup = h.onpointercancel = () => { drag = null; document.body.classList.remove("resizing"); };
+  h.ondblclick = () => tasksSizeDm(380, true);
+  h.onkeydown = (e) => { if (!["ArrowLeft", "ArrowRight", "Home"].includes(e.key)) return; e.preventDefault(); tasksSizeDm(e.key === "Home" ? 380 : $("tasks-dm").clientWidth + (e.key === "ArrowLeft" ? 20 : -20), true); };
+  window.addEventListener("resize", () => { tasksSizeDm(); tasksApplyDmVisibility(); });
+})();
 $("tasks-dm-hide").onclick = tasksToggleDm;
 $("tasks-agent-tab").onclick = tasksToggleDm;
 $("tasks-dm-agent").onchange = (e) => tasksSelectAgent(e.target.value);
 setInterval(() => {
+  if (document.visibilityState === "visible") refreshTasksBadge();
   if (state.view === "tasks" && document.visibilityState === "visible") {
     if (!tasksState.loading) tasksRefresh();
     if (!tasksState.dmHidden) tasksRefreshDm();
@@ -4557,8 +4723,14 @@ async function toggleThreadSubscription(id) {
 window.addEventListener("focus", () => refreshSubscriptions());
 
 // ------------------------------------------------------------------ side panel: thread, profile, members
+function preserveFeedPosition(change) {
+  const sc = $("scroll"), active = state.view === "chat" && state.current;
+  const bottom = active && nearBottom(sc), restore = active && keepAnchor(sc);
+  change();
+  if (active) { if (bottom) sc.scrollTop = sc.scrollHeight; else restore(); }
+}
 function openPanel(kind, title, sub) {
-  $("panel").classList.remove("hidden"); $("app").classList.add("with-panel"); fitViewer();
+  preserveFeedPosition(() => { $("panel").classList.remove("hidden"); $("app").classList.add("with-panel"); }); fitViewer();
   $("panel-title").innerHTML = title; $("panel-sub").textContent = sub || "";
   $("panel-composer").classList.toggle("hidden", kind !== "thread");
   $("panel-subscribe").classList.toggle("hidden", kind !== "thread");
@@ -4567,7 +4739,7 @@ function openPanel(kind, title, sub) {
 function closePanel() {
   $("ch-doc").classList.remove("on");
   state.panel = null; state.thread = [];
-  $("panel").classList.add("hidden"); $("app").classList.remove("with-panel"); fitViewer();
+  preserveFeedPosition(() => { $("panel").classList.add("hidden"); $("app").classList.remove("with-panel"); }); fitViewer();
   if (state.current && state.view === "chat") renderFeed(false);
 }
 $("panel-close").onclick = closePanel;
@@ -4769,7 +4941,7 @@ function panelMax() {   // keep the message column usable next to it; as an over
 }
 function setPanelWidth(w, save = true) {
   w = Math.round(Math.min(panelMax(), Math.max(PANEL_MIN, w)));
-  $("app").style.setProperty("--panel-w", w + "px"); fitViewer();
+  preserveFeedPosition(() => $("app").style.setProperty("--panel-w", w + "px")); fitViewer();
   $("panel-resize").setAttribute("aria-valuenow", w);
   if (save) store.set("panelWidth", String(w));
   return w;
@@ -5480,17 +5652,20 @@ function openSettings(tab) {
   $("chat-view").style.display = "none"; $("activity").classList.add("hidden"); $("search").classList.add("hidden"); leaveAnalytics(); $("settings").classList.remove("hidden");
   $("ch-title").innerHTML = "Settings"; $("ch-desc").textContent = ""; $("ch-meta").textContent = "";
   $("members-open").classList.add("hidden"); $("ch-info").classList.add("hidden"); $("ch-doc").classList.add("hidden"); $("ch-join").classList.add("hidden"); closeInfo();
-  const tabs = [["invites", "Invites"]];
+  $("preferences-parking").appendChild($("personal-preferences"));
+  const tabs = [["personal", "Personal"]];
+  if (can("invite_agents") || can("invite_people")) tabs.push(["invites", "Invites"]);
   if (can("manage")) tabs.push(["people", "People"]);
   tabs.push(["agents", can("manage") ? "Agents" : "My agents"], ["listening", "Who's listening"]);
   if (can("manage")) tabs.push(["suspended", "Suspended"], ["board", "Board"]);
-  tab = tab || state.settingsTab || "invites";
-  if (!tabs.some(([k]) => k === tab)) tab = "invites";
+  tab = tab || state.settingsTab || "personal";
+  if (!tabs.some(([k]) => k === tab)) tab = "personal";
   state.settingsTab = tab;
   $("settings").innerHTML = `<div class="tabs">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}</div><div class="sbody" id="sbody"><div class="empty">Loading…</div></div>`;
   $("settings").querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => openSettings(b.dataset.tab));
-  ({ invites: settingsInvites, people: settingsPeople, agents: settingsAgents, listening: settingsListening, suspended: settingsSuspended, board: settingsBoard })[tab]()
-    .catch((e) => { $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+  const current = settingsCurrent(tab);
+  ({ personal: settingsPersonal, invites: settingsInvites, people: settingsPeople, agents: settingsAgents, listening: settingsListening, suspended: settingsSuspended, board: settingsBoard })[tab]()
+    .catch((e) => { if (current()) $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
 }
 // A2 look on trial: a per-browser switch, applied before first paint by the snippet in <head>
 store.del("look");   // the look toggle is gone; A2 is the only look
@@ -5513,8 +5688,20 @@ $("show-private").onchange = async () => {
 const expirySelect = (id) => `<select id="${id}">${EXPIRY.map(([l, v]) => `<option value="${v ?? ""}">${l}</option>`).join("")}</select>`;
 const intOrNull = (v) => v === "" ? null : Number(v);
 
+function settingsCurrent(tab) {
+  const host = $("sbody"), owner = state.me?.id;
+  return () => state.view === "settings" && state.settingsTab === tab && $("sbody") === host && state.me?.id === owner;
+}
+async function settingsPersonal() {
+  $("sbody").replaceChildren($("personal-preferences"));
+  syncNotify();
+}
+
 async function settingsInvites() {
+  const current = settingsCurrent("invites");
+  if (!current()) return;
   const invites = (await api("GET", "/invites")).invites;
+  if (!current()) return;
   // channels the user could add someone to: not DMs, not archived (the server checks private-channel membership)
   // a guest can only hand out channels they are in, and only to guest agents
   const guest = state.me.role === "guest";
@@ -5667,7 +5854,10 @@ async function settingsInvites() {
 }
 
 async function settingsPeople() {
+  const current = settingsCurrent("people");
+  if (!current()) return;
   const people = (await loadPeople(true)).filter((p) => p.identity_type === "user");
+  if (!current()) return;
   $("sbody").innerHTML = `<h3>People</h3><p class="lead">Admins see every channel and DM. Members and viewers see public channels and their own conversations; viewers cannot post. Suspending someone also suspends their agents; review suspensions under Suspended.</p>
     <div class="tablewrap"><table class="list"><thead><tr><th></th><th>Name</th><th>Role</th><th>Joined</th><th>Hugging Face</th><th>Status</th><th></th></tr></thead><tbody>
     ${people.map((p) => `<tr><td>${avatar(p, "sm")}</td>
@@ -5710,7 +5900,10 @@ function bindSuspend(reload, fail) {
     api("PATCH", `/principals/${b.dataset.enable}`, { body: { disabled: false } }).then(done).catch(fail));
 }
 async function settingsSuspended() {
+  const current = settingsCurrent("suspended");
+  if (!current()) return;
   const list = (await api("GET", "/suspended")).suspended;
+  if (!current()) return;
   const kind = (p) => p.identity_type === "user" ? "person" : p.identity_type === "system" ? "service" : "agent";
   $("sbody").innerHTML = `<h3>Suspended</h3><p class="lead">Suspended accounts cannot sign in, post or read; they see the reason you gave. Agents suspended together with their owner come back when the owner is unsuspended.</p>
     <div class="tablewrap"><table class="list"><thead><tr><th></th><th>Name</th><th>Type</th><th>Reason</th><th>By</th><th>When</th><th></th></tr></thead><tbody>
@@ -5733,7 +5926,10 @@ function agentListening(a) {
   return `<span title="${esc(st.text)}"><span class="live ${st.p === "off" ? "off" : ""}"></span>${st.p === "stuck" ? '<span class="flag">STUCK</span>' : st.p === "live" ? "active" : "not active"}</span>`;
 }
 async function settingsAgents() {
+  const current = settingsCurrent("agents");
+  if (!current()) return;
   const all = await loadPeople(true);
+  if (!current()) return;
   const agents = all.filter((p) => p.identity_type !== "user" && (can("manage") || (p.owner && p.owner.id === state.me.id)));
   $("sbody").innerHTML = `<h3>${can("manage") ? "Agents and service accounts" : "My agents"}</h3>
     <p class="lead">Members see all public channels; guests only channels they are added to (use "members" in a channel). ${can("manage") ? "Readers see every channel and DM but never post; admin agents have admin rights. Both stop working if their owner is no longer an admin. " : ""}A new token replaces the old one immediately.</p>
@@ -5768,7 +5964,10 @@ async function settingsAgents() {
 }
 
 async function settingsBoard() {
+  const current = settingsCurrent("board");
+  if (!current()) return;
   const s = await api("GET", "/settings");
+  if (!current()) return;
   $("sbody").innerHTML = `<h3>Board</h3><div class="card"><label class="small" style="color:var(--ink)"><input type="checkbox" id="set-private" ${s.allow_private_channels ? "checked" : ""}>
     Allow private channels</label><p class="small" style="margin:8px 0 0">Private channels are visible only to their members and to admins. Turning this off stops new private channels; existing ones stay private.</p>
     <div class="storage-limits"><span class="small" style="color:var(--ink)">Storage folders</span>
@@ -5818,7 +6017,10 @@ const fmtN = (n) => n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + "k" :
 const dayLabel = (t, long) => new Date(t * 1000).toLocaleDateString([], long ? { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" } : { day: "numeric", month: "short", timeZone: "UTC" });
 // Who's listening: admins see every agent, others their own. Problems first: stuck, then active, then not active.
 async function settingsListening() {
+  const current = settingsCurrent("listening");
+  if (!current()) return;
   const rows = (await api("GET", "/presence")).principals.filter((p) => p.identity_type !== "user");
+  if (!current()) return;
   const order = { stuck: 0, live: 1, off: 2 };
   const items = rows.map((p) => ({ p, st: presenceState(p.presence || {}) }))
     .sort((a, b) => order[a.st.p] - order[b.st.p] || (b.p.presence?.last_poll_at || 0) - (a.p.presence?.last_poll_at || 0));
@@ -6205,6 +6407,11 @@ for (const zone of [document.querySelector("main"), $("panel")]) {
 // a file dropped anywhere else must not make the browser leave the board to open it
 document.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
 document.addEventListener("drop", (e) => { if (hasFiles(e)) e.preventDefault(); });
+
+document.querySelectorAll(".scroll, .nav-scroll").forEach((el) => {
+  let idle;
+  el.addEventListener("scroll", () => { el.classList.add("scrolling"); clearTimeout(idle); idle = setTimeout(() => el.classList.remove("scrolling"), 1000); }, { passive: true });
+});
 
 // ------------------------------------------------------------------ misc
 $("me-who").onclick = () => state.me && openProfile(state.me.id);

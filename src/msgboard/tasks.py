@@ -152,6 +152,7 @@ def _item(conn, p, row):
            "channel_id": row["original_channel_id"], "anchor_id": row["original_anchor_id"],
            "channel": channel, "sources": refs, "options": json.loads(row["options"]),
            "multiple": bool(row["multiple"]), "version": row["version"], "state": row["state"],
+           "unread": row["state"] == "open" and not row["seen"],
            "closed_reason": row["closed_reason"], "closed_at": row["closed_at"],
            "answer": _message(conn, p, row["answer_id"]),
            "answer_message_id": row["original_answer_id"],
@@ -220,6 +221,36 @@ def get_item(conn, p, item_id):
     with _snapshot(conn):
         p = _principal(conn, p, time.time())
         return _item(conn, p, _row(conn, p, item_id))
+
+
+def _unread(conn, p):
+    rows = conn.execute("SELECT * FROM task_items WHERE owner_id = ? AND state = 'open' AND seen = 0",
+                        (_owner(p),)).fetchall()
+    return {"unread": sum(_visible(conn, p, row) for row in rows)}
+
+
+def unread(conn, p):
+    with _snapshot(conn):
+        return _unread(conn, _principal(conn, p, time.time()))
+
+
+def mark_read(conn, p, payload, now):
+    p = _principal(conn, p, now)
+    if not p.is_human:
+        raise forbidden("only the human can mark tasks read")
+    _object(payload, {"ids"})
+    ids = payload.get("ids")
+    if not isinstance(ids, list) or len(ids) > 200:
+        raise bad_request("ids must be at most 200 task IDs")
+    ids = list(dict.fromkeys(_integer(i, "task id") for i in ids))
+    # Validate the complete batch before changing it. A concurrent new item is
+    # never acknowledged by a timestamp or a list-wide high-water mark.
+    for item_id in ids:
+        _row(conn, p, item_id)
+    if ids:
+        marks = ",".join("?" for _ in ids)
+        conn.execute(f"UPDATE task_items SET seen = 1 WHERE owner_id = ? AND id IN ({marks})", (p.id, *ids))
+    return _unread(conn, p)
 
 
 def _notice(conn, owner_id, agent_id, now):
@@ -445,7 +476,7 @@ def action(conn, p, item_id, payload, request_key, now):
     reason = None if kind == "restore" else "answered" if kind == "answer" else "dismissed" if kind == "dismiss" else "done"
     closed_at = None if kind == "restore" else now
     conn.execute("""UPDATE task_items SET state = ?, closed_reason = ?, closed_at = ?,
-                    version = version + 1, updated_at = ? WHERE id = ?""", (state, reason, closed_at, now, item_id))
+                    version = version + 1, updated_at = ?, seen = 1 WHERE id = ?""", (state, reason, closed_at, now, item_id))
     row = _row(conn, p, item_id)
     recorded = {"action": kind, "version": row["version"], "state": state, "closed_reason": reason,
                 "closed_at": closed_at, "message_id": message["id"] if message else None}

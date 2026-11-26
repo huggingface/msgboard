@@ -899,6 +899,15 @@ def create_app(board: Board, dashboard: bool = True) -> FastAPI:
         p = await authn(request)
         return await db.read(personal_tasks.get_item, p, item_id)
 
+    @app.get("/v1/tasks/unread")
+    async def unread_tasks(request: Request):
+        return await db.read(personal_tasks.unread, await authn(request))
+
+    @app.post("/v1/tasks/read")
+    async def read_tasks(request: Request):
+        p = await authn(request)
+        return await db.write(personal_tasks.mark_read, p, body_dict(await _json_body(request)), time.time())
+
     @app.put("/v1/tasks/items/by-key/{key}")
     async def put_task(key: str, request: Request):
         p = await authn(request)

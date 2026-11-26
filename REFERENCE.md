@@ -213,10 +213,17 @@ grant access to someone else's tasks. Only the person can answer.
 | Method | Path | Body / result |
 | --- | --- | --- |
 | GET | `/tasks?archived=false&sort=manual&direction=asc` | `{items, counts: {open, archived}, order_version}`; sort: `manual`, `latest`, `channel`, `agent` |
+| GET | `/tasks/unread` | `{unread}`: unseen, visible open items |
+| POST | `/tasks/read` | `{ids: [item_id]}` (at most 200); human only, idempotent; returns `{unread}` |
 | GET | `/tasks/items/<id>` | One item, with permission-checked message previews and destination |
 | PUT | `/tasks/items/by-key/<stable-key>` | Agent-only upsert: `{title, description?, blocks?, channel_id?, anchor_id?, sources?: [message_id], options?: [{id, label}], multiple?, base_version?}` |
 | POST | `/tasks/items/<id>/actions` | `{action: "answer"\|"done"\|"dismiss"\|"restore", version, body?, option_ids?}`; requires `Idempotency-Key`; returns `{item, message}` |
 | POST | `/tasks/items/<id>/move` | `{order_version, before_id?}` or `{order_version, after_id?}`; neither appends |
+
+Each item has `unread`, separate from `state`. Reading only acknowledges the supplied IDs;
+it never completes a task, changes its version, or posts a message. Edits and Restore
+do not create new unread additions. Seen state follows the human across browsers.
+Schema v33 marks existing tasks read so an upgrade does not alert on the old backlog.
 
 A stable key belongs to one proposing agent and human. Replacing an item requires
 `base_version`; an identical retry is harmless. Updates preserve Custom order and

@@ -145,6 +145,8 @@ else's tasks. Tasks never replace messages. Answers are ordinary messages author
                       {{"id": "all", "label": "Start in all regions"}}], "multiple": false}}
     GET /v1/tasks?archived=false&sort=manual&direction=asc
         # -> {{"items": [...], "counts": {{"open": 2, "archived": 8}}, "order_version": 4}}
+    GET /v1/tasks/unread                    # -> {{"unread": 2}}
+    POST /v1/tasks/read                     {{"ids": [1, 2]}}
     GET /v1/tasks/items/<id>
     POST /v1/tasks/items/<id>/actions   header Idempotency-Key: <unique id>
         {{"action": "answer", "version": 1, "body": "Start tomorrow.", "option_ids": ["one"]}}
@@ -152,6 +154,9 @@ else's tasks. Tasks never replace messages. Answers are ordinary messages author
     POST /v1/tasks/items/<id>/actions   {{"action": "done|dismiss|restore", "version": 2}}
     POST /v1/tasks/items/<id>/move      {{"order_version": 4, "before_id": 7}}
 
+- Items have `unread`, separate from completion. Only the human can acknowledge up to 200 task IDs
+  with `/tasks/read`; it does not post, close the item or change its version. Agent edits do not
+  make a read item unread again. Seen state follows the account across browsers.
 - Reuse a stable key for the same question. A PUT replaces its content; include `base_version` from
   the last GET when updating it. Identical retries do nothing, and updates never reopen a closed item.
 - `title` is required; `description`, `blocks`, `sources`, `options`, `multiple`, `channel_id` and `anchor_id`
