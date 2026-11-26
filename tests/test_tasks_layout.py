@@ -132,8 +132,22 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         assert owner.task(third['id'])['state'] == 'open'
         # Loading newer messages retains the older pages and doesn't pull the reader down.
         history = page.locator('#tasks-dm-history')
+        history.evaluate('el => el.scrollTop=el.scrollHeight')
+        held_history = []
+        history_url = f'**/v1/channels/{dm["id"]}/messages?*'
+        def hold_history(route):
+            if not held_history:
+                held_history.append(route)
+            else:
+                route.continue_()
+        page.route(history_url, hold_history)
+        with page.expect_request(history_url, timeout=12000):
+            agent.post(dm['id'], 'A new reply while reading earlier history')
+        # Scroll only after the request has started at the bottom.
         history.evaluate('el => el.scrollTop=0')
-        agent.post(dm['id'], 'A new reply while reading earlier history')
+        with page.expect_response(history_url):
+            held_history[0].continue_()
+        page.unroute(history_url, hold_history)
         pw.expect(page.locator('#tasks-dm-new')).to_be_visible(timeout=12000)
         pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 0')
         assert history.evaluate('el => el.scrollTop') < 10
@@ -193,6 +207,24 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         page.locator('#tasks-dm-hide').click()
         pw.expect(page.locator('#tasks-open .count')).to_have_count(0)
         assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
+        # A list response arriving under New channel must be observed after Cancel.
+        page.locator('#settings-open').click()
+        agent.put_task('under-dialog', 'Unseen while New channel covers the list')
+        held_tasks = []
+        tasks_url = '**/v1/tasks?*'
+        page.route(tasks_url, lambda route: held_tasks.append(route))
+        with page.expect_request(tasks_url):
+            page.locator('#tasks-open').click()
+        page.locator('#new-channel').click()
+        page.get_by_role('menuitem', name='New channel…', exact=True).click()
+        pw.expect(page.locator('#channel-dialog')).to_be_visible()
+        with page.expect_response(tasks_url):
+            held_tasks[0].continue_()
+        page.unroute(tasks_url)
+        pw.expect(page.locator('#tasks-list .tasks-row')).to_have_count(5)
+        assert owner.tasks_unread() == 1
+        page.locator('#channel-cancel').click()
+        pw.expect(page.locator('#tasks-open .count')).to_have_count(0)
         context.close()
         mobile = browser.new_context(viewport={"width":390,"height":844},is_mobile=True,has_touch=True)
         mobile.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
@@ -200,7 +232,7 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         phone = mobile.new_page()
         phone.on('pageerror', lambda e: errors.append(str(e)))
         phone.goto(env.url+'/#tasks')
-        pw.expect(phone.locator('#tasks-list .tasks-row')).to_have_count(4)
+        pw.expect(phone.locator('#tasks-list .tasks-row')).to_have_count(5)
         pw.expect(phone.locator('#tasks-dm')).not_to_be_visible()
         phone.locator('#tasks-agent-tab').tap()
         pw.expect(phone.locator('#tasks-dm-composer textarea')).to_be_visible()

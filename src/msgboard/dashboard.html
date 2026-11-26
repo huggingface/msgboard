@@ -3679,6 +3679,9 @@ const tasksSeenObserver = new IntersectionObserver((entries) => {
   for (const entry of entries) if (entry.isIntersecting && entry.intersectionRatio >= .5 && entry.target.dataset.unread === "true") tasksState.seenPending.add(Number(entry.target.dataset.qid));
   tasksMarkSeen();
 }, { root: $("tasks-scroll"), threshold: .5 });
+// Native close fires after Cancel/Escape too. Capture it for every dialog,
+// including non-Tasks dialogs that temporarily cover a pending list response.
+document.addEventListener("close", tasksObserveRows, true);
 async function tasksMarkSeen(ids = []) {
   const q = tasksState;
   ids.forEach((id) => q.seenPending.add(Number(id)));
@@ -3943,7 +3946,6 @@ function tasksCloseItem(restoreFocus = true) {
     const target = open.trigger && open.trigger.isConnected ? open.trigger : [...$("tasks-list").querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === String(open.item.id)) || $("tasks-open");
     target.focus({ preventScroll: true });
   }
-  tasksObserveRows();
 }
 $("tasks-item-close").onclick = () => { tasksState.opening++; tasksCloseItem(); };
 $("tasks-dialog").addEventListener("cancel", (e) => { e.preventDefault(); tasksState.opening++; tasksCloseItem(); });
@@ -4031,6 +4033,7 @@ function tasksRenderDm(session, older = false, restoreSession = false) {
   if (restoreSession && session.scroll !== null) host.scrollTop = session.scroll;
   else if (bottom && !older) { host.scrollTop = host.scrollHeight; $("tasks-dm-new").classList.add("hidden"); }
   else restore();
+  return bottom;
 }
 async function tasksRefreshDm(older = false) {
   const q = tasksState, channel = q.dmChannel, session = q.dmSession;
@@ -4039,7 +4042,7 @@ async function tasksRefreshDm(older = false) {
   if (older && !session.hasOlder) return;
   const request = ++q.dmRefreshRequest; q.dmLoading = true;
   const current = () => state.view === "tasks" && q.dmChannel === channel && q.dmSession === session && request === q.dmRefreshRequest;
-  const initial = !session.initialized, host = $("tasks-dm-history"), bottom = initial || nearBottom(host), previous = session.cursor;
+  const initial = !session.initialized, previous = session.cursor;
   try {
     let next, hasOlder;
     if (initial || older) {
@@ -4075,7 +4078,8 @@ async function tasksRefreshDm(older = false) {
     // forward cursor. An empty new conversation starts at 0.
     session.cursor = Math.max(session.cursor, ...messages.map((m) => m.seq), 0);
     if (initial || signature !== session.signature) {
-      session.signature = signature; tasksRenderDm(session, older); session.initialized = true;
+      session.signature = signature;
+      const bottom = tasksRenderDm(session, older); session.initialized = true;
       if (!bottom && !older && messages.some((m) => m.seq > previous)) $("tasks-dm-new").classList.remove("hidden");
     }
     tasksMarkDmRead();
