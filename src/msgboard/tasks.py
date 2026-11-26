@@ -362,7 +362,7 @@ def put_item(conn, p, key, payload, now):
             raise conflict("task_version_conflict", "task changed; reload before updating")
         conn.execute("""UPDATE task_items SET title = ?, description = ?, channel_id = ?, original_channel_id = ?,
                         anchor_id = ?, original_anchor_id = ?, options = ?, multiple = ?, content_hash = ?, blocks = ?,
-                        version = version + 1, updated_at = ?, seen = 1 WHERE id = ?""",
+                        version = version + 1, updated_at = ? WHERE id = ?""",
                      (content["title"], content["description"], content["channel_id"], content["channel_id"],
                       content["anchor_id"], content["anchor_id"], json.dumps(content["options"]), int(content["multiple"]),
                       digest, json.dumps(content.get("blocks", [])), now, row["id"]))

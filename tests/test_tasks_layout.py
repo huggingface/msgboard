@@ -51,12 +51,11 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
     _, token, owner = env.human("task-owner", role="admin")
     channel = owner.create_channel("tasks-ui")
     a, _, agent = env.agent("first-helper", owner=owner, channels=["tasks-ui"])
-    b, _, _ = env.agent("second-helper", owner=owner)
+    b, _, helper = env.agent("second-helper", owner=owner)
     agent.put_task("one", "First decision", channel_id=channel["id"])
     agent.put_task("two", "Second decision", channel_id=channel["id"])
     dm = owner.open_dm(a["id"])
-    for i in range(46):
-        agent.post(dm["id"], f"History message {i}")
+    history_messages = [agent.post(dm["id"], f"History message {i}") for i in range(46)]
     errors = []
     with pw.sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
@@ -89,10 +88,37 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         draft.fill('A draft for the first agent')
         page.locator('#tasks-dm-agent').select_option(str(b['id']))
         pw.expect(draft).to_have_value('')
+        # The first message and reply in an empty DM must appear normally.
+        draft.fill('First message in a fresh DM')
+        page.locator('#tasks-dm-composer .btn').click()
+        pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('First message in a fresh DM', timeout=12000)
+        dm_b = owner.open_dm(b['id'])
+        helper.post(dm_b['id'], 'First reply in the fresh DM')
+        pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('First reply in the fresh DM', timeout=12000)
         draft.fill('A draft for the second agent')
         page.locator('#tasks-dm-agent').select_option(str(a['id']))
         pw.expect(draft).to_have_value('A draft for the first agent')
         pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 0')
+        # A delayed B open must not save B's Loading scroll position into A.
+        history = page.locator('#tasks-dm-history')
+        history.evaluate('el => el.scrollTop=700')
+        saved_scroll = history.evaluate('el => el.scrollTop')
+        delayed = []
+        def hold_b(route):
+            if route.request.post_data_json['with'] == b['id']:
+                delayed.append(route)
+            else:
+                route.continue_()
+        page.route('**/v1/dms', hold_b)
+        with page.expect_request('**/v1/dms'):
+            page.locator('#tasks-dm-agent').select_option(str(b['id']))
+        pw.expect(page.locator('#tasks-dm-messages')).to_have_text('Loading…')
+        page.locator('#tasks-dm-agent').select_option(str(a['id']))
+        pw.expect(draft).to_have_value('A draft for the first agent')
+        with page.expect_response('**/v1/dms'):
+            delayed[0].continue_()
+        page.unroute('**/v1/dms', hold_b)
+        page.wait_for_function('expected => Math.abs(document.getElementById("tasks-dm-history").scrollTop-expected)<3', arg=saved_scroll)
         # Live additions wait behind a button; existing rows keep their order.
         first_row_top = page.locator('#tasks-list .tasks-row').first.bounding_box()['y']
         third = agent.put_task('three', 'Arrived while reading', channel_id=channel['id'])
@@ -113,6 +139,14 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         assert history.evaluate('el => el.scrollTop') < 10
         page.locator('#tasks-dm-new').click()
         page.wait_for_function("(()=>{const s=document.getElementById('tasks-dm-history');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
+        # Deletions in both a loaded older page and the latest page are reconciled.
+        for message in (history_messages[0], history_messages[-1]):
+            owner.delete_message(dm['id'], message['id'])
+        agent.post(dm['id'], 'After deleting old and recent messages')
+        pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('After deleting old and recent messages', timeout=12000)
+        for message in (history_messages[0], history_messages[-1]):
+            pw.expect(page.locator(f'#tasks-dm-messages [data-mid="{message["id"]}"]')).to_have_count(0)
+        pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 1')
         page.screenshot(path=str(tmp_path/'tasks-sidebar.png'))
         page.locator('#tasks-dm-hide').click()
         pw.expect(page.locator('#tasks-dm-history')).not_to_be_visible()
@@ -124,6 +158,16 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         assert page.locator('aside #notify-row').count() == 0
         page.locator('[data-tab="agents"]').click()
         page.locator('[data-tab="personal"]').click()
+        pw.expect(page.locator('#sbody #notify-row')).to_be_visible()
+        # A late Invites response may not replace the active Personal tab.
+        delayed_invites = []
+        page.route('**/v1/invites', lambda route: delayed_invites.append(route))
+        with page.expect_request('**/v1/invites'):
+            page.locator('[data-tab="invites"]').click()
+        page.locator('[data-tab="personal"]').click()
+        with page.expect_response('**/v1/invites'):
+            delayed_invites[0].continue_()
+        page.unroute('**/v1/invites')
         pw.expect(page.locator('#sbody #notify-row')).to_be_visible()
         page.locator('#show-private').check()
         page.wait_for_function('document.getElementById("show-private").checked')
@@ -137,6 +181,17 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         assert page.locator('#tasks-dm').bounding_box()['width'] > width
         page.set_viewport_size({'width':900,'height':850})
         assert page.locator('#tasks-dm').bounding_box()['width'] <= 900
+        agent.put_task('covered', 'Not yet presented behind the Agent pane')
+        page.reload()
+        pw.expect(page.locator('#tasks-list .tasks-row')).to_have_count(4)
+        pw.expect(page.locator('#tasks-dm-composer textarea')).to_be_visible()
+        # Wait for one successful list refresh; covered rows must still be unread.
+        with page.expect_response(lambda r: '/v1/tasks?' in r.url and r.request.method == 'GET', timeout=12000):
+            pass
+        assert owner.tasks_unread() == 1
+        pw.expect(page.locator('#tasks-open .count')).to_have_text('1')
+        page.locator('#tasks-dm-hide').click()
+        pw.expect(page.locator('#tasks-open .count')).to_have_count(0)
         assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
         context.close()
         mobile = browser.new_context(viewport={"width":390,"height":844},is_mobile=True,has_touch=True)
@@ -145,7 +200,7 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         phone = mobile.new_page()
         phone.on('pageerror', lambda e: errors.append(str(e)))
         phone.goto(env.url+'/#tasks')
-        pw.expect(phone.locator('#tasks-list .tasks-row')).to_have_count(3)
+        pw.expect(phone.locator('#tasks-list .tasks-row')).to_have_count(4)
         pw.expect(phone.locator('#tasks-dm')).not_to_be_visible()
         phone.locator('#tasks-agent-tab').tap()
         pw.expect(phone.locator('#tasks-dm-composer textarea')).to_be_visible()

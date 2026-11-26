@@ -3666,8 +3666,16 @@ async function refreshTasksBadge() {
     tasksState.unread = data.unread; tasksPaintBadge();
   } catch {} // retain the last good count while offline
 }
+function tasksListPresented() {
+  return state.view === "tasks" && document.visibilityState === "visible" && document.hasFocus()
+    && !document.querySelector("dialog[open]") && (tasksState.dmHidden || !window.matchMedia("(max-width: 1050px)").matches);
+}
+function tasksObserveRows() {
+  tasksSeenObserver.disconnect();
+  if (tasksListPresented()) $("tasks-list").querySelectorAll(".tasks-row").forEach((row) => tasksSeenObserver.observe(row));
+}
 const tasksSeenObserver = new IntersectionObserver((entries) => {
-  if (state.view !== "tasks" || document.visibilityState !== "visible" || !document.hasFocus() || document.querySelector("dialog[open]")) return;
+  if (!tasksListPresented()) return;
   for (const entry of entries) if (entry.isIntersecting && entry.intersectionRatio >= .5 && entry.target.dataset.unread === "true") tasksState.seenPending.add(Number(entry.target.dataset.qid));
   tasksMarkSeen();
 }, { root: $("tasks-scroll"), threshold: .5 });
@@ -3713,7 +3721,7 @@ function tasksRenderList() {
   box.innerHTML = q.items.map((i) => `<article class="tasks-row${i.state !== "open" ? " closed" : ""}" data-qid="${esc(i.id)}" data-unread="${!!i.unread}" draggable="${q.sort === "manual" && i.state === "open"}">
     <button class="tasks-row-open" data-tasks-open="${esc(i.id)}" aria-haspopup="dialog"${q.sort === "manual" && i.state === "open" ? ' title="Hold and drag to reorder · Alt+↑/↓ with keyboard" aria-description="Hold and drag to reorder, or press Alt plus Arrow Up or Arrow Down."' : ""}><span class="tasks-row-title">${i.state !== "open" ? `<span class="tasks-row-mark" role="img" aria-label="${i.closed_reason === "dismissed" ? "Dismissed" : "Completed"}">${i.closed_reason === "dismissed" ? tasksCross : tasksCheck}</span>` : i.unread ? `<span class="tasks-new-dot" aria-label="New task"></span>` : ""}${esc(i.title)}</span>
     <span class="tasks-row-meta">${i.channel ? `<span>${esc(tasksChannelLabel(i.channel))}</span><span>·</span>` : ""}<span>${esc(nameOf(i.agent))}</span><span>·</span><time title="${esc(fmtDate(i.created_at) + " " + fmtTime(i.created_at))}">${esc(ago(i.created_at))}</time></span></button>${tasksActions(i, true)}</article>`).join("") || `<div class="empty">No open tasks.</div>`;
-  box.querySelectorAll(".tasks-row").forEach((row) => tasksSeenObserver.observe(row));
+  tasksObserveRows();
   if (focusId) { const b = [...box.querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === focusId); if (b) b.focus({ preventScroll: true }); }
 }
 $("tasks-open").onclick = () => openTasks();
@@ -3935,6 +3943,7 @@ function tasksCloseItem(restoreFocus = true) {
     const target = open.trigger && open.trigger.isConnected ? open.trigger : [...$("tasks-list").querySelectorAll("[data-tasks-open]")].find((b) => b.dataset.tasksOpen === String(open.item.id)) || $("tasks-open");
     target.focus({ preventScroll: true });
   }
+  tasksObserveRows();
 }
 $("tasks-item-close").onclick = () => { tasksState.opening++; tasksCloseItem(); };
 $("tasks-dialog").addEventListener("cancel", (e) => { e.preventDefault(); tasksState.opening++; tasksCloseItem(); });
@@ -3997,7 +4006,7 @@ async function tasksSelectAgent(id) {
   const q = tasksState, agent = q.agents.find((p) => String(p.id) === String(id)); if (!agent) return;
   if (q.dmSession) q.dmSession.scroll = $("tasks-dm-history").scrollTop;
   q.dmAgent = String(id); store.set("tasks-dm-agent:" + state.me.id, q.dmAgent);
-  const request = ++q.dmRequest; q.dmRefreshRequest++; q.dmLoading = false; q.dmAgain = false; q.dmChannel = null;
+  const request = ++q.dmRequest; q.dmRefreshRequest++; q.dmLoading = false; q.dmAgain = false; q.dmChannel = null; q.dmSession = null;
   $("tasks-dm-composer").innerHTML = ""; $("tasks-dm-messages").textContent = "Loading…";
   $("tasks-dm-older").classList.add("hidden"); $("tasks-dm-new").classList.add("hidden");
   try {
@@ -4005,7 +4014,7 @@ async function tasksSelectAgent(id) {
     if (state.view !== "tasks" || request !== q.dmRequest) return;
     q.dmChannel = channel;
     const key = state.me.id + ":" + channel.id;
-    if (!q.dmSessions.has(key)) q.dmSessions.set(key, { messages: new Map(), initialized: false, cursor: 0, edits: 0, hasOlder: false, scroll: null });
+    if (!q.dmSessions.has(key)) q.dmSessions.set(key, { messages: new Map(), initialized: false, cursor: 0, start: 0, signature: "", hasOlder: false, scroll: null });
     q.dmSession = q.dmSessions.get(key);
     mountComposer($("tasks-dm-composer"), { placeholder: "Message " + nameOf(agent), targetChannel: channel, draftKey: "c:" + channel.id,
       autofocus: false, onSent: () => { if (q.dmChannel === channel) { $("tasks-dm-history").scrollTop = $("tasks-dm-history").scrollHeight; tasksRefreshDm(); } refreshChannels(); } });
@@ -4029,23 +4038,48 @@ async function tasksRefreshDm(older = false) {
   if (q.dmLoading) { if (!older) q.dmAgain = true; return; }
   if (older && !session.hasOlder) return;
   const request = ++q.dmRefreshRequest; q.dmLoading = true;
-  const initial = !session.initialized, host = $("tasks-dm-history"), bottom = initial || nearBottom(host);
-  const messages = [...session.messages.values()], before = Math.min(...messages.map((m) => m.seq));
-  const query = initial || older ? `before=${initial ? Number.MAX_SAFE_INTEGER : before}&limit=40` : `after=${session.cursor}&limit=200&edits_after=${session.edits}`;
+  const current = () => state.view === "tasks" && q.dmChannel === channel && q.dmSession === session && request === q.dmRefreshRequest;
+  const initial = !session.initialized, host = $("tasks-dm-history"), bottom = initial || nearBottom(host), previous = session.cursor;
   try {
-    const page = await api("GET", `/channels/${channel.id}/messages?${query}`);
-    if (state.view !== "tasks" || q.dmChannel !== channel || request !== q.dmRefreshRequest) return;
-    const previous = session.cursor;
-    page.messages.forEach((m) => session.messages.set(m.id, m));
-    (page.edits || []).forEach((m) => { if (session.messages.has(m.id)) session.messages.set(m.id, m); });
-    if (initial || older) session.hasOlder = page.has_more;
-    if (!older) { session.cursor = Math.max(session.cursor, page.next_cursor || 0); session.edits = page.edit_cursor ?? session.edits; if (!initial && page.has_more) q.dmAgain = true; }
-    if (initial || page.messages.length || page.edits?.length) {
-      tasksRenderDm(session, older); session.initialized = true;
-      if (!bottom && !older && page.messages.some((m) => m.seq > previous)) $("tasks-dm-new").classList.remove("hidden");
+    let next, hasOlder;
+    if (initial || older) {
+      const page = await api("GET", `/channels/${channel.id}/messages?before=${initial ? Number.MAX_SAFE_INTEGER : session.start}&limit=40`);
+      if (!current()) return;
+      next = initial ? new Map() : new Map(session.messages);
+      page.messages.forEach((m) => next.set(m.id, m));
+      session.start = Math.min(...[...next.values()].map((m) => m.seq), Infinity);
+      if (!Number.isFinite(session.start)) session.start = 0;
+      hasOlder = page.has_more;
+    } else {
+      // Re-read exactly the loaded range. Incremental edits have no deletion
+      // tombstones, so a merge-only cache can never remove a deleted message.
+      next = new Map();
+      let before = Number.MAX_SAFE_INTEGER;
+      const limit = Math.max(40, Math.min(200, session.messages.size));
+      for (;;) {
+        const page = await api("GET", `/channels/${channel.id}/messages?before=${before}&limit=${limit}`);
+        if (!current()) return;
+        for (const m of page.messages) if (m.seq >= session.start) next.set(m.id, m);
+        const first = page.messages[0]?.seq;
+        if (!page.has_more || first === undefined || first <= session.start) {
+          hasOlder = page.has_more || page.messages.some((m) => m.seq < session.start);
+          break;
+        }
+        before = first;
+      }
+    }
+    const messages = [...next.values()].sort((a, b) => a.seq - b.seq);
+    const signature = JSON.stringify(messages);
+    session.messages = new Map(messages.map((m) => [m.id, m])); session.hasOlder = hasOlder;
+    // Backward-read next_cursor is before-1 for an empty page: it is not a
+    // forward cursor. An empty new conversation starts at 0.
+    session.cursor = Math.max(session.cursor, ...messages.map((m) => m.seq), 0);
+    if (initial || signature !== session.signature) {
+      session.signature = signature; tasksRenderDm(session, older); session.initialized = true;
+      if (!bottom && !older && messages.some((m) => m.seq > previous)) $("tasks-dm-new").classList.remove("hidden");
     }
     tasksMarkDmRead();
-  } catch (e) { if (state.view === "tasks" && q.dmChannel === channel && request === q.dmRefreshRequest) tasksError("Agent messages: " + e.message); }
+  } catch (e) { if (current()) tasksError("Agent messages: " + e.message); }
   finally { if (request === q.dmRefreshRequest) { q.dmLoading = false; $("tasks-dm-older").disabled = false; if (q.dmAgain) { q.dmAgain = false; tasksRefreshDm(); } } }
 }
 function tasksMarkDmRead() {
@@ -4064,6 +4098,7 @@ function tasksApplyDmVisibility() {
   $("app").classList.toggle("tasks-agent-mobile", state.view === "tasks" && !hidden && window.matchMedia("(max-width: 720px)").matches);
   $("tasks-dm").classList.toggle("collapsed", hidden);
   $("tasks-agent-tab").setAttribute("aria-expanded", String(!hidden));
+  tasksObserveRows();
   $("tasks-dm-hide").textContent = window.matchMedia("(max-width: 720px)").matches ? "← Back" : "×";
   noteFront();
 }
@@ -5624,8 +5659,9 @@ function openSettings(tab) {
   state.settingsTab = tab;
   $("settings").innerHTML = `<div class="tabs">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}</div><div class="sbody" id="sbody"><div class="empty">Loading…</div></div>`;
   $("settings").querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => openSettings(b.dataset.tab));
+  const current = settingsCurrent(tab);
   ({ personal: settingsPersonal, invites: settingsInvites, people: settingsPeople, agents: settingsAgents, listening: settingsListening, suspended: settingsSuspended, board: settingsBoard })[tab]()
-    .catch((e) => { $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+    .catch((e) => { if (current()) $("sbody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
 }
 // A2 look on trial: a per-browser switch, applied before first paint by the snippet in <head>
 store.del("look");   // the look toggle is gone; A2 is the only look
@@ -5648,13 +5684,20 @@ $("show-private").onchange = async () => {
 const expirySelect = (id) => `<select id="${id}">${EXPIRY.map(([l, v]) => `<option value="${v ?? ""}">${l}</option>`).join("")}</select>`;
 const intOrNull = (v) => v === "" ? null : Number(v);
 
+function settingsCurrent(tab) {
+  const host = $("sbody"), owner = state.me?.id;
+  return () => state.view === "settings" && state.settingsTab === tab && $("sbody") === host && state.me?.id === owner;
+}
 async function settingsPersonal() {
   $("sbody").replaceChildren($("personal-preferences"));
   syncNotify();
 }
 
 async function settingsInvites() {
+  const current = settingsCurrent("invites");
+  if (!current()) return;
   const invites = (await api("GET", "/invites")).invites;
+  if (!current()) return;
   // channels the user could add someone to: not DMs, not archived (the server checks private-channel membership)
   // a guest can only hand out channels they are in, and only to guest agents
   const guest = state.me.role === "guest";
@@ -5807,7 +5850,10 @@ async function settingsInvites() {
 }
 
 async function settingsPeople() {
+  const current = settingsCurrent("people");
+  if (!current()) return;
   const people = (await loadPeople(true)).filter((p) => p.identity_type === "user");
+  if (!current()) return;
   $("sbody").innerHTML = `<h3>People</h3><p class="lead">Admins see every channel and DM. Members and viewers see public channels and their own conversations; viewers cannot post. Suspending someone also suspends their agents; review suspensions under Suspended.</p>
     <div class="tablewrap"><table class="list"><thead><tr><th></th><th>Name</th><th>Role</th><th>Joined</th><th>Hugging Face</th><th>Status</th><th></th></tr></thead><tbody>
     ${people.map((p) => `<tr><td>${avatar(p, "sm")}</td>
@@ -5850,7 +5896,10 @@ function bindSuspend(reload, fail) {
     api("PATCH", `/principals/${b.dataset.enable}`, { body: { disabled: false } }).then(done).catch(fail));
 }
 async function settingsSuspended() {
+  const current = settingsCurrent("suspended");
+  if (!current()) return;
   const list = (await api("GET", "/suspended")).suspended;
+  if (!current()) return;
   const kind = (p) => p.identity_type === "user" ? "person" : p.identity_type === "system" ? "service" : "agent";
   $("sbody").innerHTML = `<h3>Suspended</h3><p class="lead">Suspended accounts cannot sign in, post or read; they see the reason you gave. Agents suspended together with their owner come back when the owner is unsuspended.</p>
     <div class="tablewrap"><table class="list"><thead><tr><th></th><th>Name</th><th>Type</th><th>Reason</th><th>By</th><th>When</th><th></th></tr></thead><tbody>
@@ -5873,7 +5922,10 @@ function agentListening(a) {
   return `<span title="${esc(st.text)}"><span class="live ${st.p === "off" ? "off" : ""}"></span>${st.p === "stuck" ? '<span class="flag">STUCK</span>' : st.p === "live" ? "active" : "not active"}</span>`;
 }
 async function settingsAgents() {
+  const current = settingsCurrent("agents");
+  if (!current()) return;
   const all = await loadPeople(true);
+  if (!current()) return;
   const agents = all.filter((p) => p.identity_type !== "user" && (can("manage") || (p.owner && p.owner.id === state.me.id)));
   $("sbody").innerHTML = `<h3>${can("manage") ? "Agents and service accounts" : "My agents"}</h3>
     <p class="lead">Members see all public channels; guests only channels they are added to (use "members" in a channel). ${can("manage") ? "Readers see every channel and DM but never post; admin agents have admin rights. Both stop working if their owner is no longer an admin. " : ""}A new token replaces the old one immediately.</p>
@@ -5908,7 +5960,10 @@ async function settingsAgents() {
 }
 
 async function settingsBoard() {
+  const current = settingsCurrent("board");
+  if (!current()) return;
   const s = await api("GET", "/settings");
+  if (!current()) return;
   $("sbody").innerHTML = `<h3>Board</h3><div class="card"><label class="small" style="color:var(--ink)"><input type="checkbox" id="set-private" ${s.allow_private_channels ? "checked" : ""}>
     Allow private channels</label><p class="small" style="margin:8px 0 0">Private channels are visible only to their members and to admins. Turning this off stops new private channels; existing ones stay private.</p>
     <div class="storage-limits"><span class="small" style="color:var(--ink)">Storage folders</span>
@@ -5958,7 +6013,10 @@ const fmtN = (n) => n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + "k" :
 const dayLabel = (t, long) => new Date(t * 1000).toLocaleDateString([], long ? { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" } : { day: "numeric", month: "short", timeZone: "UTC" });
 // Who's listening: admins see every agent, others their own. Problems first: stuck, then active, then not active.
 async function settingsListening() {
+  const current = settingsCurrent("listening");
+  if (!current()) return;
   const rows = (await api("GET", "/presence")).principals.filter((p) => p.identity_type !== "user");
+  if (!current()) return;
   const order = { stuck: 0, live: 1, off: 2 };
   const items = rows.map((p) => ({ p, st: presenceState(p.presence || {}) }))
     .sort((a, b) => order[a.st.p] - order[b.st.p] || (b.p.presence?.last_poll_at || 0) - (a.p.presence?.last_poll_at || 0));

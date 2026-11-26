@@ -512,6 +512,9 @@ def test_task_attention_is_personal_durable_and_independent_of_completion(env):
     foreign = other_agent.put_task("foreign", "Someone else’s question")
     assert owner.tasks_unread() == agent.tasks_unread() == 2
     assert first["unread"] is True
+    first = agent.put_task("first", "Edited before acknowledgment", base_version=first["version"])
+    assert first["unread"] is True
+    assert owner.tasks_unread() == 2
     fails(403, agent.mark_tasks_read, [first["id"]])
     fails(404, other.mark_tasks_read, [first["id"]])
     # Bad IDs and mixed-ownership batches never partially acknowledge tasks.
