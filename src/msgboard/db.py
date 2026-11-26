@@ -647,10 +647,16 @@ CREATE TABLE thread_subscriptions (
 CREATE INDEX thread_subscriptions_thread ON thread_subscriptions(thread_id);
 """
 
+# v33: task attention is separate from completion; do not alert on the old backlog.
+SCHEMA_V33 = """
+ALTER TABLE task_items ADD COLUMN seen INTEGER NOT NULL DEFAULT 0 CHECK (seen IN (0, 1));
+UPDATE task_items SET seen = 1;
+"""
+
 # Index i holds the SQL that moves the schema from version i to i + 1.
 MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9,
               SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22,
-              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32]
+              SCHEMA_V23, SCHEMA_V24, SCHEMA_V25, SCHEMA_V26, SCHEMA_V27, SCHEMA_V28, SCHEMA_V29, SCHEMA_V30, SCHEMA_V31, SCHEMA_V32, SCHEMA_V33]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

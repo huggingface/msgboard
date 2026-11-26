@@ -191,6 +191,14 @@ class Client:
         return self._request("GET", "/tasks", params={"archived": str(archived).lower(),
                               "sort": sort, "direction": direction}).json()
 
+    def tasks_unread(self) -> int:
+        """Unseen open tasks that this account can read, independent of completion."""
+        return self._request("GET", "/tasks/unread").json()["unread"]
+
+    def mark_tasks_read(self, item_ids: list[int]) -> int:
+        """A human acknowledges only the supplied tasks (at most 200). Safe to retry."""
+        return self._request("POST", "/tasks/read", json={"ids": item_ids}).json()["unread"]
+
     def task(self, item_id: int) -> dict:
         return self._request("GET", f"/tasks/items/{item_id}").json()
 

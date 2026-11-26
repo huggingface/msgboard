@@ -74,6 +74,7 @@ def test_source_permissions_cover_proposer_owner_and_current_reader(env):
     env.op.remove_member(agent_only["id"], owner_id["id"])
     fails(404, owner.task, allowed["id"])
     assert allowed["id"] not in ids(owner.tasks())
+    assert owner.tasks_unread() == 1  # only the still-readable task counts
 
 
 def test_thread_answer_posts_exact_options_and_has_durable_idempotence(env):
@@ -477,6 +478,7 @@ def test_v30_migration_preserves_items_receipts_order_and_pending_notice(tmp_pat
         page = owner.tasks()
         assert ids(page) == [2, 3] and page["order_version"] == 7
         assert page["counts"] == {"open": 2, "archived": 1}
+        assert owner.tasks_unread() == 0  # migration does not flag the historical backlog
         assert ids(owner.tasks(archived=True)) == [2, 3, 1]
         assert owner.task(1)["sources"][0]["message"]["id"] == root["id"]
         assert owner.task(1)["answer"]["id"] == answer["id"]
@@ -498,3 +500,40 @@ def test_v30_migration_preserves_items_receipts_order_and_pending_notice(tmp_pat
         assert len(notices) == 1
         assert notices[0]["sender"]["id"] == agent_id
         assert "3 changes" in notices[0]["body"] and "#tasks" in notices[0]["body"]
+
+
+def test_task_attention_is_personal_durable_and_independent_of_completion(env):
+    _, _, owner = env.human("attention-owner")
+    _, _, other = env.human("attention-other", role="admin")
+    _, _, agent = env.agent("attention-agent", owner=owner)
+    _, _, other_agent = env.agent("other-agent", owner=other)
+    first = agent.put_task("first", "First question")
+    second = agent.put_task("second", "Second question")
+    foreign = other_agent.put_task("foreign", "Someone else’s question")
+    assert owner.tasks_unread() == agent.tasks_unread() == 2
+    assert first["unread"] is True
+    fails(403, agent.mark_tasks_read, [first["id"]])
+    fails(404, other.mark_tasks_read, [first["id"]])
+    # Bad IDs and mixed-ownership batches never partially acknowledge tasks.
+    for bad in ([first["id"], foreign["id"]], [0], [True], ["1"], [first["id"]] * 201):
+        fails(404 if foreign["id"] in bad and bad != [True] else 400, owner.mark_tasks_read, bad)
+        assert owner.tasks_unread() == 2
+    assert owner.mark_tasks_read([]) == 2
+    assert owner.mark_tasks_read([first["id"], first["id"]]) == 1
+    assert owner.mark_tasks_read([first["id"]]) == 1
+    assert owner.task(first["id"])["version"] == first["version"]
+    assert owner.task(first["id"])["state"] == "open"
+    updated = agent.put_task("first", "Updated first question", base_version=first["version"])
+    assert updated["unread"] is False
+    assert owner.tasks_unread() == 1  # an edit is not a newly added item
+    agent.task_action(second["id"], "done", second["version"])
+    assert owner.tasks_unread() == 0
+    closed = owner.task(second["id"])
+    owner.task_action(second["id"], "restore", closed["version"])
+    assert owner.tasks_unread() == 0
+    # Read state follows the account and survives a real server restart.
+    token = owner.token
+    env.restart()
+    owner = env.client(token)
+    assert owner.tasks_unread() == 0
+    assert owner.task(first["id"])["unread"] is False
