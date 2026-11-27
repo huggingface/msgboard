@@ -51,7 +51,7 @@ code.box { display: block; font: 12px/1.5 var(--mono); background: var(--panel);
 
 /* Keep the gutter stable; reading or mouse focus must not keep an idle thumb visible. */
 .nav-scroll, .scroll { --scrollbar-thumb: transparent; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: var(--scrollbar-thumb) transparent; }
-:is(.nav-scroll, .scroll):is(.scrolling, .scrollbar-near, :focus-visible, :has(:focus-visible:not(input, textarea, select))) { --scrollbar-thumb: var(--rule-2); }
+:is(.nav-scroll, .scroll):is(.scrolling, .scrollbar-near, :focus-visible, :has(:focus-visible:not(:read-write))) { --scrollbar-thumb: var(--rule-2); }
 @supports not (scrollbar-color: auto) {
   .nav-scroll::-webkit-scrollbar, .scroll::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
   .nav-scroll::-webkit-scrollbar-thumb, .scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }

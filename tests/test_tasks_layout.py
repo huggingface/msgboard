@@ -57,7 +57,7 @@ def test_thread_panel_preserves_channel_reading_position(env):
             page.mouse.move(box['x'] + box['width'] - 8, box['y'] + 40)
             pw.expect(pane).to_have_css('scrollbar-color', re.compile(r'^rgb\('))
             # Exercise the real native thumb, not only its computed CSS color.
-            before_drag = pane.evaluate('el => el.scrollTop = (el.scrollHeight - el.clientHeight) / 2')
+            before_drag = pane.evaluate('el => { el.scrollTop = (el.scrollHeight - el.clientHeight) / 2; return el.scrollTop; }')
             thumb_y = box['y'] + pane.evaluate('el => el.clientHeight / 2')
             page.mouse.move(box['x'] + box['width'] - 18, thumb_y)
             page.mouse.move(box['x'] + box['width'] - 8, thumb_y)
@@ -96,6 +96,8 @@ def test_thread_panel_preserves_channel_reading_position(env):
         page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
         # Exit through the native gutter without blurring the window, then reflow with Escape.
         panel = page.locator('#panel-scroll')
+        panel.hover(position={'x': 30, 'y': 80})
+        pw.expect(panel).to_have_css('scrollbar-color', hidden)
         box = panel.bounding_box()
         page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
         pw.expect(panel).not_to_have_css('scrollbar-color', hidden)
@@ -178,6 +180,14 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         assert owner.tasks()["counts"]["open"] == 2
         pw.expect(page.locator('#tasks-dm-history')).to_be_visible()
         pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 45')
+        # Keyboard-focused non-editable controls still reveal their pane's scrollbar.
+        task_scroll = page.locator('#tasks-scroll')
+        page.locator('#tasks-dm-composer textarea').click()
+        task_scroll.hover(position={'x': 40, 'y': 400})
+        pw.expect(task_scroll).to_have_css('scrollbar-color', 'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)')
+        page.locator('#tasks-dm-resize').press('Shift+Tab')
+        pw.expect(page.locator('#tasks-show-archived')).to_be_focused()
+        pw.expect(task_scroll).to_have_css('scrollbar-color', re.compile(r'^rgb\('))
         page.locator('#tasks-dm-older').click()
         pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 0')
         assert page.locator('#tasks-dm-history').bounding_box()['height'] > 400
