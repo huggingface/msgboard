@@ -2814,26 +2814,34 @@ function renderList(container, list, opts = {}) {
 const nearBottom = (sc) => sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80;
 function keepAnchor(sc) {
   const bounds = sc.getBoundingClientRect();
-  let anchor = null, fallback = null;
+  let anchor = null;
   for (const message of sc.querySelectorAll(".msg[data-mid]")) {
     const rect = message.getBoundingClientRect();
     if (rect.bottom <= bounds.top + 1) continue;
     if (rect.top >= bounds.bottom) break;
-    fallback ||= message;
     const body = message.querySelector(".body");
     const parts = [[message, ""], [body, ".body"],
       ...[...(body?.children || [])].map((node, i) => [node, `.body > :nth-child(${i + 1})`]),
       [message.querySelector(".files"), ".files"], [message.querySelector(".replies"), ".replies"]];
-    const part = parts.find(([node]) => node && node.getBoundingClientRect().top >= bounds.top && node.getBoundingClientRect().top < bounds.bottom);
-    if (part) { anchor = { message, node: part[0], selector: part[1] }; break; }
+    for (const [node, selector] of parts) {
+      if (!node) continue;
+      const r = node.getBoundingClientRect(), distance = Math.abs(r.top - bounds.top);
+      if (r.bottom > bounds.top + 1 && r.top < bounds.bottom && (!anchor || distance < anchor.distance))
+        anchor = { message, node, selector, distance };
+    }
   }
-  if (!anchor && fallback) anchor = { message: fallback, node: fallback, selector: "" };
   if (!anchor) return () => {};
   const mid = anchor.message.dataset.mid, selector = anchor.selector, off = anchor.node.getBoundingClientRect().top - bounds.top;
+  const messageOff = anchor.message.getBoundingClientRect().top - bounds.top;
+  const bodyText = selector.startsWith(".body >") ? anchor.node.textContent : null;
   return () => {
     const message = sc.querySelector(`.msg[data-mid="${mid}"]`);
-    const node = message && (selector ? message.querySelector(selector) || message : message);
-    if (node) sc.scrollTop += node.getBoundingClientRect().top - sc.getBoundingClientRect().top - off;
+    if (!message) return;
+    let part = selector ? message.querySelector(selector) : message;
+    // An edit can leave a different block at the same child index.
+    if (part && bodyText !== null && part.textContent !== bodyText) part = null;
+    const node = part || message, offset = part ? off : messageOff;
+    sc.scrollTop += node.getBoundingClientRect().top - sc.getBoundingClientRect().top - offset;
   };
 }
 // iOS stops a touch scroll (and its momentum) when the nodes under the finger are replaced,
@@ -2918,7 +2926,7 @@ function putFileImage(btn, image) {
 }
 async function fillFile(btn) {
   const id = btn.dataset.att, key = `${state.me.id}:${id}`, cached = fileImages.get(key);
-  if (cached && cached.request === fileInfo.get(id)) { putFileImage(btn, cached); return; }
+  if (cached?.image && cached.request === fileInfo.get(id)) { putFileImage(btn, cached.image); return; }
   const request = getInfo(id), info = await request;
   if (!btn.isConnected) return;
   if (!info) { btn.querySelector(".fname").textContent = "unavailable"; return; }
@@ -2930,12 +2938,22 @@ async function fillFile(btn) {
   prev.textContent = typeLabel(info.filename, kind);
   if (kind === "image" && info.size <= 8 * 1024 * 1024) {
     try {
-      const url = URL.createObjectURL(typed(await getBlob(id, info), info)), probe = new Image();
-      probe.src = url;
-      try { await probe.decode(); } catch { URL.revokeObjectURL(url); return; }
-      const image = { url, w: probe.naturalWidth || 1, h: probe.naturalHeight || 1, info, request };
-      fileImages.set(key, image);
-      if (!btn.isConnected) return;
+      let entry = fileImages.get(key);
+      if (!entry || entry.request !== request) {
+        if (entry?.image) URL.revokeObjectURL(entry.image.url);
+        entry = { request };
+        entry.ready = (async () => {
+          const url = URL.createObjectURL(typed(await getBlob(id, info), info)), probe = new Image();
+          try {
+            probe.src = url; await probe.decode();
+            if (fileImages.get(key) !== entry || fileInfo.get(id) !== request) { URL.revokeObjectURL(url); return null; }
+            return entry.image = { url, w: probe.naturalWidth || 1, h: probe.naturalHeight || 1, info };
+          } catch (e) { URL.revokeObjectURL(url); throw e; }
+        })().catch((e) => { if (fileImages.get(key) === entry) fileImages.delete(key); throw e; });
+        fileImages.set(key, entry);
+      }
+      const image = await entry.ready;
+      if (!image || !btn.isConnected) return;
       const sc = btn.closest(".scroll"), bottom = sc && nearBottom(sc), restore = sc && !bottom ? keepAnchor(sc) : null;
       putFileImage(btn, image);
       if (bottom) sc.scrollTop = sc.scrollHeight; else if (restore) restore();

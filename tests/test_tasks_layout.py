@@ -12,25 +12,34 @@ pw = pytest.importorskip("playwright.sync_api")
 
 
 def test_thread_panel_preserves_channel_reading_position(env):
-    _, token, owner = env.human("reader")
-    channel = env.op.create_channel("reading")
+    _, token, owner = env.human("reader", role="admin")
+    channel = owner.create_channel("reading")
     def chunk(kind, data):
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
     image = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1200, 900, 8, 2, 0, 0, 0))
              + chunk(b"IDAT", zlib.compress((b"\0" + bytes([230, 230, 230]) * 1200) * 900)) + chunk(b"IEND", b""))
     messages = []
     for i in range(45):
-        attachments = [env.op.upload(channel["id"], image, filename=f"preview-{i}.png", content_type="image/png")["id"]] if i in (4, 12) else []
+        attachments = [owner.upload(channel["id"], image, filename=f"preview-{i}.png", content_type="image/png")["id"]] if i in (4, 12) else []
         body = f"Message {i}: " + "A longer paragraph wraps differently when the thread opens. " * (200 if i == 30 else 12)
         if i == 22:
             body += "\n```python\nvalue = 'a line that can scroll sideways'\nprint(value)\n```\nEnd of this post."
-        messages.append(env.op.post(channel["id"], body, attachments=attachments))
+        messages.append(owner.post(channel["id"], body, attachments=attachments))
     for message in (messages[22], messages[30], messages[-1]):
-        env.op.post(channel["id"], "A reply", reply_to=message["id"])
+        owner.post(channel["id"], "A reply", reply_to=message["id"])
     with pw.sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
         context = browser.new_context(viewport={"width": 1440, "height": 850})
         context.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+        # Observe native object URL allocations without substituting the image decoder.
+        context.add_init_script("""(() => {
+            window.previewURLs = 0;
+            const create = URL.createObjectURL;
+            URL.createObjectURL = function(blob) {
+                if (blob.type === 'image/png') window.previewURLs++;
+                return create.call(this, blob);
+            };
+        })()""")
         context.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
         page = context.new_page()
         errors = []
@@ -46,10 +55,15 @@ def test_thread_panel_preserves_channel_reading_position(env):
         page.goto(env.url + "/#reading")
         pw.expect(page.locator('#messages .msg')).to_have_count(45)
         pw.expect(page.locator('#messages .fchip .fname').filter(has_text=re.compile(r'\.png$'))).to_have_count(2)
-        slow_images[0] = False
-        for route in held_images:
-            route.continue_()
-        page.wait_for_function("[...document.querySelectorAll('#messages .fchip img')].filter(i => i.complete && i.naturalWidth > 0).length === 2")
+        assert len(held_images) == 2
+        # Redraw before either decode finishes: old and new copies must share one load.
+        previous_message = page.locator('#messages .msg').first.element_handle()
+        page.locator('#me-who').click()
+        pw.expect(page.locator('#panel-scroll .profile')).to_be_visible()
+        page.locator('#panel-close').click()
+        page.wait_for_function("previous => document.querySelector('#messages .msg') !== previous", arg=previous_message)
+        held_images[0].continue_()
+        page.wait_for_function("[...document.querySelectorAll('#messages .fchip img')].filter(i => i.complete && i.naturalWidth > 0).length === 1")
         # Entering a channel stays at the end after delayed image previews have decoded.
         page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
         root_id = messages[22]["id"]
@@ -57,10 +71,32 @@ def test_thread_panel_preserves_channel_reading_position(env):
         code = root.locator('pre')
         code.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top-30; }")
         top = code.bounding_box()["y"]
-        # Joining an already visible public channel must leave the reading position alone.
-        page.locator('#ch-join').click()
-        pw.expect(page.locator('#ch-join')).not_to_be_visible()
+        # One preview is still decoding above the reading line: its growth must not move it.
+        slow_images[0] = False
+        held_images[1].continue_()
+        page.wait_for_function("[...document.querySelectorAll('#messages .fchip img')].filter(i => i.complete && i.naturalWidth > 0).length === 2")
         assert abs(code.bounding_box()["y"] - top) < 3
+        assert page.evaluate('window.previewURLs') == 2
+        # A decoded preview must stay an image throughout a feed redraw, not flash to a chip.
+        preview = page.locator(f'#messages .msg[data-mid="{messages[4]["id"]}"]')
+        preview.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top-30; }")
+        page.evaluate("""() => {
+            window.previewFlashes = 0;
+            window.previewObserver = new MutationObserver(() => {
+                if (document.querySelector('#messages .fchip:not(.img)')) window.previewFlashes++;
+            });
+            window.previewObserver.observe(document.getElementById('messages'), {childList: true, subtree: true});
+        }""")
+        preview.hover(position={'x': 120, 'y': 30})
+        preview.locator('.actions [data-thread]').click()
+        pw.expect(preview).to_have_class(re.compile('open-thread'))
+        assert page.evaluate('window.previewFlashes') == 0
+        page.locator('#panel-close').click()
+        pw.expect(preview).not_to_have_class(re.compile('open-thread'))
+        assert page.evaluate('window.previewFlashes') == 0
+        page.evaluate('window.previewObserver.disconnect()')
+        code.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top-30; }")
+        top = code.bounding_box()["y"]
         # A native click, rather than calling the dashboard's internal functions.
         root.locator(f'.replies[data-thread="{root_id}"]').click()
         pw.expect(page.locator('#panel-composer textarea')).to_be_visible()
@@ -68,6 +104,13 @@ def test_thread_panel_preserves_channel_reading_position(env):
         page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"] pre').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
         page.locator('#panel-close').click()
         page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"] pre').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+        # A partially visible message header is also a valid nearby anchor.
+        root.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top+30; }")
+        header_top = root.bounding_box()['y']
+        root.locator('.replies').click()
+        pw.expect(root).to_have_class(re.compile('open-thread'))
+        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":header_top}, timeout=3000)
+        page.locator('#panel-close').click()
         # A long post's header is offscreen when its visible reply control opens a thread.
         long_id = messages[30]["id"]
         long = page.locator(f'#messages .msg[data-mid="{long_id}"]')
@@ -78,8 +121,15 @@ def test_thread_panel_preserves_channel_reading_position(env):
         reply.click()
         pw.expect(long).to_have_class(re.compile('open-thread'))
         page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"] .replies').getBoundingClientRect().top-top)<3", arg={"id": long_id, "top": reply_top})
+        # Deleting the only reply removes the saved reply-control anchor on redraw.
+        message_top = long.bounding_box()['y']
+        page.once('dialog', lambda dialog: dialog.accept())
+        panel_reply = page.locator('#panel-scroll .msg[data-mid]').last
+        panel_reply.hover()
+        panel_reply.locator('[data-delete-msg]').click()
+        pw.expect(long.locator('.replies')).to_have_count(0)
+        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":long_id,"top":message_top}, timeout=3000)
         page.locator('#panel-close').click()
-        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"] .replies').getBoundingClientRect().top-top)<3", arg={"id": long_id, "top": reply_top})
         # At the end of a channel, opening and closing a thread keeps the end visible.
         page.locator('#scroll').evaluate("el => el.scrollTop=el.scrollHeight")
         last = messages[-1]["id"]
