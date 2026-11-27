@@ -1,0 +1,47 @@
+{
+  "pr": 58,
+  "head": "9d3ee90b5e9968d56d8417ebbb4ce86948980917",
+  "base": "f4a33aeae6965e7826d6c4b1410d05f312dfb5b2",
+  "browser_tests": {
+    "passed": 2,
+    "seconds": 45.16,
+    "file": "tests/test_tasks_layout.py",
+    "new_test_functions": 0,
+    "new_board_fixtures": 0
+  },
+  "before": {
+    "actual_markdown_renderer": true,
+    "storage_inline_check": null,
+    "long_message_reply_button_delta": 1245.78125,
+    "initial_bottom_gap": 0,
+    "after_attachment_load_gap": 460,
+    "thread_open_anchor_delta": 497.875,
+    "thread_close_anchor_delta": 766.0,
+    "membership_join_anchor_delta": 0.0,
+    "held_images": 2
+  },
+  "after": {
+    "actual_markdown_renderer": true,
+    "storage_inline_check": {
+      "inline_image_decoded": true,
+      "viewer_fresh_info_loaded": true,
+      "thread_anchor_delta": -0.21875
+    },
+    "long_message_reply_button_delta": -0.21875,
+    "initial_bottom_gap": 0,
+    "after_attachment_load_gap": 0,
+    "thread_open_anchor_delta": -0.125,
+    "thread_close_anchor_delta": 0.0,
+    "membership_join_anchor_delta": 0.0,
+    "held_images": 2
+  },
+  "renderer": "All three pinned CDN scripts downloaded and SRI-verified; served locally during the manual check. Actual Markdown DOM asserted.",
+  "checks": [
+    "JavaScript syntax",
+    "Ruff fatal rules",
+    "git diff --check"
+  ],
+  "native_macos_safari_verified": false,
+  "full_suite_repeated": false,
+  "deployed": false
+}
