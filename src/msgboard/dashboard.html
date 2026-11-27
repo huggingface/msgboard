@@ -2810,16 +2810,30 @@ function renderList(container, list, opts = {}) {
   hydrate(container);
   wireEditor(container);
 }
-// Re-render without moving what you are reading: remember the first visible message and its offset, put it back after.
+// Keep a visible part of the post, rather than an offscreen header whose text may rewrap.
 const nearBottom = (sc) => sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80;
 function keepAnchor(sc) {
-  const top = sc.getBoundingClientRect().top;
-  const el = [...sc.querySelectorAll(".msg[data-mid]")].find((m) => m.getBoundingClientRect().bottom > top + 1);
-  if (!el) return () => {};
-  const mid = el.dataset.mid, off = el.getBoundingClientRect().top - top;
+  const bounds = sc.getBoundingClientRect();
+  let anchor = null, fallback = null;
+  for (const message of sc.querySelectorAll(".msg[data-mid]")) {
+    const rect = message.getBoundingClientRect();
+    if (rect.bottom <= bounds.top + 1) continue;
+    if (rect.top >= bounds.bottom) break;
+    fallback ||= message;
+    const body = message.querySelector(".body");
+    const parts = [[message, ""], [body, ".body"],
+      ...[...(body?.children || [])].map((node, i) => [node, `.body > :nth-child(${i + 1})`]),
+      [message.querySelector(".files"), ".files"], [message.querySelector(".replies"), ".replies"]];
+    const part = parts.find(([node]) => node && node.getBoundingClientRect().top >= bounds.top && node.getBoundingClientRect().top < bounds.bottom);
+    if (part) { anchor = { message, node: part[0], selector: part[1] }; break; }
+  }
+  if (!anchor && fallback) anchor = { message: fallback, node: fallback, selector: "" };
+  if (!anchor) return () => {};
+  const mid = anchor.message.dataset.mid, selector = anchor.selector, off = anchor.node.getBoundingClientRect().top - bounds.top;
   return () => {
-    const again = sc.querySelector(`.msg[data-mid="${mid}"]`);
-    if (again) sc.scrollTop += again.getBoundingClientRect().top - sc.getBoundingClientRect().top - off;
+    const message = sc.querySelector(`.msg[data-mid="${mid}"]`);
+    const node = message && (selector ? message.querySelector(selector) || message : message);
+    if (node) sc.scrollTop += node.getBoundingClientRect().top - sc.getBoundingClientRect().top - off;
   };
 }
 // iOS stops a touch scroll (and its momentum) when the nodes under the finger are replaced,
@@ -2892,8 +2906,20 @@ const getBlob = (id, info) => {
     .catch((e) => { fileBlobs.delete(key); throw e; }));
   return fileBlobs.get(key);
 };
+// Reserve decoded preview dimensions before renderFeed restores its anchor. The same image
+// otherwise shrinks to a file chip on every redraw and grows later, moving the reader again.
+const fileImages = new Map();
+function putFileImage(btn, image) {
+  const img = new Image(); img.alt = image.info.filename || "";
+  img.style.cssText = `aspect-ratio: ${image.w} / ${image.h}; width: min(${image.w}px, 360px, calc(100cqw - 2px), ${300 * image.w / image.h}px); height: auto;`;
+  img.src = image.url;
+  btn.classList.add("img"); btn.replaceChildren(img);
+  btn.title = `${image.info.filename || "file"} (${fmtSize(image.info.size)}). Click to preview.`;
+}
 async function fillFile(btn) {
-  const id = btn.dataset.att, info = await getInfo(id);
+  const id = btn.dataset.att, key = `${state.me.id}:${id}`, cached = fileImages.get(key);
+  if (cached && cached.request === fileInfo.get(id)) { putFileImage(btn, cached); return; }
+  const request = getInfo(id), info = await request;
   if (!btn.isConnected) return;
   if (!info) { btn.querySelector(".fname").textContent = "unavailable"; return; }
   const kind = kindOf(info.filename, info.content_type);
@@ -2904,10 +2930,15 @@ async function fillFile(btn) {
   prev.textContent = typeLabel(info.filename, kind);
   if (kind === "image" && info.size <= 8 * 1024 * 1024) {
     try {
-      const url = URL.createObjectURL(await typed(await getBlob(id, info), info));
+      const url = URL.createObjectURL(typed(await getBlob(id, info), info)), probe = new Image();
+      probe.src = url;
+      try { await probe.decode(); } catch { URL.revokeObjectURL(url); return; }
+      const image = { url, w: probe.naturalWidth || 1, h: probe.naturalHeight || 1, info, request };
+      fileImages.set(key, image);
       if (!btn.isConnected) return;
-      btn.classList.add("img");   // the picture itself, not a chip
-      btn.innerHTML = `<img alt="${esc(info.filename || "")}" src="${url}">`;
+      const sc = btn.closest(".scroll"), bottom = sc && nearBottom(sc), restore = sc && !bottom ? keepAnchor(sc) : null;
+      putFileImage(btn, image);
+      if (bottom) sc.scrollTop = sc.scrollHeight; else if (restore) restore();
     } catch {}
   }
 }

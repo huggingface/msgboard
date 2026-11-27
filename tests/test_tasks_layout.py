@@ -2,6 +2,9 @@
 
 import json
 import os
+import re
+import struct
+import zlib
 
 import pytest
 
@@ -10,11 +13,20 @@ pw = pytest.importorskip("playwright.sync_api")
 
 def test_thread_panel_preserves_channel_reading_position(env):
     _, token, owner = env.human("reader")
-    channel = owner.create_channel("reading")
-    messages = [owner.post(channel["id"], f"Message {i}: " + "A longer paragraph wraps differently when the thread opens. " * 16)
-                for i in range(45)]
-    for message in (messages[22], messages[-1]):
-        owner.post(channel["id"], "A reply", reply_to=message["id"])
+    channel = env.op.create_channel("reading")
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    image = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1200, 900, 8, 2, 0, 0, 0))
+             + chunk(b"IDAT", zlib.compress((b"\0" + bytes([230, 230, 230]) * 1200) * 900)) + chunk(b"IEND", b""))
+    messages = []
+    for i in range(45):
+        attachments = [env.op.upload(channel["id"], image, filename=f"preview-{i}.png", content_type="image/png")["id"]] if i in (4, 12) else []
+        body = f"Message {i}: " + "A longer paragraph wraps differently when the thread opens. " * (200 if i == 30 else 12)
+        if i == 22:
+            body += "\n```python\nvalue = 'a line that can scroll sideways'\nprint(value)\n```\nEnd of this post."
+        messages.append(env.op.post(channel["id"], body, attachments=attachments))
+    for message in (messages[22], messages[30], messages[-1]):
+        env.op.post(channel["id"], "A reply", reply_to=message["id"])
     with pw.sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
         context = browser.new_context(viewport={"width": 1440, "height": 850})
@@ -23,19 +35,51 @@ def test_thread_panel_preserves_channel_reading_position(env):
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
+        held_images = []
+        slow_images = [True]
+        def hold_images(route):
+            if route.request.url.endswith('/info') or not slow_images[0]:
+                route.continue_()
+            else:
+                held_images.append(route)
+        page.route('**/v1/attachments/**', hold_images)
         page.goto(env.url + "/#reading")
         pw.expect(page.locator('#messages .msg')).to_have_count(45)
+        pw.expect(page.locator('#messages .fchip .fname').filter(has_text=re.compile(r'\.png$'))).to_have_count(2)
+        slow_images[0] = False
+        for route in held_images:
+            route.continue_()
+        page.wait_for_function("[...document.querySelectorAll('#messages .fchip img')].filter(i => i.complete && i.naturalWidth > 0).length === 2")
+        # Entering a channel stays at the end after delayed image previews have decoded.
+        page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
         root_id = messages[22]["id"]
         root = page.locator(f'#messages .msg[data-mid="{root_id}"]')
-        root.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top+30; }")
-        top = root.bounding_box()["y"]
+        code = root.locator('pre')
+        code.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top-30; }")
+        top = code.bounding_box()["y"]
+        # Joining an already visible public channel must leave the reading position alone.
+        page.locator('#ch-join').click()
+        pw.expect(page.locator('#ch-join')).not_to_be_visible()
+        assert abs(code.bounding_box()["y"] - top) < 3
         # A native click, rather than calling the dashboard's internal functions.
         root.locator(f'.replies[data-thread="{root_id}"]').click()
         pw.expect(page.locator('#panel-composer textarea')).to_be_visible()
         pw.expect(root).to_be_in_viewport()
-        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"] pre').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
         page.locator('#panel-close').click()
-        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"] pre').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+        # A long post's header is offscreen when its visible reply control opens a thread.
+        long_id = messages[30]["id"]
+        long = page.locator(f'#messages .msg[data-mid="{long_id}"]')
+        reply = long.locator('.replies')
+        reply.scroll_into_view_if_needed()
+        assert long.bounding_box()['y'] < page.locator('#scroll').bounding_box()['y']
+        reply_top = reply.bounding_box()['y']
+        reply.click()
+        pw.expect(long).to_have_class(re.compile('open-thread'))
+        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"] .replies').getBoundingClientRect().top-top)<3", arg={"id": long_id, "top": reply_top})
+        page.locator('#panel-close').click()
+        page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"] .replies').getBoundingClientRect().top-top)<3", arg={"id": long_id, "top": reply_top})
         # At the end of a channel, opening and closing a thread keeps the end visible.
         page.locator('#scroll').evaluate("el => el.scrollTop=el.scrollHeight")
         last = messages[-1]["id"]
