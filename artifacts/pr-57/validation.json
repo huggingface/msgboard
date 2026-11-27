@@ -1,0 +1,29 @@
+{
+  "pr": 57,
+  "head": "60d0053e670637c3e3a548cd85aaabe35c7e074b",
+  "browser_test": {
+    "name": "test_thread_panel_preserves_channel_reading_position",
+    "passed": 1,
+    "seconds": 16.92,
+    "expanded_existing_test": true,
+    "coverage": [
+      "sidebar/channel/thread idle hover",
+      "wheel show and fade",
+      "native gutter proximity",
+      "stable gutter width",
+      "mouse focus vs keyboard",
+      "forced colors",
+      "main feed anchor and bottom position"
+    ]
+  },
+  "live_baseline_reproduction": "Chromium: pointer rests inside thread, scrolling=false, thumb remains visible in all four 1.5-second samples",
+  "screenshot_fixture": "Disposable local board; invented data only; before uses original scrollbar CSS on the same page",
+  "checks": [
+    "node --check",
+    "Ruff E9,F63,F7,F82",
+    "git diff --check"
+  ],
+  "full_suite_repeated": false,
+  "native_macos_safari_tested": false,
+  "deployed": false
+}
