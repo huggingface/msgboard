@@ -19,7 +19,8 @@ def test_thread_panel_preserves_channel_reading_position(env):
     for message in (messages[22], messages[-1]):
         owner.post(channel["id"], "A reply that needs scrolling. " * 60, reply_to=message["id"])
     with pw.sync_playwright() as p:
-        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"),
+                                    ignore_default_args=["--hide-scrollbars"])
         context = browser.new_context(viewport={"width": 1440, "height": 850})
         context.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
         context.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
@@ -53,14 +54,38 @@ def test_thread_panel_preserves_channel_reading_position(env):
             box = pane.bounding_box()
             page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 40)
             pw.expect(pane).not_to_have_css('scrollbar-color', hidden)
-            page.mouse.move(box['x'] + box['width'] - 3, box['y'] + 40)
+            page.mouse.move(box['x'] + box['width'] - 8, box['y'] + 40)
             pw.expect(pane).to_have_css('scrollbar-color', re.compile(r'^rgb\('))
+            # Exercise the real native thumb, not only its computed CSS color.
+            pane.evaluate('el => el.scrollTop = 0')
+            thumb_y = box['y'] + pane.evaluate('el => Math.min(el.clientHeight * el.clientHeight / el.scrollHeight / 2, el.clientHeight / 4)')
+            page.mouse.move(box['x'] + box['width'] - 18, thumb_y)
+            page.mouse.move(box['x'] + box['width'] - 8, thumb_y)
+            page.mouse.down()
+            page.mouse.move(box['x'] + box['width'] - 8, thumb_y + 80, steps=4)
+            page.mouse.up()
+            page.wait_for_function("s => document.querySelector(s).scrollTop > 0", arg=selector, timeout=3000)
             pane.hover(position={'x': 30, 'y': 40})
             pw.expect(pane).to_have_css('scrollbar-color', hidden)
 
         root.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top+30; }")
-        page.locator('#panel-close').click()
+        # Escape changes the pane geometry without moving the pointer.
+        feed = page.locator('#scroll')
+        box = feed.bounding_box()
+        page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+        pw.expect(feed).not_to_have_css('scrollbar-color', hidden)
+        page.keyboard.press('Escape')
+        pw.expect(page.locator('#panel')).not_to_be_visible()
+        pw.expect(feed).to_have_css('scrollbar-color', hidden)
         page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+        # Window widening must also reconsider a stationary pointer's old edge.
+        box = feed.bounding_box()
+        page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+        pw.expect(feed).not_to_have_css('scrollbar-color', hidden)
+        page.set_viewport_size({'width': 1700, 'height': 850})
+        pw.expect(feed).to_have_css('scrollbar-color', hidden)
+        page.set_viewport_size({'width': 1440, 'height': 850})
+        feed.hover(position={'x': 30, 'y': 40})
         # At the end of a channel, opening and closing a thread keeps the end visible.
         page.locator('#scroll').evaluate("el => el.scrollTop=el.scrollHeight")
         last = messages[-1]["id"]

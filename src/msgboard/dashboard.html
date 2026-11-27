@@ -6413,17 +6413,24 @@ scrollAreas.forEach((el) => {
   el.addEventListener("scroll", () => { el.classList.add("scrolling"); clearTimeout(idle); idle = setTimeout(() => el.classList.remove("scrolling"), 1000); }, { passive: true });
 });
 // Native scrollbar gutters do not dispatch DOM pointer events. Keep the last near-edge state
-// while crossing onto the native thumb; the next content movement clears it when we leave.
-document.addEventListener("pointermove", (e) => {
+// while crossing onto the native thumb; movement or pane resizing then refreshes proximity.
+let scrollbarPointer = null;
+function syncScrollbarEdges() {
   scrollAreas.forEach((el) => {
-    const r = el.getBoundingClientRect();
-    el.classList.toggle("scrollbar-near", e.pointerType === "mouse" &&
-      e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom && (
-        (el.scrollHeight > el.clientHeight && e.clientX >= r.right - 24) ||
-        (el.scrollWidth > el.clientWidth && e.clientY >= r.bottom - 24)));
+    const r = el.getBoundingClientRect(), p = scrollbarPointer;
+    el.classList.toggle("scrollbar-near", Boolean(p && p.mouse &&
+      p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom && (
+        (el.scrollHeight > el.clientHeight && p.x >= r.right - 24) ||
+        (el.scrollWidth > el.clientWidth && p.y >= r.bottom - 24))));
   });
+}
+document.addEventListener("pointermove", (e) => {
+  scrollbarPointer = { x: e.clientX, y: e.clientY, mouse: e.pointerType === "mouse" };
+  syncScrollbarEdges();
 }, { passive: true });
-window.addEventListener("blur", () => scrollAreas.forEach((el) => el.classList.remove("scrollbar-near")));
+const scrollbarResize = new ResizeObserver(syncScrollbarEdges);
+scrollAreas.forEach((el) => scrollbarResize.observe(el));
+window.addEventListener("blur", () => { scrollbarPointer = null; syncScrollbarEdges(); });
 
 // ------------------------------------------------------------------ misc
 $("me-who").onclick = () => state.me && openProfile(state.me.id);
