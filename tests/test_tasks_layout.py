@@ -253,6 +253,9 @@ def test_thread_panel_preserves_channel_reading_position(env):
         search.hover(position={'x': 40, 'y': 350})
         assert query.evaluate('el => el.matches(":focus-visible")')
         pw.expect(search).to_have_css('scrollbar-color', hidden)
+        page.locator('#sf-sort').click()
+        search.hover(position={'x': 40, 'y': 350})
+        pw.expect(search).to_have_css('scrollbar-color', hidden)
         assert errors == []
         browser.close()
 
