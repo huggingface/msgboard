@@ -1,0 +1,25 @@
+{
+  "source": "9842b163392869e72fe50898b79b1c5968d85899",
+  "before": {
+    "baseline": true,
+    "real_X11_pointer": true,
+    "window_kept_focus": true,
+    "document_hover": false,
+    "feed_color": "rgb(185, 185, 180) rgba(0, 0, 0, 0)",
+    "offset": {
+      "x": 4,
+      "y": 85
+    }
+  },
+  "after": {
+    "baseline": false,
+    "real_X11_pointer": true,
+    "window_kept_focus": true,
+    "document_hover": false,
+    "feed_color": "rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)",
+    "offset": {
+      "x": 4,
+      "y": 85
+    }
+  }
+}

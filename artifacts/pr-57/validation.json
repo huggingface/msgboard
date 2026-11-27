@@ -1,6 +1,6 @@
 {
   "pr": 57,
-  "head": "5d1961d0f85e1f01de9e2845ec2e0c0f0fd396d3",
+  "head": "9842b163392869e72fe50898b79b1c5968d85899",
   "browser_test": {
     "name": "test_thread_panel_preserves_channel_reading_position",
     "passed": 1,
@@ -51,5 +51,47 @@
     "new_test_functions": 0,
     "new_board_fixtures": 0
   },
-  "retained_layout_images": "Initial fix screenshots retained: review follow-up changes event handling and tests, with no CSS or layout change."
+  "retained_layout_images": "Initial layout screenshots retained. Review follow-ups change visibility and event handling, not layout.",
+  "review_2": {
+    "head": "9842b163392869e72fe50898b79b1c5968d85899",
+    "test_file": "tests/test_tasks_layout.py",
+    "passed": 2,
+    "seconds": 60.38,
+    "native_X11_pointer_check": {
+      "before": {
+        "baseline": true,
+        "real_X11_pointer": true,
+        "window_kept_focus": true,
+        "document_hover": false,
+        "feed_color": "rgb(185, 185, 180) rgba(0, 0, 0, 0)",
+        "offset": {
+          "x": 4,
+          "y": 85
+        }
+      },
+      "after": {
+        "baseline": false,
+        "real_X11_pointer": true,
+        "window_kept_focus": true,
+        "document_hover": false,
+        "feed_color": "rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)",
+        "offset": {
+          "x": 4,
+          "y": 85
+        }
+      }
+    },
+    "baseline_source": "5d1961d0f85e1f01de9e2845ec2e0c0f0fd396d3",
+    "baseline_browser_test": "21.10 s; failed after pointer left the document and Escape expanded the feed",
+    "findings": {
+      "4": "clear cached pointer on documentElement pointerleave; fix misleading gutter comment",
+      "5": "refresh proximity on window resize, including Settings panel movement",
+      "6": "focused input/textarea/select no longer pins scrollbar visibility",
+      "7": "prove proximity after idle, before repositioning anchor",
+      "8": "drag from vertical midpoint at half scroll range; assert scrollTop increases"
+    },
+    "new_test_functions": 0,
+    "new_board_fixtures": 0,
+    "manual_mac_safari": "still unverified"
+  }
 }
