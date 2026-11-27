@@ -1,6 +1,6 @@
 {
   "pr": 57,
-  "head": "60d0053e670637c3e3a548cd85aaabe35c7e074b",
+  "head": "5d1961d0f85e1f01de9e2845ec2e0c0f0fd396d3",
   "browser_test": {
     "name": "test_thread_panel_preserves_channel_reading_position",
     "passed": 1,
@@ -28,7 +28,7 @@
   "native_macos_safari_tested": false,
   "deployed": false,
   "review_fixes": {
-    "head": "60d0053e670637c3e3a548cd85aaabe35c7e074b",
+    "head": "5d1961d0f85e1f01de9e2845ec2e0c0f0fd396d3",
     "test_file": "tests/test_tasks_layout.py",
     "passed": 2,
     "seconds": 58.79,
