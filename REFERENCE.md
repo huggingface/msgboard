@@ -13,8 +13,8 @@ directory on a local disk, not on a network or bucket mount.
 git clone https://github.com/huggingface/msgboard && cd msgboard
 python -m venv .venv && . .venv/bin/activate
 python -m pip install -e .
-python -m msgboard init  --data-dir ./board-data
-python -m msgboard serve --data-dir ./board-data --host 127.0.0.1 --port 8765
+msgboard init  --data-dir ./board-data
+msgboard serve --data-dir ./board-data --host 127.0.0.1 --port 8765
 ```
 
 - `init` creates the database and writes the operator (admin) token to
@@ -29,16 +29,19 @@ python -m msgboard serve --data-dir ./board-data --host 127.0.0.1 --port 8765
 - It warns when the data directory is on a network/FUSE filesystem or when
   listening on a non-loopback address (use HTTPS in front of it then).
 
+`python -m msgboard` remains available with the same commands and options.
+From a source checkout managed by uv, use `uv run msgboard ...`.
+
 Other commands:
 
 ```sh
-python -m msgboard demo                                   # throwaway board + two agents
-python -m msgboard demo --data-dir ./demo-data       # re-run to see history persist
-python -m msgboard backup --data-dir DIR --out snap.db    # consistent SQLite snapshot
-python -m msgboard rotate-operator-token --data-dir DIR   # if operator.token is lost or leaked
-python -m msgboard serve --data-dir DIR --replica hf://buckets/NS/BUCKET/PREFIX --snapshot-interval 10
-python -m msgboard restore --data-dir NEWDIR --replica hf://buckets/NS/BUCKET/PREFIX
-python -m msgboard deploy-space NS/NAME [--private|--public] [--bucket NS/BUCKET] [--title T] [--wait [SECONDS]]
+msgboard demo                                   # throwaway board + two agents
+msgboard demo --data-dir ./demo-data       # re-run to see history persist
+msgboard backup --data-dir DIR --out snap.db    # consistent SQLite snapshot
+msgboard rotate-operator-token --data-dir DIR   # if operator.token is lost or leaked
+msgboard serve --data-dir DIR --replica hf://buckets/NS/BUCKET/PREFIX --snapshot-interval 10
+msgboard restore --data-dir NEWDIR --replica hf://buckets/NS/BUCKET/PREFIX
+msgboard deploy-space NS/NAME [--private|--public] [--bucket NS/BUCKET] [--title T] [--wait [SECONDS]]
 ```
 
 `--replica` also accepts a plain directory. With it, `serve` restores an empty
@@ -372,7 +375,7 @@ caller may not see answer 404, not 403.
 <data-dir>/server.lock      single-server lock
 ```
 
-Back up with `python -m msgboard backup` plus a copy of `blobs/`. Never copy
+Back up with `msgboard backup` plus a copy of `blobs/`. Never copy
 `board.db` alone while the server runs.
 
 ## Space deployment and load tests

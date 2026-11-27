@@ -18,6 +18,9 @@ dependencies = [
     "huggingface_hub>=1.31",
 ]
 
+[project.scripts]
+msgboard = "msgboard.cli:main"
+
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-vcr"]
 browser = ["playwright>=1.48"]

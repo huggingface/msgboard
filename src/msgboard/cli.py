@@ -1,4 +1,4 @@
-"""python -m msgboard {init,serve,restore,backup,rotate-operator-token,demo,deploy-space}"""
+"""msgboard {init,serve,restore,backup,rotate-operator-token,demo,deploy-space}"""
 
 import argparse
 import ipaddress
@@ -80,7 +80,7 @@ def cmd_init(args) -> int:
                 print(f"Operator token file: {token_path}")
             else:
                 print("Operator token file is missing; existing credentials were left untouched. "
-                      "Run `python -m msgboard rotate-operator-token --data-dir ...` to issue a new one.")
+                      "Run `msgboard rotate-operator-token --data-dir ...` to issue a new one.")
             return 0
         if token_path.exists():
             print(f"error: {token_path} exists but the database has no operator; refusing to overwrite it. "
@@ -285,7 +285,7 @@ def cmd_deploy_space(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m msgboard", description=__doc__)
+    parser = argparse.ArgumentParser(prog="msgboard", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("init", help="create or migrate a board; never overwrites existing credentials")
