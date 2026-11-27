@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 
 import pytest
 
@@ -11,10 +12,12 @@ pw = pytest.importorskip("playwright.sync_api")
 def test_thread_panel_preserves_channel_reading_position(env):
     _, token, owner = env.human("reader")
     channel = owner.create_channel("reading")
+    for i in range(18):
+        owner.create_channel(f"scroll-sidebar-{i}")
     messages = [owner.post(channel["id"], f"Message {i}: " + "A longer paragraph wraps differently when the thread opens. " * 16)
                 for i in range(45)]
     for message in (messages[22], messages[-1]):
-        owner.post(channel["id"], "A reply", reply_to=message["id"])
+        owner.post(channel["id"], "A reply that needs scrolling. " * 60, reply_to=message["id"])
     with pw.sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
         context = browser.new_context(viewport={"width": 1440, "height": 850})
@@ -34,6 +37,28 @@ def test_thread_panel_preserves_channel_reading_position(env):
         pw.expect(page.locator('#panel-composer textarea')).to_be_visible()
         pw.expect(root).to_be_in_viewport()
         page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+        # Reading a pane under the pointer must not keep its scrollbar visible.
+        hidden = "rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)"
+        for selector in ('.nav-scroll', '#scroll', '#panel-scroll'):
+            pane = page.locator(selector)
+            assert pane.evaluate('el => el.scrollHeight > el.clientHeight')
+            pane.evaluate('el => el.scrollTop = el.scrollHeight / 2')
+            pane.hover(position={'x': 30, 'y': 40})
+            pw.expect(pane).to_have_css('scrollbar-color', hidden)
+            before_width = pane.evaluate('el => el.clientWidth')
+            page.mouse.wheel(0, -120)
+            pw.expect(pane).not_to_have_css('scrollbar-color', hidden)
+            pw.expect(pane).to_have_css('scrollbar-color', hidden)
+            assert pane.evaluate('el => el.clientWidth') == before_width
+            box = pane.bounding_box()
+            page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 40)
+            pw.expect(pane).not_to_have_css('scrollbar-color', hidden)
+            page.mouse.move(box['x'] + box['width'] - 3, box['y'] + 40)
+            pw.expect(pane).to_have_css('scrollbar-color', re.compile(r'^rgb\('))
+            pane.hover(position={'x': 30, 'y': 40})
+            pw.expect(pane).to_have_css('scrollbar-color', hidden)
+
+        root.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top+30; }")
         page.locator('#panel-close').click()
         page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
         # At the end of a channel, opening and closing a thread keeps the end visible.
@@ -43,6 +68,15 @@ def test_thread_panel_preserves_channel_reading_position(env):
         page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
         page.locator('#panel-close').click()
         page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
+        # Clicking in the sidebar is not keyboard navigation and must not pin its bar.
+        page.locator('#activity-open').click()
+        nav = page.locator('.nav-scroll')
+        assert nav.evaluate("el => el.matches(':focus-within')")
+        pw.expect(nav).to_have_css('scrollbar-color', hidden)
+        page.keyboard.press('Tab')
+        page.wait_for_function("getComputedStyle(document.querySelector('.nav-scroll')).scrollbarColor !== 'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)'")
+        page.emulate_media(forced_colors='active')
+        pw.expect(nav).to_have_css('scrollbar-color', 'auto')
         assert errors == []
         browser.close()
 
