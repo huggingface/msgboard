@@ -51,7 +51,7 @@ code.box { display: block; font: 12px/1.5 var(--mono); background: var(--panel);
 
 /* Keep the gutter stable; reading or mouse focus must not keep an idle thumb visible. */
 .nav-scroll, .scroll { --scrollbar-thumb: transparent; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: var(--scrollbar-thumb) transparent; }
-:is(.nav-scroll, .scroll):is(.scrolling, .scrollbar-near, :focus-visible, :has(:focus-visible)) { --scrollbar-thumb: var(--rule-2); }
+:is(.nav-scroll, .scroll):is(.scrolling, .scrollbar-near, :focus-visible, :has(:focus-visible:not(input, textarea, select))) { --scrollbar-thumb: var(--rule-2); }
 @supports not (scrollbar-color: auto) {
   .nav-scroll::-webkit-scrollbar, .scroll::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
   .nav-scroll::-webkit-scrollbar-thumb, .scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
@@ -6412,8 +6412,8 @@ scrollAreas.forEach((el) => {
   let idle;
   el.addEventListener("scroll", () => { el.classList.add("scrolling"); clearTimeout(idle); idle = setTimeout(() => el.classList.remove("scrolling"), 1000); }, { passive: true });
 });
-// Native scrollbar gutters do not dispatch DOM pointer events. Keep the last near-edge state
-// while crossing onto the native thumb; movement or pane resizing then refreshes proximity.
+// Native thumb dragging can bypass DOM pointermove. Preserve the last near-edge position
+// during the drag, then refresh it on content movement, geometry changes or document exit.
 let scrollbarPointer = null;
 function syncScrollbarEdges() {
   scrollAreas.forEach((el) => {
@@ -6430,7 +6430,10 @@ document.addEventListener("pointermove", (e) => {
 }, { passive: true });
 const scrollbarResize = new ResizeObserver(syncScrollbarEdges);
 scrollAreas.forEach((el) => scrollbarResize.observe(el));
-window.addEventListener("blur", () => { scrollbarPointer = null; syncScrollbarEdges(); });
+const clearScrollbarPointer = () => { scrollbarPointer = null; syncScrollbarEdges(); };
+document.documentElement.addEventListener("pointerleave", clearScrollbarPointer);
+window.addEventListener("blur", clearScrollbarPointer);
+window.addEventListener("resize", syncScrollbarEdges);
 
 // ------------------------------------------------------------------ misc
 $("me-who").onclick = () => state.me && openProfile(state.me.id);
