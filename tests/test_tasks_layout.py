@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 
 import pytest
 
@@ -11,12 +12,15 @@ pw = pytest.importorskip("playwright.sync_api")
 def test_thread_panel_preserves_channel_reading_position(env):
     _, token, owner = env.human("reader")
     channel = owner.create_channel("reading")
+    for i in range(18):
+        owner.create_channel(f"scroll-sidebar-{i}")
     messages = [owner.post(channel["id"], f"Message {i}: " + "A longer paragraph wraps differently when the thread opens. " * 16)
                 for i in range(45)]
     for message in (messages[22], messages[-1]):
-        owner.post(channel["id"], "A reply", reply_to=message["id"])
+        owner.post(channel["id"], "A reply that needs scrolling. " * 60, reply_to=message["id"])
     with pw.sync_playwright() as p:
-        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"))
+        browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"),
+                                    ignore_default_args=["--hide-scrollbars"])
         context = browser.new_context(viewport={"width": 1440, "height": 850})
         context.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
         context.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
@@ -34,15 +38,110 @@ def test_thread_panel_preserves_channel_reading_position(env):
         pw.expect(page.locator('#panel-composer textarea')).to_be_visible()
         pw.expect(root).to_be_in_viewport()
         page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
-        page.locator('#panel-close').click()
+        # Reading a pane under the pointer must not keep its scrollbar visible.
+        hidden = "rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)"
+        for selector in ('.nav-scroll', '#scroll', '#panel-scroll'):
+            pane = page.locator(selector)
+            assert pane.evaluate('el => el.scrollHeight > el.clientHeight')
+            pane.evaluate('el => el.scrollTop = el.scrollHeight / 2')
+            pane.hover(position={'x': 30, 'y': 40})
+            pw.expect(pane).to_have_css('scrollbar-color', hidden)
+            before_width = pane.evaluate('el => el.clientWidth')
+            page.mouse.wheel(0, -120)
+            pw.expect(pane).not_to_have_css('scrollbar-color', hidden)
+            pw.expect(pane).to_have_css('scrollbar-color', hidden)
+            assert pane.evaluate('el => el.clientWidth') == before_width
+            box = pane.bounding_box()
+            page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 40)
+            pw.expect(pane).not_to_have_css('scrollbar-color', hidden)
+            page.mouse.move(box['x'] + box['width'] - 8, box['y'] + 40)
+            pw.expect(pane).to_have_css('scrollbar-color', re.compile(r'^rgb\('))
+            # Exercise the real native thumb, not only its computed CSS color.
+            before_drag = pane.evaluate('el => { el.scrollTop = (el.scrollHeight - el.clientHeight) / 2; return el.scrollTop; }')
+            thumb_y = box['y'] + pane.evaluate('el => el.clientHeight / 2')
+            page.mouse.move(box['x'] + box['width'] - 18, thumb_y)
+            page.mouse.move(box['x'] + box['width'] - 8, thumb_y)
+            page.mouse.down()
+            page.mouse.move(box['x'] + box['width'] - 8, thumb_y + 80, steps=4)
+            page.mouse.up()
+            page.wait_for_function("({selector, before}) => document.querySelector(selector).scrollTop > before",
+                                   arg={"selector": selector, "before": before_drag}, timeout=3000)
+            pane.hover(position={'x': 30, 'y': 40})
+            pw.expect(pane).to_have_css('scrollbar-color', hidden)
+
+        # Escape changes the pane geometry without moving the pointer.
+        feed = page.locator('#scroll')
+        feed.hover(position={'x': 30, 'y': 80})
+        pw.expect(feed).to_have_css('scrollbar-color', hidden)
+        box = feed.bounding_box()
+        page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+        pw.expect(feed).not_to_have_css('scrollbar-color', hidden)
+        root.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top+30; }")
+        page.keyboard.press('Escape')
+        pw.expect(page.locator('#panel')).not_to_be_visible()
+        pw.expect(feed).to_have_css('scrollbar-color', hidden)
         page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+        # Window widening must also reconsider a stationary pointer's old edge.
+        box = feed.bounding_box()
+        page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+        pw.expect(feed).not_to_have_css('scrollbar-color', hidden)
+        page.set_viewport_size({'width': 1700, 'height': 850})
+        pw.expect(feed).to_have_css('scrollbar-color', hidden)
+        page.set_viewport_size({'width': 1440, 'height': 850})
+        feed.hover(position={'x': 30, 'y': 40})
         # At the end of a channel, opening and closing a thread keeps the end visible.
         page.locator('#scroll').evaluate("el => el.scrollTop=el.scrollHeight")
         last = messages[-1]["id"]
         page.locator(f'#messages .replies[data-thread="{last}"]').click()
         page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
-        page.locator('#panel-close').click()
+        # Exit through the native gutter without blurring the window, then reflow with Escape.
+        panel = page.locator('#panel-scroll')
+        panel.hover(position={'x': 30, 'y': 80})
+        pw.expect(panel).to_have_css('scrollbar-color', hidden)
+        box = panel.bounding_box()
+        page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+        pw.expect(panel).not_to_have_css('scrollbar-color', hidden)
+        page.mouse.move(1500, box['y'] + 80)
+        page.keyboard.press('Escape')
+        pw.expect(feed).to_have_css('scrollbar-color', hidden)
         page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
+        # Clicking in the sidebar is not keyboard navigation and must not pin its bar.
+        page.locator('#activity-open').click()
+        nav = page.locator('.nav-scroll')
+        assert nav.evaluate("el => el.matches(':focus-within')")
+        pw.expect(nav).to_have_css('scrollbar-color', hidden)
+        page.keyboard.press('Tab')
+        page.wait_for_function("getComputedStyle(document.querySelector('.nav-scroll')).scrollbarColor !== 'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)'")
+        page.emulate_media(forced_colors='active')
+        pw.expect(nav).to_have_css('scrollbar-color', 'auto')
+        page.emulate_media(forced_colors='none')
+        # Settings width changes can move a profile panel without resizing an observed pane.
+        page.set_viewport_size({'width': 1440, 'height': 420})
+        page.locator('#settings-open').click()
+        page.locator('#me-who').click()
+        profile = page.locator('#panel-scroll')
+        pw.expect(profile.locator('.profile')).to_be_visible()
+        assert profile.evaluate('el => el.scrollHeight > el.clientHeight')
+        profile.hover(position={'x': 30, 'y': 80})
+        pw.expect(profile).to_have_css('scrollbar-color', hidden)
+        box = profile.bounding_box()
+        page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+        pw.expect(profile).not_to_have_css('scrollbar-color', hidden)
+        page.set_viewport_size({'width': 1600, 'height': 420})
+        pw.expect(profile).to_have_css('scrollbar-color', hidden)
+        page.locator('#panel-close').click()
+        page.set_viewport_size({'width': 1440, 'height': 850})
+        # Text fields retain :focus-visible even after a mouse click; reading search results stays idle.
+        page.keyboard.press('Control+k')
+        query = page.locator('#search-q')
+        query.fill('Message')
+        query.press('Enter')
+        pw.expect(page.locator('#search-results .sres')).to_have_count(30)
+        search = page.locator('#search')
+        assert search.evaluate('el => el.scrollHeight > el.clientHeight')
+        search.hover(position={'x': 40, 'y': 350})
+        assert query.evaluate('el => el.matches(":focus-visible")')
+        pw.expect(search).to_have_css('scrollbar-color', hidden)
         assert errors == []
         browser.close()
 
@@ -81,6 +180,14 @@ def test_tasks_sidebar_history_drafts_attention_and_personal_settings(env, tmp_p
         assert owner.tasks()["counts"]["open"] == 2
         pw.expect(page.locator('#tasks-dm-history')).to_be_visible()
         pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 45')
+        # Keyboard-focused non-editable controls still reveal their pane's scrollbar.
+        task_scroll = page.locator('#tasks-scroll')
+        page.locator('#tasks-dm-composer textarea').click()
+        task_scroll.hover(position={'x': 40, 'y': 400})
+        pw.expect(task_scroll).to_have_css('scrollbar-color', 'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)')
+        page.locator('#tasks-dm-resize').press('Shift+Tab')
+        pw.expect(page.locator('#tasks-show-archived')).to_be_focused()
+        pw.expect(task_scroll).to_have_css('scrollbar-color', re.compile(r'^rgb\('))
         page.locator('#tasks-dm-older').click()
         pw.expect(page.locator('#tasks-dm-messages')).to_contain_text('History message 0')
         assert page.locator('#tasks-dm-history').bounding_box()['height'] > 400

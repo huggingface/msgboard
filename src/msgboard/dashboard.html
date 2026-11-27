@@ -49,17 +49,16 @@ input:focus, select:focus { border-color: var(--ink); }
 select { background: var(--bg); }
 code.box { display: block; font: 12px/1.5 var(--mono); background: var(--panel); border: 1px solid var(--rule); padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
-/* Idle scrollbars keep their width; keyboard focus and native forced-colour bars remain usable. */
-.nav-scroll, .scroll { scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; }
-.nav-scroll:hover, .nav-scroll:focus-within, .nav-scroll.scrolling,
-.scroll:hover, .scroll:focus-within, .scroll.scrolling { scrollbar-color: var(--rule-2) transparent; }
-.nav-scroll::-webkit-scrollbar, .scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.nav-scroll::-webkit-scrollbar-thumb, .scroll::-webkit-scrollbar-thumb { background: transparent; }
-.nav-scroll:hover::-webkit-scrollbar-thumb, .nav-scroll:focus-within::-webkit-scrollbar-thumb, .nav-scroll.scrolling::-webkit-scrollbar-thumb,
-.scroll:hover::-webkit-scrollbar-thumb, .scroll:focus-within::-webkit-scrollbar-thumb, .scroll.scrolling::-webkit-scrollbar-thumb { background: var(--rule-2); }
+/* Keep the gutter stable; reading or mouse focus must not keep an idle thumb visible. */
+.nav-scroll, .scroll { --scrollbar-thumb: transparent; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: var(--scrollbar-thumb) transparent; }
+:is(.nav-scroll, .scroll):is(.scrolling, .scrollbar-near, :focus-visible, :has(:focus-visible:not(:read-write))) { --scrollbar-thumb: var(--rule-2); }
+@supports not (scrollbar-color: auto) {
+  .nav-scroll::-webkit-scrollbar, .scroll::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+  .nav-scroll::-webkit-scrollbar-thumb, .scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
+}
 #scroll { overflow-anchor: none; } /* keepAnchor owns feed anchoring across redraws and panel reflow */
 @media (prefers-reduced-motion: no-preference) { .nav-scroll, .scroll { transition: scrollbar-color .15s; } }
-@media (forced-colors: active) { .nav-scroll, .scroll { scrollbar-color: auto; } }
+@media (forced-colors: active) { .nav-scroll, .scroll { --scrollbar-thumb: CanvasText; scrollbar-color: auto; } }
 
 /* ---------- login / join ---------- */
 #login { min-height: 100%; display: grid; place-items: center; padding: 24px 16px; }
@@ -6409,10 +6408,33 @@ for (const zone of [document.querySelector("main"), $("panel")]) {
 document.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
 document.addEventListener("drop", (e) => { if (hasFiles(e)) e.preventDefault(); });
 
-document.querySelectorAll(".scroll, .nav-scroll").forEach((el) => {
+const scrollAreas = [...document.querySelectorAll(".scroll, .nav-scroll")];
+scrollAreas.forEach((el) => {
   let idle;
   el.addEventListener("scroll", () => { el.classList.add("scrolling"); clearTimeout(idle); idle = setTimeout(() => el.classList.remove("scrolling"), 1000); }, { passive: true });
 });
+// Native thumb dragging can bypass DOM pointermove. Preserve the last near-edge position
+// during the drag, then refresh it on content movement, geometry changes or document exit.
+let scrollbarPointer = null;
+function syncScrollbarEdges() {
+  scrollAreas.forEach((el) => {
+    const r = el.getBoundingClientRect(), p = scrollbarPointer;
+    el.classList.toggle("scrollbar-near", Boolean(p && p.mouse &&
+      p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom && (
+        (el.scrollHeight > el.clientHeight && p.x >= r.right - 24) ||
+        (el.scrollWidth > el.clientWidth && p.y >= r.bottom - 24))));
+  });
+}
+document.addEventListener("pointermove", (e) => {
+  scrollbarPointer = { x: e.clientX, y: e.clientY, mouse: e.pointerType === "mouse" };
+  syncScrollbarEdges();
+}, { passive: true });
+const scrollbarResize = new ResizeObserver(syncScrollbarEdges);
+scrollAreas.forEach((el) => scrollbarResize.observe(el));
+const clearScrollbarPointer = () => { scrollbarPointer = null; syncScrollbarEdges(); };
+document.documentElement.addEventListener("pointerleave", clearScrollbarPointer);
+window.addEventListener("blur", clearScrollbarPointer);
+window.addEventListener("resize", syncScrollbarEdges);
 
 // ------------------------------------------------------------------ misc
 $("me-who").onclick = () => state.me && openProfile(state.me.id);
