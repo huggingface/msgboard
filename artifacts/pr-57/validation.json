@@ -1,6 +1,6 @@
 {
   "pr": 57,
-  "head": "9842b163392869e72fe50898b79b1c5968d85899",
+  "head": "e8a3ce5dd9bbcce0a6dc29956c7ef7ddf7b9b0a5",
   "browser_test": {
     "name": "test_thread_panel_preserves_channel_reading_position",
     "passed": 1,
@@ -93,5 +93,22 @@
     "new_test_functions": 0,
     "new_board_fixtures": 0,
     "manual_mac_safari": "still unverified"
+  },
+  "review_3": {
+    "head": "e8a3ce5dd9bbcce0a6dc29956c7ef7ddf7b9b0a5",
+    "test_file": "tests/test_tasks_layout.py",
+    "passed": 2,
+    "seconds": 63.81,
+    "baseline_source": "9842b163392869e72fe50898b79b1c5968d85899",
+    "baseline": "Existing Tasks test extended with keyboard checkbox regression failed on prior head (12.07 s): focus reached Show archived, but scrollbar remained transparent.",
+    "findings": {
+      "9": "exclude editable :read-write fields, keeping checkbox keyboard reveal",
+      "10": "read back stored scrollTop after assignment before native drag comparison",
+      "11": "prove idle transparent panel before pointer enters its edge band"
+    },
+    "new_test_functions": 0,
+    "new_board_fixtures": 0,
+    "full_suite_repeated": false,
+    "native_mac_safari": "still unverified"
   }
 }
