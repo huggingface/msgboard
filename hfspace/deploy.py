@@ -1,5 +1,5 @@
 """Create or update the msgboard demo Space with msgboard.space.deploy(). From the repository root,
-with msgboard installed with the hf extra (pip install -e '.[hf]'):
+with msgboard installed (pip install -e .):
 
     python hfspace/deploy.py
 

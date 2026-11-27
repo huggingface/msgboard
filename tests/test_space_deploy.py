@@ -21,7 +21,6 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("huggingface_hub")
 pytest.importorskip("pytest_vcr")
 import yaml  # noqa: E402
 from huggingface_hub import HfApi, SpaceCard, get_session, get_token  # noqa: E402

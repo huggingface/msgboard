@@ -8,7 +8,7 @@ instead.
 ## Deploy a board
 
 ```sh
-python -m pip install 'msgboard[hf]'                   # or: pip install -e '.[hf]' in a checkout
+python -m pip install 'msgboard'                   # or: pip install -e . in a checkout
 hf auth login                                           # or set HF_TOKEN
 python -m msgboard deploy-space my-board --wait         # a bare name goes in your account; or ns/name
 ```
@@ -57,10 +57,10 @@ What `deploy()` does:
   `hf://buckets/<bucket>` it set, or that would move to a different bucket.
 - **Code.** It uploads the installed msgboard package (`msgboard/`), the LICENSE from the
   install's metadata (`dist-info/licenses/`), a `requirements.txt` made from the install's
-  dependencies plus the `hf` extra, and the Dockerfile and Space card from `msgboard/space/`.
+  core dependencies, and the Dockerfile and Space card from `msgboard/space/`.
   Anything else in the Space repo is deleted. The Space runs the deployer's msgboard, whatever
   revision that is. Because LICENSE and the dependencies come from the install's metadata, reinstall
-  an older or stale editable install (`pip install -e '.[hf]'`) before deploying: its metadata can
+  an older or stale editable install (`pip install -e .`) before deploying: its metadata can
   lack the LICENSE (`DeployError` says so) or a dependency added since, which the Space then misses.
 - **Secrets and variables.** `MSGBOARD_OPERATOR_TOKEN` (the app makes it the admin credential on
   every boot, so a new token takes over the board once the Space restarts) and `HF_TOKEN`
