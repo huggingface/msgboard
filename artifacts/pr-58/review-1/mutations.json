@@ -1,0 +1,18 @@
+{
+  "no-late-restore": {
+    "exit_code": 1,
+    "seconds": 3.43
+  },
+  "no-synchronous-cache": {
+    "exit_code": 1,
+    "seconds": 3.83
+  },
+  "wrong-fallback-offset": {
+    "exit_code": 1,
+    "seconds": 8.32
+  },
+  "no-shared-decode": {
+    "exit_code": 1,
+    "seconds": 3.43
+  }
+}

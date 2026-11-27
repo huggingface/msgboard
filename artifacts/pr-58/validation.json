@@ -1,13 +1,14 @@
 {
   "pr": 58,
-  "head": "9d3ee90b5e9968d56d8417ebbb4ce86948980917",
+  "head": "0ce0747011dae6c57bc142bc97bb57a1dc3f69ea",
   "base": "f4a33aeae6965e7826d6c4b1410d05f312dfb5b2",
   "browser_tests": {
     "passed": 2,
     "seconds": 45.16,
     "file": "tests/test_tasks_layout.py",
     "new_test_functions": 0,
-    "new_board_fixtures": 0
+    "new_board_fixtures": 0,
+    "source": "9d3ee90b5e9968d56d8417ebbb4ce86948980917"
   },
   "before": {
     "actual_markdown_renderer": true,
@@ -43,5 +44,79 @@
   ],
   "native_macos_safari_verified": false,
   "full_suite_repeated": false,
-  "deployed": false
+  "deployed": false,
+  "review_1": {
+    "head": "0ce0747011dae6c57bc142bc97bb57a1dc3f69ea",
+    "passed": 2,
+    "seconds": 47.05,
+    "test_file": "tests/test_tasks_layout.py",
+    "new_test_functions": 0,
+    "new_board_fixtures": 0,
+    "disabled_fix_checks": {
+      "no-late-restore": {
+        "exit_code": 1,
+        "seconds": 3.43
+      },
+      "no-synchronous-cache": {
+        "exit_code": 1,
+        "seconds": 3.83
+      },
+      "wrong-fallback-offset": {
+        "exit_code": 1,
+        "seconds": 8.32
+      },
+      "no-shared-decode": {
+        "exit_code": 1,
+        "seconds": 3.43
+      }
+    },
+    "real_renderer": "Pinned/SRI-verified scripts served locally; same assertions plus body-block replacement edit pass. The same-index text-identity guard is a positive-control observation, not independently discriminated by this fixture.",
+    "closest_part_check": {
+      "body-child-replaced": {
+        "exit_code": 0,
+        "seconds": 5.26
+      },
+      "first-positive-part": {
+        "exit_code": 1,
+        "seconds": 7.26
+      }
+    },
+    "native_macos_safari": "still unverified",
+    "integration": {
+      "branch": "integration/57-58-review1",
+      "head": "db089d5fee7b1e07ad814835017118e235cd07d7",
+      "reading_position_parent": "0ce0747011dae6c57bc142bc97bb57a1dc3f69ea",
+      "scrollbar_parent": "e8a3ce5dd9bbcce0a6dc29956c7ef7ddf7b9b0a5",
+      "passed": 2,
+      "seconds": 66.87,
+      "native_scrollbars_enabled": true,
+      "test_resolution": "Retains both suites of assertions on the same existing two test functions/board fixtures."
+    },
+    "findings": {
+      "1": "message fallback gets its own offset; changed body blocks at the same index are rejected as anchors",
+      "2": "separate late-growth, no-flash and disable-one-fix checks",
+      "3": "native Safari/iOS remains unverified; checklist supplied",
+      "4": "closest visible part above or below reading line; original header assertion restored",
+      "5": "removed non-discriminating Join step; owner now creates/owns fixtures and performs admin reply deletion",
+      "6": "shared in-flight decode and URL cleanup; redraw-before-decode fixture detects duplicate URL allocation"
+    },
+    "latest_rich_fixture": {
+      "actual_markdown_renderer": true,
+      "storage_inline_check": {
+        "inline_image_decoded": true,
+        "viewer_fresh_info_loaded": true,
+        "thread_anchor_delta": -0.21875
+      },
+      "long_message_reply_button_delta": -0.21875,
+      "initial_bottom_gap": 0,
+      "after_attachment_load_gap": 0,
+      "thread_open_anchor_delta": 37.875,
+      "thread_close_anchor_delta": 0.0,
+      "membership_join_anchor_delta": 0.0,
+      "held_images": 2,
+      "selected_reading_anchor_delta": -0.4375,
+      "unselected_root_header_note": "The previous visible paragraph starts 39.71875 px above the viewport and wins over the next header at +39.90625. That selected paragraph stays within 0.4375 px; the next header shifts 37.875 px as the preceding paragraph rewraps. Original table/header measurements stay attributed to 9d3ee90."
+    }
+  },
+  "retained_measurements_source": "f4a33ae baseline versus 9d3ee90; original before/after header metrics are historical."
 }

@@ -1,0 +1,3 @@
+Created board in /tmp/reading-repro-vpsnr838/board (schema v33).
+Operator token saved to /tmp/reading-repro-vpsnr838/board/operator.token (mode 0600). Keep it secret; open the dashboard with it to create invite links.
+{"actual_markdown_renderer": true, "storage_inline_check": {"inline_image_decoded": true, "viewer_fresh_info_loaded": true, "thread_anchor_delta": -0.21875}, "long_message_reply_button_delta": -0.21875, "initial_bottom_gap": 0, "after_attachment_load_gap": 0, "thread_open_anchor_delta": 37.875, "thread_close_anchor_delta": 0.0, "membership_join_anchor_delta": 0.0, "held_images": 2}
