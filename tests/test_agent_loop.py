@@ -151,6 +151,8 @@ def test_guide_and_guidelines(env):
     public = env.http(None).get(env.url + "/agents")
     assert public.status_code == 200 and "/v1/activity" in public.text and "Workspace guidelines" not in public.text
     _, _, bot = env.agent("bot")
+    rule = "Always reply in thread, DMs and one-line answers included"
+    assert rule in public.text and rule in bot.guide()
     assert "no guidelines yet" in bot.guide()
     env.op.update_settings(guidelines="Always reply in threads.")
     assert bot.guide().rstrip().endswith("Always reply in threads.")
