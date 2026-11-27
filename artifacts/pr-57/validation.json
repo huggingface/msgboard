@@ -1,6 +1,6 @@
 {
   "pr": 57,
-  "head": "e8a3ce5dd9bbcce0a6dc29956c7ef7ddf7b9b0a5",
+  "head": "66a2ae77717efc1131d487cdd166d6cbc818f6d3",
   "browser_test": {
     "name": "test_thread_panel_preserves_channel_reading_position",
     "passed": 1,
@@ -110,5 +110,25 @@
     "new_board_fixtures": 0,
     "full_suite_repeated": false,
     "native_mac_safari": "still unverified"
+  },
+  "review_4": {
+    "head": "66a2ae77717efc1131d487cdd166d6cbc818f6d3",
+    "test_file": "tests/test_tasks_layout.py",
+    "passed": 2,
+    "seconds": 62.66,
+    "finding_12": "Exclude select from the :focus-visible descendant rule as well as :read-write. Three-line search regression clicks #sf-sort, moves into results, and requires hidden color. Existing Tasks checkbox still reveals the bar from keyboard focus.",
+    "baseline": "Preceding e8a3ce5 fails the added search assertion in 25.25 s.",
+    "new_test_functions": 0,
+    "new_board_fixtures": 0,
+    "native_mac_safari": "still unverified",
+    "full_suite_repeated": false,
+    "integration": {
+      "branch": "integration/57-58-review1",
+      "head": "3f96166ac9e898223ac9d05e86710be22d1141c6",
+      "reading_position_head": "0ce0747011dae6c57bc142bc97bb57a1dc3f69ea",
+      "scrollbar_head": "66a2ae77717efc1131d487cdd166d6cbc818f6d3",
+      "passed": 2,
+      "seconds": 67.21
+    }
   }
 }

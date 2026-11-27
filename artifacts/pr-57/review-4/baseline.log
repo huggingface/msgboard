@@ -1,0 +1,339 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_thread_panel_preserves_channel_reading_position _____________
+
+env = <tests.conftest.Env object at 0x7f7d5bee6850>
+
+    def test_thread_panel_preserves_channel_reading_position(env):
+        _, token, owner = env.human("reader")
+        channel = owner.create_channel("reading")
+        for i in range(18):
+            owner.create_channel(f"scroll-sidebar-{i}")
+        messages = [owner.post(channel["id"], f"Message {i}: " + "A longer paragraph wraps differently when the thread opens. " * 16)
+                    for i in range(45)]
+        for message in (messages[22], messages[-1]):
+            owner.post(channel["id"], "A reply that needs scrolling. " * 60, reply_to=message["id"])
+        with pw.sync_playwright() as p:
+            browser = p.chromium.launch(executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"),
+                                        ignore_default_args=["--hide-scrollbars"])
+            context = browser.new_context(viewport={"width": 1440, "height": 850})
+            context.add_init_script("localStorage.setItem('msgboard:token', " + json.dumps(token) + ")")
+            context.route("https://cdnjs.cloudflare.com/**", lambda route: route.abort())
+            page = context.new_page()
+            errors = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            page.goto(env.url + "/#reading")
+            pw.expect(page.locator('#messages .msg')).to_have_count(45)
+            root_id = messages[22]["id"]
+            root = page.locator(f'#messages .msg[data-mid="{root_id}"]')
+            root.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top+30; }")
+            top = root.bounding_box()["y"]
+            # A native click, rather than calling the dashboard's internal functions.
+            root.locator(f'.replies[data-thread="{root_id}"]').click()
+            pw.expect(page.locator('#panel-composer textarea')).to_be_visible()
+            pw.expect(root).to_be_in_viewport()
+            page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+            # Reading a pane under the pointer must not keep its scrollbar visible.
+            hidden = "rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)"
+            for selector in ('.nav-scroll', '#scroll', '#panel-scroll'):
+                pane = page.locator(selector)
+                assert pane.evaluate('el => el.scrollHeight > el.clientHeight')
+                pane.evaluate('el => el.scrollTop = el.scrollHeight / 2')
+                pane.hover(position={'x': 30, 'y': 40})
+                pw.expect(pane).to_have_css('scrollbar-color', hidden)
+                before_width = pane.evaluate('el => el.clientWidth')
+                page.mouse.wheel(0, -120)
+                pw.expect(pane).not_to_have_css('scrollbar-color', hidden)
+                pw.expect(pane).to_have_css('scrollbar-color', hidden)
+                assert pane.evaluate('el => el.clientWidth') == before_width
+                box = pane.bounding_box()
+                page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 40)
+                pw.expect(pane).not_to_have_css('scrollbar-color', hidden)
+                page.mouse.move(box['x'] + box['width'] - 8, box['y'] + 40)
+                pw.expect(pane).to_have_css('scrollbar-color', re.compile(r'^rgb\('))
+                # Exercise the real native thumb, not only its computed CSS color.
+                before_drag = pane.evaluate('el => { el.scrollTop = (el.scrollHeight - el.clientHeight) / 2; return el.scrollTop; }')
+                thumb_y = box['y'] + pane.evaluate('el => el.clientHeight / 2')
+                page.mouse.move(box['x'] + box['width'] - 18, thumb_y)
+                page.mouse.move(box['x'] + box['width'] - 8, thumb_y)
+                page.mouse.down()
+                page.mouse.move(box['x'] + box['width'] - 8, thumb_y + 80, steps=4)
+                page.mouse.up()
+                page.wait_for_function("({selector, before}) => document.querySelector(selector).scrollTop > before",
+                                       arg={"selector": selector, "before": before_drag}, timeout=3000)
+                pane.hover(position={'x': 30, 'y': 40})
+                pw.expect(pane).to_have_css('scrollbar-color', hidden)
+
+            # Escape changes the pane geometry without moving the pointer.
+            feed = page.locator('#scroll')
+            feed.hover(position={'x': 30, 'y': 80})
+            pw.expect(feed).to_have_css('scrollbar-color', hidden)
+            box = feed.bounding_box()
+            page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+            pw.expect(feed).not_to_have_css('scrollbar-color', hidden)
+            root.evaluate("el => { const sc=document.getElementById('scroll'); sc.scrollTop += el.getBoundingClientRect().top-sc.getBoundingClientRect().top+30; }")
+            page.keyboard.press('Escape')
+            pw.expect(page.locator('#panel')).not_to_be_visible()
+            pw.expect(feed).to_have_css('scrollbar-color', hidden)
+            page.wait_for_function("({id,top}) => Math.abs(document.querySelector('#messages .msg[data-mid=\"'+id+'\"]').getBoundingClientRect().top-top)<3", arg={"id":root_id,"top":top}, timeout=3000)
+            # Window widening must also reconsider a stationary pointer's old edge.
+            box = feed.bounding_box()
+            page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+            pw.expect(feed).not_to_have_css('scrollbar-color', hidden)
+            page.set_viewport_size({'width': 1700, 'height': 850})
+            pw.expect(feed).to_have_css('scrollbar-color', hidden)
+            page.set_viewport_size({'width': 1440, 'height': 850})
+            feed.hover(position={'x': 30, 'y': 40})
+            # At the end of a channel, opening and closing a thread keeps the end visible.
+            page.locator('#scroll').evaluate("el => el.scrollTop=el.scrollHeight")
+            last = messages[-1]["id"]
+            page.locator(f'#messages .replies[data-thread="{last}"]').click()
+            page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
+            # Exit through the native gutter without blurring the window, then reflow with Escape.
+            panel = page.locator('#panel-scroll')
+            panel.hover(position={'x': 30, 'y': 80})
+            pw.expect(panel).to_have_css('scrollbar-color', hidden)
+            box = panel.bounding_box()
+            page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+            pw.expect(panel).not_to_have_css('scrollbar-color', hidden)
+            page.mouse.move(1500, box['y'] + 80)
+            page.keyboard.press('Escape')
+            pw.expect(feed).to_have_css('scrollbar-color', hidden)
+            page.wait_for_function("(()=>{const s=document.getElementById('scroll');return s.scrollHeight-s.scrollTop-s.clientHeight<3})()")
+            # Clicking in the sidebar is not keyboard navigation and must not pin its bar.
+            page.locator('#activity-open').click()
+            nav = page.locator('.nav-scroll')
+            assert nav.evaluate("el => el.matches(':focus-within')")
+            pw.expect(nav).to_have_css('scrollbar-color', hidden)
+            page.keyboard.press('Tab')
+            page.wait_for_function("getComputedStyle(document.querySelector('.nav-scroll')).scrollbarColor !== 'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)'")
+            page.emulate_media(forced_colors='active')
+            pw.expect(nav).to_have_css('scrollbar-color', 'auto')
+            page.emulate_media(forced_colors='none')
+            # Settings width changes can move a profile panel without resizing an observed pane.
+            page.set_viewport_size({'width': 1440, 'height': 420})
+            page.locator('#settings-open').click()
+            page.locator('#me-who').click()
+            profile = page.locator('#panel-scroll')
+            pw.expect(profile.locator('.profile')).to_be_visible()
+            assert profile.evaluate('el => el.scrollHeight > el.clientHeight')
+            profile.hover(position={'x': 30, 'y': 80})
+            pw.expect(profile).to_have_css('scrollbar-color', hidden)
+            box = profile.bounding_box()
+            page.mouse.move(box['x'] + box['width'] - 18, box['y'] + 80)
+            pw.expect(profile).not_to_have_css('scrollbar-color', hidden)
+            page.set_viewport_size({'width': 1600, 'height': 420})
+            pw.expect(profile).to_have_css('scrollbar-color', hidden)
+            page.locator('#panel-close').click()
+            page.set_viewport_size({'width': 1440, 'height': 850})
+            # Text fields retain :focus-visible even after a mouse click; reading search results stays idle.
+            page.keyboard.press('Control+k')
+            query = page.locator('#search-q')
+            query.fill('Message')
+            query.press('Enter')
+            pw.expect(page.locator('#search-results .sres')).to_have_count(30)
+            search = page.locator('#search')
+            assert search.evaluate('el => el.scrollHeight > el.clientHeight')
+            search.hover(position={'x': 40, 'y': 350})
+            assert query.evaluate('el => el.matches(":focus-visible")')
+            pw.expect(search).to_have_css('scrollbar-color', hidden)
+            page.locator('#sf-sort').click()
+            search.hover(position={'x': 40, 'y': 350})
+>           pw.expect(search).to_have_css('scrollbar-color', hidden)
+E           AssertionError: Locator expected to have CSS 'rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)'
+E           Actual value: rgb(185, 185, 180) rgba(0, 0, 0, 0)
+E           Call log:
+E             - Expect "to_have_css" locator("#search") with timeout 5000ms
+E             - waiting for locator("#search")
+E               - locator resolved to <div id="search" class="scroll">…</div>
+E               - unexpected value "rgba(185, 185, 180, 0.576) rgba(0, 0, 0, 0)"
+E               - locator resolved to <div id="search" class="scroll">…</div>
+E               - unexpected value "rgba(185, 185, 180, 0.85) rgba(0, 0, 0, 0)"
+E               12 × locator resolved to <div id="search" class="scroll">…</div>
+E                  - unexpected value "rgb(185, 185, 180) rgba(0, 0, 0, 0)"
+E
+E           Aria snapshot:
+E           - searchbox "Search messages, channels and people": Message
+E           - button "Search"
+E           - text: In
+E           - combobox "In":
+E             - option "any channel" [selected]
+E             - option "#reading"
+E             - option "#scroll-sidebar-0"
+E             - option "#scroll-sidebar-1"
+E             - option "#scroll-sidebar-2"
+E             - option "#scroll-sidebar-3"
+E             - option "#scroll-sidebar-4"
+E             - option "#scroll-sidebar-5"
+E             - option "#scroll-sidebar-6"
+E             - option "#scroll-sidebar-7"
+E             - option "#scroll-sidebar-8"
+E             - option "#scroll-sidebar-9"
+E             - option "#scroll-sidebar-10"
+E             - option "#scroll-sidebar-11"
+E             - option "#scroll-sidebar-12"
+E             - option "#scroll-sidebar-13"
+E             - option "#scroll-sidebar-14"
+E             - option "#scroll-sidebar-15"
+E             - option "#scroll-sidebar-16"
+E             - option "#scroll-sidebar-17"
+E           - text: From
+E           - combobox "From":
+E             - option "anyone" [selected]
+E             - option "me"
+E             - option "operator"
+E           - text: By
+E           - combobox "By":
+E             - option "anyone" [selected]
+E             - option "agents"
+E             - option "people"
+E           - text: When
+E           - combobox "When":
+E             - option "any time" [selected]
+E             - option "today"
+E             - option "last 7 days"
+E             - option "last 30 days"
+E             - option "last 90 days"
+E           - text: Has
+E           - combobox "Has":
+E             - option "anything" [selected]
+E             - option "files"
+E             - option "replies"
+E             - option "links"
+E             - option "mentions"
+E           - text: Sort
+E           - combobox "Sort":
+E             - option "newest" [selected]
+E             - option "oldest"
+E             - option "best match"
+E           - group: Search tips
+E           - text: 45 messages
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "44: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "43: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "42: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "41: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "40: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "39: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "38: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "37: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "36: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "35: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "34: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "33: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "32: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "31: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "30: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "29: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "28: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "27: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "26: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "25: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "24: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "23: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "22: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "21: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "20: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "19: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "18: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "17: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "16: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - img "reader, person · member"
+E           - text: "reader #reading Today 03:06 PM"
+E           - mark: Message
+E           - text: "15: A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens. A longer paragraph wraps differently when the thread opens."
+E           - button "Show more"
+
+tests/test_tasks_layout.py:147: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+Created board in /tmp/pytest-of-node/pytest-52/test_thread_panel_preserves_ch0/board (schema v33).
+Operator token saved to /tmp/pytest-of-node/pytest-52/test_thread_panel_preserves_ch0/board/operator.token (mode 0600). Keep it secret; open the dashboard with it to create invite links.
+=========================== short test summary info ============================
+FAILED tests/test_tasks_layout.py::test_thread_panel_preserves_channel_reading_position
+1 failed in 25.25s
