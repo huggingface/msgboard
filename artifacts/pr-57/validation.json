@@ -14,7 +14,8 @@
       "mouse focus vs keyboard",
       "forced colors",
       "main feed anchor and bottom position"
-    ]
+    ],
+    "source": "60d0053e670637c3e3a548cd85aaabe35c7e074b"
   },
   "live_baseline_reproduction": "Chromium: pointer rests inside thread, scrolling=false, thumb remains visible in all four 1.5-second samples",
   "screenshot_fixture": "Disposable local board; invented data only; before uses original scrollbar CSS on the same page",
@@ -25,5 +26,30 @@
   ],
   "full_suite_repeated": false,
   "native_macos_safari_tested": false,
-  "deployed": false
+  "deployed": false,
+  "review_fixes": {
+    "head": "60d0053e670637c3e3a548cd85aaabe35c7e074b",
+    "test_file": "tests/test_tasks_layout.py",
+    "passed": 2,
+    "seconds": 58.79,
+    "native_scrollbars_enabled": true,
+    "actual_thumb_drag_asserted_in": [
+      "sidebar",
+      "channel",
+      "thread"
+    ],
+    "stationary_pointer_cases": [
+      "Escape closes thread",
+      "window widens"
+    ],
+    "baseline": "Extended regression failed on 60d0053 at Escape idle visibility in 19.30 s, after all native drag cases passed.",
+    "findings": {
+      "1": "fixed: ResizeObserver recomputes from last pointer coordinates",
+      "2": "fixed: --hide-scrollbars removed; actual scrollTop change asserted",
+      "3": "unverified: actual macOS/Safari access unavailable"
+    },
+    "new_test_functions": 0,
+    "new_board_fixtures": 0
+  },
+  "retained_layout_images": "Initial fix screenshots retained: review follow-up changes event handling and tests, with no CSS or layout change."
 }
